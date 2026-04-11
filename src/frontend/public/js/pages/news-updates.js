@@ -159,7 +159,7 @@ const NewsUpdatesPage = {
      * -------------------------------------------------------- */
     showQRModal() {
         document.getElementById('qr-modal-container').innerHTML = `
-            <div class="modal-overlay" onclick="if(event.target===this) NewsUpdatesPage.closeQRModal()">
+            <div class="modal-overlay modal-overlay--centered" onclick="if(event.target===this) NewsUpdatesPage.closeQRModal()">
                 <div class="modal" style="max-width: 360px; text-align: center;">
                     <div class="modal__title">Citizen Survey</div>
                     <div class="modal__desc">Scan this QR code with your phone camera to access the Pulse 911 MDRRMO citizen survey.</div>

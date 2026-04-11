@@ -188,7 +188,7 @@ const ReportIncidentPage = {
                 <div class="terms-check">
                     <input type="checkbox" id="ri-terms" checked>
                     <div class="terms-check__text">
-                        I confirm this report is accurate and understand that filing false reports may result in penalties. I agree to the <a href="#" onclick="event.preventDefault()">Terms & Conditions</a> and <a href="#" onclick="event.preventDefault()">Privacy Policy</a>.
+                        I confirm this report is accurate and understand that filing false reports may result in penalties. I agree to the <a href="#" onclick="event.preventDefault(); TermsModal.show('terms')">Terms & Conditions</a> and <a href="#" onclick="event.preventDefault(); TermsModal.show('privacy')">Privacy Policy</a>.
                     </div>
                 </div>
                 <div style="display:flex;gap:var(--spacing-sm);">

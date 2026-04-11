@@ -78,7 +78,7 @@ const LoginPage = {
                 </div>
 
                 <div class="login-page__signup">
-                    Don't have an account? <a href="#/signup">Create</a>
+                    Don't have an account? <a href="#/signup" onclick="event.preventDefault(); Router.navigate('signup')">Create</a>
                 </div>
 
                 <div class="login-page__footer">

@@ -29,6 +29,14 @@ const CitizenProfilePage = {
 
                 <div class="profile-page__group">
                     ${this.renderMenuItem({
+                        icon: 'user',
+                        label: 'Personal Information',
+                        onclick: "Router.navigate('personal-info')"
+                    })}
+                </div>
+
+                <div class="profile-page__group">
+                    ${this.renderMenuItem({
                         icon: 'appearance',
                         label: 'Appearance',
                         onclick: "Router.navigate('appearance')"
@@ -45,19 +53,6 @@ const CitizenProfilePage = {
                     ${this.renderSocialLink('facebook', 'Facebook', 'https://facebook.com')}
                     ${this.renderSocialLink('youtube', 'YouTube', 'https://youtube.com')}
                     ${this.renderSocialLink('twitter', 'X (formerly Twitter)', 'https://x.com')}
-                </div>
-
-                <div class="profile-page__group">
-                    ${this.renderMenuItem({
-                        icon: 'user',
-                        label: 'Personal Information',
-                        onclick: "Router.navigate('personal-info')"
-                    })}
-                    ${this.renderMenuItem({
-                        icon: 'info',
-                        label: 'About Us',
-                        onclick: "CitizenProfilePage.showAboutUs()"
-                    })}
                 </div>
 
                 <div class="profile-page__section-label">Legal</div>
@@ -81,6 +76,14 @@ const CitizenProfilePage = {
                         icon: 'shield',
                         label: 'Privacy Policy',
                         onclick: "CitizenProfilePage.showPrivacy()"
+                    })}
+                </div>
+
+                <div class="profile-page__group">
+                    ${this.renderMenuItem({
+                        icon: 'info',
+                        label: 'About Us',
+                        onclick: "CitizenProfilePage.showAboutUs()"
                     })}
                 </div>
 

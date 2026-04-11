@@ -1393,6 +1393,13 @@ select.input-group__field {
     font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--color-primary);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    font-variant-numeric: tabular-nums;
+}
+.hotline-item__number:hover {
+    color: var(--color-primary-dark);
 }
 
 .quick-access {
@@ -1448,6 +1455,133 @@ select.input-group__field {
     font-weight: 700;
     margin-top: 2px;
     font-variant-numeric: tabular-nums;
+}
+
+/* ------------- New Emergency category tabs ------------- */
+.emergency-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+}
+.emergency-tab {
+    background: var(--color-white);
+    border: 1.5px solid var(--color-gray-200);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-sm) 4px;
+    cursor: pointer;
+    font-family: var(--font-family);
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-align: center;
+}
+.emergency-tab:hover { border-color: var(--color-primary); }
+.emergency-tab.active {
+    background: var(--color-success-light);
+    border-color: var(--color-primary);
+}
+.emergency-tab__icon {
+    width: 32px; height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--color-gray-50);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 2px;
+}
+.emergency-tab.active .emergency-tab__icon { background: var(--color-white); }
+.emergency-tab__icon svg {
+    width: 16px; height: 16px;
+    fill: none; stroke: var(--color-primary);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.emergency-tab__label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--color-gray-900);
+    line-height: 1.1;
+}
+.emergency-tab__sublabel {
+    font-size: 0.6rem;
+    color: var(--color-gray-500);
+    font-weight: 500;
+}
+
+/* Section icon beside category heading */
+.emergency-section-icon {
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    width: 24px; height: 24px;
+    border-radius: var(--radius-full);
+    margin-right: 6px;
+}
+.emergency-section-icon svg { width: 14px; height: 14px; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.emergency-section-icon--police    { background: #DBEAFE; }
+.emergency-section-icon--police svg{ stroke: #1E40AF; }
+.emergency-section-icon--hospital  { background: #FEE2E2; }
+.emergency-section-icon--hospital svg { stroke: #B91C1C; }
+.emergency-section-icon--fire      { background: #FEF3C7; }
+.emergency-section-icon--fire svg  { stroke: #D97706; }
+.emergency-section-icon--redcross  { background: #FEE2E2; }
+.emergency-section-icon--redcross svg { stroke: #EF4444; }
+
+/* Detailed contact cards */
+.contact-card {
+    background: var(--color-white);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
+    border: 1px solid var(--color-gray-200);
+    box-shadow: var(--shadow-sm);
+}
+.contact-card__title {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--color-gray-900);
+    margin-bottom: 2px;
+}
+.contact-card__subtitle {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-500);
+    margin-bottom: var(--spacing-md);
+}
+.contact-card__numbers {
+    display: flex; flex-direction: column; gap: var(--spacing-sm);
+}
+.contact-number {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 10px var(--spacing-md);
+    background: var(--color-success-light);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: var(--color-primary-dark);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    transition: background 0.15s;
+}
+.contact-number:hover { background: var(--color-primary); color: white; }
+.contact-number svg {
+    width: 16px; height: 16px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
+}
+.contact-number__tag {
+    font-weight: 700;
+    opacity: 0.8;
+}
+.contact-number__value {
+    font-variant-numeric: tabular-nums;
+    flex: 1;
+}
+.contact-card__note {
+    margin-top: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-400);
+    font-style: italic;
 }
 
 .emergency-banner {

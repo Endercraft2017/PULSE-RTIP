@@ -262,7 +262,7 @@ const AdminDashboardPage = {
         const title = incident ? incident.title : 'Report #' + id;
 
         document.getElementById('rejection-modal').innerHTML = `
-            <div class="modal-overlay" onclick="if(event.target===this) AdminDashboardPage.closeRejectModal()">
+            <div class="modal-overlay modal-overlay--centered" onclick="if(event.target===this) AdminDashboardPage.closeRejectModal()">
                 <div class="modal">
                     <div class="modal__title">Reject Report</div>
                     <div class="modal__desc">Please provide a reason for rejecting "${title}". The citizen will be notified.</div>

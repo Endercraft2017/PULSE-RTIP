@@ -106,7 +106,7 @@ const SignupPage = {
 
                     <label class="login-page__terms">
                         <input type="checkbox" name="agreeTerms" ${f.agreeTerms ? 'checked' : ''} required>
-                        I agree with the <a href="#" onclick="event.preventDefault()">Terms &amp; Conditions</a>
+                        I agree with the <a href="#" onclick="event.preventDefault(); TermsModal.show('terms')">Terms &amp; Conditions</a>
                     </label>
 
                     <button type="submit" class="btn btn--primary btn--block mt-lg">Create account</button>
@@ -146,7 +146,7 @@ const SignupPage = {
 
                 <div class="role-cards">
                     <button type="button" class="role-card ${role === 'citizen' ? 'role-card--active' : ''}"
-                            onclick="SignupPage.selectRole('citizen')">
+                            onclick="SignupPage.selectRole('citizen', this)">
                         <div class="role-card__icon">
                             <svg viewBox="0 0 24 24">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -158,7 +158,7 @@ const SignupPage = {
                     </button>
 
                     <button type="button" class="role-card ${role === 'admin' ? 'role-card--active' : ''}"
-                            onclick="SignupPage.selectRole('admin')">
+                            onclick="SignupPage.selectRole('admin', this)">
                         <div class="role-card__icon">
                             <svg viewBox="0 0 24 24">
                                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
@@ -316,12 +316,12 @@ const SignupPage = {
         document.getElementById('app-content').innerHTML = this.render();
     },
 
-    selectRole(role) {
+    selectRole(role, el) {
         this._state.form.role = role;
         document.querySelectorAll('.role-card').forEach(card => {
             card.classList.remove('role-card--active');
         });
-        event.currentTarget.classList.add('role-card--active');
+        if (el) el.classList.add('role-card--active');
         // Enable continue button
         const continueBtn = document.querySelector('.login-page__nav-buttons .btn--primary');
         if (continueBtn) continueBtn.disabled = false;
@@ -343,15 +343,22 @@ const SignupPage = {
        8. Form Handlers
        -------------------------------------------------------- */
     handleCreateAccount(event) {
-        const form = event.target;
         const f = this._state.form;
 
-        f.name = form.name.value.trim();
-        f.email = form.email.value.trim();
-        f.phone = form.phone.value.trim();
-        f.password = form.password.value;
-        f.confirmPassword = form.confirmPassword.value;
-        f.agreeTerms = form.agreeTerms.checked;
+        // NOTE: do NOT use `form.name` — it conflicts with HTMLFormElement.name.
+        // Use getElementById / form.elements[name] for safety.
+        f.name = document.getElementById('signup-name').value.trim();
+        f.email = document.getElementById('signup-email').value.trim();
+        f.phone = document.getElementById('signup-phone').value.trim();
+        f.password = document.getElementById('signup-password').value;
+        f.confirmPassword = document.getElementById('signup-confirm').value;
+        const termsEl = document.querySelector('#signup-form input[name="agreeTerms"]');
+        f.agreeTerms = termsEl ? termsEl.checked : false;
+
+        if (!f.name) {
+            alert('Please enter your full name.');
+            return;
+        }
 
         if (f.password !== f.confirmPassword) {
             alert('Passwords do not match.');
@@ -381,11 +388,12 @@ const SignupPage = {
     },
 
     handleVerifyId(event) {
-        const form = event.target;
         const f = this._state.form;
 
-        f.idType = form.idType.value;
-        f.idNumber = form.idNumber.value.trim();
+        const idTypeEl = document.getElementById('id-type');
+        const idNumberEl = document.getElementById('id-number');
+        f.idType = idTypeEl ? idTypeEl.value : '';
+        f.idNumber = idNumberEl ? idNumberEl.value.trim() : '';
 
         if (!f.idType || !f.idNumber) {
             alert('Please fill in all required fields.');
