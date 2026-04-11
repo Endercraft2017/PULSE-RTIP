@@ -703,8 +703,8 @@ h4 { font-size: var(--font-size-base); }
 
 .login-page__brand {
     text-align: center;
-    margin-top: 40px;
-    margin-bottom: 32px;
+    margin-top: var(--spacing-xl);
+    margin-bottom: var(--spacing-2xl);
 }
 
 .login-page__logo {
@@ -2432,7 +2432,7 @@ body.dark-mode {
         margin-top: 16px;
         margin-bottom: 16px;
         min-height: calc(100dvh - 32px);
-        overflow: hidden;
+        /* Allow content to grow beyond min-height; body scrolls naturally */
     }
 
     #app-header {
@@ -2446,12 +2446,11 @@ body.dark-mode {
     }
 
     .login-page {
-        justify-content: center;
         padding: var(--spacing-2xl) var(--spacing-xl);
     }
 
     .login-page__brand {
-        margin-top: 0;
+        margin-top: var(--spacing-lg);
     }
 
     .dashboard-stats {
