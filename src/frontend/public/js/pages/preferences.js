@@ -1,28 +1,34 @@
 /* ============================================================
    Preferences Page
    ============================================================
+   App behavior preferences (notifications, location).
+   Theme/text size moved to the dedicated Appearance page.
    Table of Contents:
    1. State initialization
    2. Render method
    3. Toggle handlers
-   4. Dark mode implementation
+   4. Save handler
    ============================================================ */
 
 const PreferencesPage = {
     prefs: {},
 
+    /* --------------------------------------------------------
+       1. State initialization
+       -------------------------------------------------------- */
     init() {
         const saved = localStorage.getItem('pulse_preferences');
         this.prefs = saved ? JSON.parse(saved) : {
             notifStatusUpdates: true,
             notifHazardAlerts: true,
             notifEmergency: true,
-            darkMode: false,
-            compactView: false,
             autoLocation: true,
         };
     },
 
+    /* --------------------------------------------------------
+       2. Render
+       -------------------------------------------------------- */
     render() {
         this.init();
         const p = this.prefs;
@@ -55,23 +61,6 @@ const PreferencesPage = {
                         </div>
                     </div>
                     <div class="pref-group">
-                        <div class="pref-group__title">Display</div>
-                        <div class="pref-item">
-                            <div>
-                                <div class="pref-item__label">Dark Mode</div>
-                                <div class="pref-item__desc">Switch to dark theme</div>
-                            </div>
-                            <div class="toggle ${p.darkMode ? 'active' : ''}" onclick="PreferencesPage.toggle('darkMode', this)"><div class="toggle__knob"></div></div>
-                        </div>
-                        <div class="pref-item">
-                            <div>
-                                <div class="pref-item__label">Compact View</div>
-                                <div class="pref-item__desc">Show more items with smaller cards</div>
-                            </div>
-                            <div class="toggle ${p.compactView ? 'active' : ''}" onclick="PreferencesPage.toggle('compactView', this)"><div class="toggle__knob"></div></div>
-                        </div>
-                    </div>
-                    <div class="pref-group">
                         <div class="pref-group__title">Location</div>
                         <div class="pref-item">
                             <div>
@@ -87,37 +76,28 @@ const PreferencesPage = {
         `;
     },
 
+    /* --------------------------------------------------------
+       3. Toggle Handlers
+       -------------------------------------------------------- */
     toggle(key, el) {
         this.prefs[key] = !this.prefs[key];
         el.classList.toggle('active');
-
-        if (key === 'darkMode') {
-            this.applyDarkMode(this.prefs.darkMode);
-        }
     },
 
-    applyDarkMode(enabled) {
-        if (enabled) {
-            document.body.classList.add('dark-mode');
-        } else {
-            document.body.classList.remove('dark-mode');
-        }
-    },
-
+    /* --------------------------------------------------------
+       4. Save Handler
+       -------------------------------------------------------- */
     save() {
         localStorage.setItem('pulse_preferences', JSON.stringify(this.prefs));
         alert('Preferences saved!');
         history.back();
     },
 
-    /** Called on app startup to apply saved dark mode */
+    /**
+     * Compatibility shim — retained because app.js calls it on startup.
+     * Theme restoration now lives in AppearancePage.restoreAppearance().
+     */
     restoreTheme() {
-        const saved = localStorage.getItem('pulse_preferences');
-        if (saved) {
-            const prefs = JSON.parse(saved);
-            if (prefs.darkMode) {
-                document.body.classList.add('dark-mode');
-            }
-        }
+        // No-op: theme handled by AppearancePage
     }
 };
