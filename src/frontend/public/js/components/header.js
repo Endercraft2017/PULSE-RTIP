@@ -24,6 +24,7 @@ const Header = {
             'admin-profile': 'Profile',
             'report-incident': 'Report Incident',
             'news-updates': 'News & Updates',
+            'personal-info': 'Personal Information',
             'edit-profile': 'Edit Profile',
             'report-progress': 'Report Progress',
             'service-request': 'Service Request Progress',

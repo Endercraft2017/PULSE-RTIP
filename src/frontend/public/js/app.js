@@ -48,6 +48,7 @@
     Router.register('news-updates', () => NewsUpdatesPage.render(), {});
 
     // Profile sub-pages (shared by citizen and admin)
+    Router.register('personal-info', () => PersonalInfoPage.render(), {});
     Router.register('edit-profile', () => EditProfilePage.render(), {});
     Router.register('report-progress', () => ReportProgressPage.render(), {});
     Router.register('service-request', () => ServiceRequestPage.render(), {});
