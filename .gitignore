@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+
+# Environment
+*.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Database
+*.db
+*.sqlite
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Uploads
+uploads/
+
+# Electron
+release/
+
+# AI tools (must not reach main branch)
+CLAUDE.md
+.claude/

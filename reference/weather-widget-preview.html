@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#16A34A">
+    <title>PULSE 911 - Weather Widget Preview</title>
+    <style>
+        @font-face {
+            font-family: 'Inter';
+            src: url('../src/frontend/public/assets/fonts/InterVariable.woff2') format('woff2');
+            font-weight: 100 900; font-style: normal; font-display: swap;
+        }
+        :root {
+            --color-primary: #16A34A; --color-primary-dark: #15803D;
+            --color-danger: #EF4444; --color-danger-light: #FEE2E2;
+            --color-warning: #F59E0B; --color-warning-light: #FEF3C7;
+            --color-info: #3B82F6; --color-info-light: #DBEAFE;
+            --color-success: #16A34A; --color-success-light: #DCFCE7;
+            --color-bg: #F3F4F6; --color-white: #FFFFFF;
+            --color-gray-50: #F9FAFB; --color-gray-100: #F3F4F6;
+            --color-gray-200: #E5E7EB; --color-gray-300: #D1D5DB;
+            --color-gray-400: #9CA3AF; --color-gray-500: #6B7280;
+            --color-gray-600: #4B5563; --color-gray-700: #374151;
+            --color-gray-800: #1F2937; --color-gray-900: #111827;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+            --radius-xl: 16px; --radius-full: 9999px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+            --spacing-xs: 4px; --spacing-sm: 8px; --spacing-md: 12px;
+            --spacing-lg: 16px; --spacing-xl: 20px; --spacing-2xl: 24px;
+            --max-width: 480px;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: var(--font-family); background: var(--color-bg);
+            color: var(--color-gray-900); line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+        .app-shell { max-width: var(--max-width); margin: 0 auto; min-height: 100vh; background: var(--color-bg); }
+        .view-label {
+            font-size: 0.65rem; color: var(--color-gray-400); text-align: center;
+            padding: 6px; background: var(--color-warning-light); font-weight: 600;
+        }
+        .page-padding { padding: var(--spacing-lg); }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); }
+        .section-header__title { font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .section-header__title svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--radius-full); font-size: 0.7rem; font-weight: 600; }
+        .badge--high { background: var(--color-danger-light); color: var(--color-danger); }
+        .badge--warning { background: var(--color-warning-light); color: var(--color-warning); }
+        .badge--info { background: var(--color-info-light); color: var(--color-info); }
+        .badge--success { background: var(--color-success-light); color: var(--color-success); }
+        .mt-lg { margin-top: var(--spacing-lg); }
+        .mb-lg { margin-bottom: var(--spacing-lg); }
+
+        /* ============================================================
+           Weather Widget
+           ============================================================ */
+        .weather-widget {
+            background: linear-gradient(135deg, #1E40AF, #3B82F6);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            color: white;
+            margin-bottom: var(--spacing-lg);
+            position: relative;
+            overflow: hidden;
+        }
+        .weather-widget::after {
+            content: '';
+            position: absolute;
+            top: -30px; right: -20px;
+            width: 120px; height: 120px;
+            background: rgba(255,255,255,0.08);
+            border-radius: var(--radius-full);
+        }
+        .weather-widget__header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: var(--spacing-md);
+        }
+        .weather-widget__location { font-size: 0.8rem; font-weight: 500; opacity: 0.85; }
+        .weather-widget__date { font-size: 0.7rem; opacity: 0.65; margin-top: 2px; }
+        .weather-widget__icon { position: relative; z-index: 1; }
+        .weather-widget__icon svg { width: 48px; height: 48px; fill: none; stroke: white; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+        .weather-widget__main {
+            display: flex; align-items: flex-end; gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+        .weather-widget__temp { font-size: 3rem; font-weight: 700; line-height: 1; }
+        .weather-widget__temp-unit { font-size: 1.2rem; font-weight: 400; opacity: 0.7; vertical-align: top; }
+        .weather-widget__condition { font-size: 0.875rem; font-weight: 500; opacity: 0.9; margin-bottom: 4px; }
+
+        .weather-widget__details {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-sm);
+            background: rgba(255,255,255,0.1);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-md);
+        }
+        .weather-detail { text-align: center; }
+        .weather-detail__value { font-size: 0.875rem; font-weight: 600; }
+        .weather-detail__label { font-size: 0.65rem; opacity: 0.7; margin-top: 2px; }
+
+        /* ============================================================
+           Forecast Row
+           ============================================================ */
+        .forecast-row {
+            display: flex; gap: var(--spacing-sm);
+            overflow-x: auto; padding-bottom: var(--spacing-sm);
+            -ms-overflow-style: none; scrollbar-width: none;
+        }
+        .forecast-row::-webkit-scrollbar { display: none; }
+
+        .forecast-item {
+            flex-shrink: 0;
+            background: var(--color-white);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-md);
+            text-align: center;
+            min-width: 72px;
+            border: 1px solid var(--color-gray-200);
+        }
+        .forecast-item--active {
+            background: var(--color-primary);
+            color: white;
+            border-color: var(--color-primary);
+        }
+        .forecast-item__day { font-size: 0.65rem; font-weight: 600; opacity: 0.7; text-transform: uppercase; }
+        .forecast-item--active .forecast-item__day { opacity: 1; }
+        .forecast-item__icon { margin: var(--spacing-sm) 0; }
+        .forecast-item__icon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .forecast-item__temp { font-size: 0.8rem; font-weight: 700; }
+        .forecast-item__range { font-size: 0.65rem; color: var(--color-gray-400); }
+        .forecast-item--active .forecast-item__range { color: rgba(255,255,255,0.7); }
+
+        /* ============================================================
+           Hazard Info Cards
+           ============================================================ */
+        .hazard-info-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm);
+        }
+        .hazard-info-card {
+            background: var(--color-white);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-md);
+            border: 1px solid var(--color-gray-200);
+        }
+        .hazard-info-card__header {
+            display: flex; align-items: center; gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+        }
+        .hazard-info-card__icon {
+            width: 28px; height: 28px; border-radius: var(--radius-md);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .hazard-info-card__icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .hazard-info-card__icon--flood { background: var(--color-info-light); color: var(--color-info); }
+        .hazard-info-card__icon--typhoon { background: var(--color-danger-light); color: var(--color-danger); }
+        .hazard-info-card__icon--rain { background: var(--color-info-light); color: var(--color-info); }
+        .hazard-info-card__icon--heat { background: var(--color-warning-light); color: var(--color-warning); }
+        .hazard-info-card__title { font-size: 0.75rem; font-weight: 600; }
+        .hazard-info-card__value { font-size: 1.1rem; font-weight: 700; }
+        .hazard-info-card__desc { font-size: 0.65rem; color: var(--color-gray-400); margin-top: 2px; }
+
+        /* Welcome card for context */
+        .welcome-card {
+            background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+            color: white; border-radius: var(--radius-lg);
+            padding: var(--spacing-xl); margin-bottom: var(--spacing-lg);
+        }
+        .welcome-card__title { font-size: 1rem; font-weight: 700; margin-bottom: var(--spacing-sm); }
+        .welcome-card__text { font-size: 0.875rem; opacity: 0.9; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <div class="view-label">PREVIEW - Weather Widget for Home Page (not live yet)</div>
+
+        <div class="page-padding">
+            <!-- Welcome Card (existing) -->
+            <div class="welcome-card">
+                <div class="welcome-card__title">Welcome, MDRRMO Admin!</div>
+                <div class="welcome-card__text">Stay informed about hazards in your area and report incidents to help your community.</div>
+            </div>
+
+            <!-- Weather Widget (NEW) -->
+            <div class="weather-widget">
+                <div class="weather-widget__header">
+                    <div>
+                        <div class="weather-widget__location">Morong, Rizal</div>
+                        <div class="weather-widget__date">Thursday, April 10</div>
+                    </div>
+                    <div class="weather-widget__icon">
+                        <!-- Partly cloudy icon -->
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2v2"></path>
+                            <path d="M12 20v2"></path>
+                            <path d="m4.93 4.93 1.41 1.41"></path>
+                            <path d="m17.66 17.66 1.41 1.41"></path>
+                            <path d="M2 12h2"></path>
+                            <path d="m19.07 4.93-1.41 1.41"></path>
+                            <circle cx="12" cy="12" r="4"></circle>
+                            <path d="M16 18a4 4 0 0 0-8 0"></path>
+                            <path d="M17.5 21H6.5"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="weather-widget__main">
+                    <div>
+                        <div class="weather-widget__temp">32<span class="weather-widget__temp-unit">&deg;C</span></div>
+                    </div>
+                    <div>
+                        <div class="weather-widget__condition">Partly Cloudy</div>
+                        <div style="font-size: 0.7rem; opacity: 0.65;">Feels like 36&deg;C</div>
+                    </div>
+                </div>
+
+                <div class="weather-widget__details">
+                    <div class="weather-detail">
+                        <div class="weather-detail__value">78%</div>
+                        <div class="weather-detail__label">Humidity</div>
+                    </div>
+                    <div class="weather-detail">
+                        <div class="weather-detail__value">12 km/h</div>
+                        <div class="weather-detail__label">Wind</div>
+                    </div>
+                    <div class="weather-detail">
+                        <div class="weather-detail__value">65%</div>
+                        <div class="weather-detail__label">Rain Chance</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5-Day Forecast (NEW) -->
+            <div class="section-header">
+                <div class="section-header__title">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    5-Day Forecast
+                </div>
+            </div>
+            <div class="forecast-row mb-lg">
+                <div class="forecast-item forecast-item--active">
+                    <div class="forecast-item__day">Today</div>
+                    <div class="forecast-item__icon">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m17.66 6.34 1.41-1.41"></path><path d="m4.93 19.07 1.41-1.41"></path></svg>
+                    </div>
+                    <div class="forecast-item__temp">32&deg;</div>
+                    <div class="forecast-item__range">25&deg;</div>
+                </div>
+                <div class="forecast-item">
+                    <div class="forecast-item__day">Fri</div>
+                    <div class="forecast-item__icon">
+                        <svg viewBox="0 0 24 24"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="8" y1="20" x2="8.01" y2="20"></line><line x1="12" y1="18" x2="12.01" y2="18"></line><line x1="12" y1="22" x2="12.01" y2="22"></line><line x1="16" y1="16" x2="16.01" y2="16"></line><line x1="16" y1="20" x2="16.01" y2="20"></line></svg>
+                    </div>
+                    <div class="forecast-item__temp">29&deg;</div>
+                    <div class="forecast-item__range">24&deg;</div>
+                </div>
+                <div class="forecast-item">
+                    <div class="forecast-item__day">Sat</div>
+                    <div class="forecast-item__icon">
+                        <svg viewBox="0 0 24 24"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="8" y1="20" x2="8.01" y2="20"></line><line x1="12" y1="18" x2="12.01" y2="18"></line><line x1="12" y1="22" x2="12.01" y2="22"></line><line x1="16" y1="16" x2="16.01" y2="16"></line><line x1="16" y1="20" x2="16.01" y2="20"></line></svg>
+                    </div>
+                    <div class="forecast-item__temp">28&deg;</div>
+                    <div class="forecast-item__range">23&deg;</div>
+                </div>
+                <div class="forecast-item">
+                    <div class="forecast-item__day">Sun</div>
+                    <div class="forecast-item__icon">
+                        <svg viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
+                    </div>
+                    <div class="forecast-item__temp">30&deg;</div>
+                    <div class="forecast-item__range">24&deg;</div>
+                </div>
+                <div class="forecast-item">
+                    <div class="forecast-item__day">Mon</div>
+                    <div class="forecast-item__icon">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m17.66 6.34 1.41-1.41"></path><path d="m4.93 19.07 1.41-1.41"></path></svg>
+                    </div>
+                    <div class="forecast-item__temp">33&deg;</div>
+                    <div class="forecast-item__range">26&deg;</div>
+                </div>
+            </div>
+
+            <!-- Hazard Information Cards (NEW - per Req #12) -->
+            <div class="section-header">
+                <div class="section-header__title">
+                    <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    Hazard Information
+                </div>
+            </div>
+            <div class="hazard-info-grid mb-lg">
+                <div class="hazard-info-card">
+                    <div class="hazard-info-card__header">
+                        <div class="hazard-info-card__icon hazard-info-card__icon--flood">
+                            <svg viewBox="0 0 24 24"><path d="M2 15c6.667-6 13.333 0 20-6"></path><path d="M2 19c6.667-6 13.333 0 20-6"></path></svg>
+                        </div>
+                        <div class="hazard-info-card__title">Flood Risk</div>
+                    </div>
+                    <div class="hazard-info-card__value" style="color: var(--color-warning);">Moderate</div>
+                    <div class="hazard-info-card__desc">River level at 15.2m</div>
+                </div>
+                <div class="hazard-info-card">
+                    <div class="hazard-info-card__header">
+                        <div class="hazard-info-card__icon hazard-info-card__icon--typhoon">
+                            <svg viewBox="0 0 24 24"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg>
+                        </div>
+                        <div class="hazard-info-card__title">Typhoon</div>
+                    </div>
+                    <div class="hazard-info-card__value" style="color: var(--color-success);">No Signal</div>
+                    <div class="hazard-info-card__desc">No active typhoon</div>
+                </div>
+                <div class="hazard-info-card">
+                    <div class="hazard-info-card__header">
+                        <div class="hazard-info-card__icon hazard-info-card__icon--rain">
+                            <svg viewBox="0 0 24 24"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="8" y1="20" x2="8.01" y2="20"></line><line x1="12" y1="18" x2="12.01" y2="18"></line><line x1="12" y1="22" x2="12.01" y2="22"></line></svg>
+                        </div>
+                        <div class="hazard-info-card__title">Rainfall</div>
+                    </div>
+                    <div class="hazard-info-card__value" style="color: var(--color-info);">Heavy</div>
+                    <div class="hazard-info-card__desc">42mm expected today</div>
+                </div>
+                <div class="hazard-info-card">
+                    <div class="hazard-info-card__header">
+                        <div class="hazard-info-card__icon hazard-info-card__icon--heat">
+                            <svg viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg>
+                        </div>
+                        <div class="hazard-info-card__title">Heat Index</div>
+                    </div>
+                    <div class="hazard-info-card__value" style="color: var(--color-danger);">41&deg;C</div>
+                    <div class="hazard-info-card__desc">Danger level</div>
+                </div>
+            </div>
+
+            <!-- Active Hazard Alerts (existing section would go here) -->
+            <div class="section-header">
+                <div class="section-header__title">
+                    <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    Active Hazard Alerts
+                </div>
+                <a href="#" style="color: var(--color-primary); font-weight: 600; font-size: 0.8rem; text-decoration: none;">View all</a>
+            </div>
+            <div style="text-align: center; padding: 20px; color: var(--color-gray-400); font-size: 0.85rem;">(Existing hazard alert cards would appear here)</div>
+        </div>
+    </div>
+</body>
+</html>
