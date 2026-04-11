@@ -31,7 +31,7 @@ const CitizenProfilePage = {
                     ${this.renderMenuItem({
                         icon: 'appearance',
                         label: 'Appearance',
-                        onclick: "Router.navigate('preferences')"
+                        onclick: "Router.navigate('appearance')"
                     })}
                     ${this.renderMenuItem({
                         icon: 'preferences',
@@ -132,7 +132,7 @@ const CitizenProfilePage = {
     renderMenuItem({ icon, label, onclick, danger = false }) {
         const dangerClass = danger ? ' profile-menu-item--danger' : '';
         return `
-            <button class="profile-menu-item${dangerClass}" onclick="${onclick}">
+            <button type="button" class="profile-menu-item${dangerClass}" onclick="${onclick}">
                 <div class="profile-menu-item__left">
                     ${this.getIcon(icon)}
                     <span class="profile-menu-item__text">${label}</span>

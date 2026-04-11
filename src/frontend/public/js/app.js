@@ -53,6 +53,7 @@
     Router.register('report-progress', () => ReportProgressPage.render(), {});
     Router.register('service-request', () => ServiceRequestPage.render(), {});
     Router.register('preferences', () => PreferencesPage.render(), {});
+    Router.register('appearance', () => AppearancePage.render(), {});
     Router.register('activities', () => ActivitiesPage.render(), {});
 
     /* --------------------------------------------------------
@@ -80,6 +81,7 @@
        -------------------------------------------------------- */
     async function init() {
         PreferencesPage.restoreTheme();
+        AppearancePage.restoreAppearance();
         const restored = await Store.restoreSession();
 
         if (restored) {

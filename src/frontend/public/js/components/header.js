@@ -29,6 +29,7 @@ const Header = {
             'report-progress': 'Report Progress',
             'service-request': 'Service Request Progress',
             'preferences': 'Preferences',
+            'appearance': 'Appearance',
             'activities': 'Activities'
         };
         return titles[route] || 'PULSE 911';
