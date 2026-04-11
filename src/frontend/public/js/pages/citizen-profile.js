@@ -60,6 +60,21 @@ const CitizenProfilePage = {
                     })}
                 </div>
 
+                <div class="profile-page__section-label">Account</div>
+                <div class="profile-page__group">
+                    ${this.renderMenuItem({
+                        icon: 'lock',
+                        label: 'Change Password',
+                        onclick: "CitizenProfilePage.changePassword()"
+                    })}
+                    ${this.renderMenuItem({
+                        icon: 'trash',
+                        label: 'Delete Account',
+                        onclick: "CitizenProfilePage.deleteAccount()",
+                        danger: true
+                    })}
+                </div>
+
                 <div class="profile-page__section-label">Legal</div>
                 <div class="profile-page__group">
                     ${this.renderMenuItem({
@@ -129,9 +144,10 @@ const CitizenProfilePage = {
         `;
     },
 
-    renderMenuItem({ icon, label, onclick }) {
+    renderMenuItem({ icon, label, onclick, danger = false }) {
+        const dangerClass = danger ? ' profile-menu-item--danger' : '';
         return `
-            <button class="profile-menu-item" onclick="${onclick}">
+            <button class="profile-menu-item${dangerClass}" onclick="${onclick}">
                 <div class="profile-menu-item__left">
                     ${this.getIcon(icon)}
                     <span class="profile-menu-item__text">${label}</span>
@@ -170,6 +186,8 @@ const CitizenProfilePage = {
             star: '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
             document: '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
             shield: '<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>',
+            lock: '<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>',
+            trash: '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>',
             facebook: '<svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>',
             youtube: '<svg viewBox="0 0 24 24"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>',
             twitter: '<svg viewBox="0 0 24 24"><path d="M4 4l11.5 16h4.5L8.5 4z"></path><path d="M4 20l7-8"></path><path d="M13 12l7-8"></path></svg>'
@@ -182,6 +200,46 @@ const CitizenProfilePage = {
        -------------------------------------------------------- */
     showAboutUs() {
         alert('PULSE 911 - MDRRMO Morong, Rizal\n\nReal-time incident reporting platform for the Municipal Disaster Risk Reduction and Management Office of Morong, Rizal.\n\nVersion 0.1.0');
+    },
+
+    /**
+     * Initiates password change flow.
+     * Reuses the existing forgot-password recovery flow.
+     */
+    changePassword() {
+        Router.navigate('forgot-password');
+    },
+
+    /**
+     * Permanently deletes the user account after confirmation.
+     * Calls DELETE /api/users/me when the backend exposes it.
+     */
+    async deleteAccount() {
+        const confirmed = confirm(
+            'Delete your account?\n\n' +
+            'This action is permanent. All your reports, notifications, and personal data will be removed and cannot be recovered.\n\n' +
+            'Are you sure you want to continue?'
+        );
+        if (!confirmed) return;
+
+        const verify = prompt('Type DELETE to confirm permanent account deletion:');
+        if (verify !== 'DELETE') {
+            alert('Account deletion cancelled.');
+            return;
+        }
+
+        try {
+            const res = await Store.apiFetch('/api/users/me', { method: 'DELETE' });
+            if (res && res.success) {
+                alert('Your account has been deleted.');
+                Store.logout();
+                Router.navigate('login');
+            } else {
+                alert((res && res.message) || 'Account deletion is not yet available. Please contact MDRRMO support.');
+            }
+        } catch (err) {
+            alert('Account deletion is not yet available. Please contact MDRRMO support.');
+        }
     },
 
     reportBug() {
