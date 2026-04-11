@@ -1837,6 +1837,161 @@ select.input-group__field {
     fill: none;
     stroke: var(--color-gray-400);
     stroke-width: 2;
+    flex-shrink: 0;
+}
+
+/* ----- Citizen Profile Page (matches Profile User2/3 design) ----- */
+.profile-page {
+    padding: var(--spacing-lg);
+    padding-bottom: calc(var(--nav-height) + var(--spacing-2xl));
+}
+
+/* Avatar card at top */
+.profile-card {
+    background-color: var(--color-white);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-xl) var(--spacing-lg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    margin-bottom: var(--spacing-lg);
+}
+
+.profile-card__avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    color: var(--color-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 auto var(--spacing-md);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+}
+
+.profile-card__name {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-gray-900);
+    margin-bottom: var(--spacing-lg);
+}
+
+.profile-card__info-row {
+    display: flex;
+    align-items: stretch;
+    gap: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-gray-100);
+}
+
+.profile-card__info {
+    flex: 1;
+    text-align: center;
+}
+
+.profile-card__divider {
+    width: 1px;
+    background-color: var(--color-gray-200);
+}
+
+.profile-card__info-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-500);
+    margin-bottom: 4px;
+}
+
+.profile-card__info-value {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-gray-900);
+}
+
+/* Section labels (e.g. "Support", "Legal") */
+.profile-page__section-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: var(--spacing-lg) var(--spacing-md) var(--spacing-sm);
+}
+
+/* Grouped menu container (rounded card with menu items) */
+.profile-page__group {
+    background-color: var(--color-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    margin-bottom: var(--spacing-md);
+}
+
+.profile-page__group .profile-menu-item {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--color-gray-100);
+    font-family: var(--font-family);
+    text-align: left;
+    text-decoration: none;
+    color: inherit;
+}
+
+.profile-page__group .profile-menu-item:last-child {
+    border-bottom: none;
+}
+
+/* Social brand-colored icons */
+.profile-menu-item__social-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-white);
+    flex-shrink: 0;
+}
+
+.profile-menu-item__social-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+}
+
+.profile-menu-item__social-icon--facebook {
+    background-color: #1877F2;
+}
+
+.profile-menu-item__social-icon--youtube {
+    background-color: #FF0000;
+}
+
+.profile-menu-item__social-icon--twitter {
+    background-color: #000000;
+}
+
+/* When social icon is present, hide the default left svg */
+.profile-page__group .profile-menu-item__left .profile-menu-item__social-icon ~ svg {
+    display: none;
+}
+
+/* Logout button at bottom */
+.profile-page__logout {
+    margin-top: var(--spacing-xl);
+}
+
+.profile-page__logout svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 /* ============================================================
