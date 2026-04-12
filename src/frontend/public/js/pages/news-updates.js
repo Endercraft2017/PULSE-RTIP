@@ -5,76 +5,20 @@
    Community news feed with search, category filter, and a
    featured "Latest News" section.
    Table of Contents:
-   1. State & mock data
+   1. State
    2. Render method
-   3. List render + card render
-   4. Filter & search handling
-   5. Helper methods
+   3. Data loading
+   4. List render + card render
+   5. Create post modal + submission
+   6. Filter & search handling
+   7. QR modal
+   8. Helper methods
    ============================================================ */
 
 const NewsUpdatesPage = {
     activeFilter: 'all',
     searchTerm: '',
-
-    /* --------------------------------------------------------
-     * 1. Mock posts (to be replaced with API)
-     * -------------------------------------------------------- */
-    posts: [
-        {
-            id: 1,
-            category: 'community',
-            title: 'Call for Respondents: Pulse 911 MDRRMO',
-            excerpt: 'MDRRMO Morong is looking for community respondents to participate in the Pulse 911 emergency response survey. Help shape a more resilient community.',
-            date: 'Nov 14, 2025',
-            type: 'post',
-            image: 'public/assets/news/community-survey.jpg',
-        },
-        {
-            id: 2,
-            category: 'community',
-            title: 'Muling namahagi ng packed dinner ang mga staff ng ating Mayor Sidney Soriano sa Evacuation Center sa Municipal Gym, Barangay San Pedro.',
-            excerpt: 'The office of Mayor Sidney Soriano once again distributed packed dinners to evacuees at the Municipal Gym Evacuation Center in Barangay San Pedro.',
-            date: 'Jan 8, 2026',
-            type: 'post',
-            image: 'public/assets/news/relief-goods.jpg',
-        },
-        {
-            id: 3,
-            category: 'community',
-            title: 'PAMAMAHAGI NG LIBRENG SCHOOL SUPPLIES',
-            excerpt: 'Free school supplies distribution for students in Morong. Visit your nearest barangay hall to claim your school kits. Schedule and eligibility details posted at your barangay.',
-            date: 'Jan 8, 2026',
-            type: 'post',
-            image: 'public/assets/news/school-supplies.jpg',
-        },
-        {
-            id: 4,
-            category: 'city-news',
-            title: 'Isang Provincial Most Wanted, Arestado sa Morong Rizal',
-            excerpt: 'A provincial most-wanted individual has been arrested in Morong, Rizal by the local police force in a coordinated operation.',
-            date: 'Oct 22, 2024',
-            type: 'post',
-            image: 'public/assets/news/police-operation.jpg',
-        },
-        {
-            id: 5,
-            category: 'videos',
-            title: 'Morong, Rizal launches next-gen 911 emergency communication system',
-            excerpt: 'A new 911 emergency communication system is now operational in Morong, Rizal, improving response times and citizen safety.',
-            date: 'Mar 18, 2021',
-            type: 'video',
-            image: 'public/assets/news/emergency-system.jpg',
-        },
-        {
-            id: 6,
-            category: 'city-news',
-            title: 'Nauna ng isinagawa ang vaccine roll-outs sa mga public hospitals ng Antipolo, Binangonan, Montalban, at Morong',
-            excerpt: 'Vaccine roll-outs have been successfully conducted in public hospitals across Antipolo, Binangonan, Montalban, and Morong, prioritizing frontline workers and senior citizens.',
-            date: 'Mar 18, 2021',
-            type: 'post',
-            image: 'public/assets/news/vaccine-rollout.jpg',
-        },
-    ],
+    posts: [],
 
     featured: {
         title: 'PULSE 911 MDRRMO',
@@ -87,6 +31,8 @@ const NewsUpdatesPage = {
      * 2. Render
      * -------------------------------------------------------- */
     render() {
+        setTimeout(() => this.loadData(), 0);
+
         return `
             <div class="page-padding">
                 <h1 class="news-page__title">News &amp; Updates</h1>
@@ -146,7 +92,7 @@ const NewsUpdatesPage = {
                 </div>
 
                 <div id="news-list">
-                    ${this.renderList()}
+                    <div class="loading-state">Loading posts...</div>
                 </div>
             </div>
 
@@ -163,7 +109,90 @@ const NewsUpdatesPage = {
     },
 
     /* --------------------------------------------------------
-     * 2c. Create Post Modal
+     * 3. Data Loading
+     * -------------------------------------------------------- */
+    async loadData() {
+        try {
+            const res = await Store.apiFetch('/api/posts');
+            if (res.success) {
+                this.posts = res.data;
+            }
+        } catch (err) {
+            console.error('Failed to load posts:', err);
+        }
+        this.refreshList();
+    },
+
+    /* --------------------------------------------------------
+     * 4. List & card rendering
+     * -------------------------------------------------------- */
+    refreshList() {
+        const container = document.getElementById('news-list');
+        if (container) container.innerHTML = this.renderList();
+    },
+
+    renderList() {
+        let filtered = this.activeFilter === 'all'
+            ? this.posts
+            : this.posts.filter(p => p.category === this.activeFilter);
+
+        if (this.searchTerm) {
+            const term = this.searchTerm.toLowerCase();
+            filtered = filtered.filter(p =>
+                (p.title || '').toLowerCase().includes(term) ||
+                (p.content || '').toLowerCase().includes(term)
+            );
+        }
+
+        if (filtered.length === 0) {
+            return '<div class="empty-state">No posts found.</div>';
+        }
+
+        return filtered.map(p => this.renderCard(p)).join('');
+    },
+
+    renderCard(post) {
+        const categoryLabels = {
+            community: 'COMMUNITY',
+            'city-news': 'CITY NEWS',
+            videos: 'VIDEO',
+        };
+        const label = categoryLabels[post.category] || 'NEWS';
+        const isVideo = post.type === 'video';
+        const date = post.created_at ? this.formatDate(post.created_at) : '';
+        const authorName = post.author_name || '';
+        const authorInitial = post.author_avatar || (authorName ? authorName.charAt(0) : 'U');
+        const imageUrl = post.image_path
+            ? (post.image_path.startsWith('http') ? post.image_path : `/uploads/${post.image_path}`)
+            : null;
+
+        return `
+            <div class="news-card">
+                ${imageUrl ? `
+                    <div class="news-card__thumb">
+                        <img src="${imageUrl}" alt="${this.escape(post.title)}" loading="lazy">
+                        ${isVideo ? '<div class="news-card__play-overlay"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></div>' : ''}
+                    </div>
+                ` : `
+                    <div class="news-card__thumb news-card__thumb--avatar">
+                        <span>${this.escape(authorInitial)}</span>
+                    </div>
+                `}
+                <div class="news-card__body">
+                    <span class="news-card__category">${label}</span>
+                    <div class="news-card__title">${this.escape(post.title)}</div>
+                    <div class="news-card__excerpt">${this.escape(post.content || '')}</div>
+                    <div class="news-card__meta">
+                        ${authorName ? `<span class="news-card__author">${this.escape(authorName)}</span>` : ''}
+                        ${date ? `<span class="news-card__date">${date}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    /* --------------------------------------------------------
+     * 5. Create Post Modal + Submission
      * -------------------------------------------------------- */
     showCreateModal() {
         let container = document.getElementById('create-post-modal');
@@ -202,18 +231,10 @@ const NewsUpdatesPage = {
                                 <div class="form-group__label">Content</div>
                                 <textarea class="form-input" id="post-content" placeholder="Write your post..." style="min-height:80px;"></textarea>
                             </div>
-                            <div class="form-group">
-                                <div class="form-group__label">Image (optional)</div>
-                                <div class="upload-zone" onclick="document.getElementById('post-image-input').click()" style="padding:var(--spacing-md);">
-                                    <div class="upload-zone__text">Tap to <strong>add image</strong></div>
-                                </div>
-                                <input type="file" id="post-image-input" accept="image/*" style="display:none" onchange="NewsUpdatesPage._handlePostImage(this)">
-                                <div id="post-image-preview"></div>
-                            </div>
                         </div>
                     </div>
                     <div style="padding:var(--spacing-md) var(--spacing-xl) var(--spacing-xl);border-top:1px solid var(--color-gray-100);">
-                        <button type="button" class="btn btn--primary btn--block" onclick="NewsUpdatesPage.submitPost()">
+                        <button type="button" class="btn btn--primary btn--block" id="publish-post-btn" onclick="NewsUpdatesPage.submitPost()">
                             <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;"><path d="M22 2L11 13"></path><path d="M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
                             Publish Post
                         </button>
@@ -223,7 +244,6 @@ const NewsUpdatesPage = {
         `;
         document.body.style.overflow = 'hidden';
         this._newPostCat = 'community';
-        this._newPostImage = null;
     },
 
     closeCreateModal() {
@@ -238,62 +258,58 @@ const NewsUpdatesPage = {
         el.classList.add('selected');
     },
 
-    _handlePostImage(input) {
-        const file = input.files[0];
-        if (!file) return;
-        this._newPostImage = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            document.getElementById('post-image-preview').innerHTML = `
-                <div style="margin-top:var(--spacing-sm);position:relative;display:inline-block;">
-                    <img src="${e.target.result}" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius-md);">
-                    <button type="button" class="upload-preview__remove" onclick="NewsUpdatesPage._removePostImage()">x</button>
-                </div>
-            `;
-        };
-        reader.readAsDataURL(file);
-        input.value = '';
-    },
-
-    _removePostImage() {
-        this._newPostImage = null;
-        document.getElementById('post-image-preview').innerHTML = '';
-    },
-
-    submitPost() {
+    async submitPost() {
         const title = document.getElementById('post-title').value.trim();
         const content = document.getElementById('post-content').value.trim();
 
         if (!title) { alert('Please enter a title.'); return; }
 
-        const now = new Date();
-        const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const btn = document.getElementById('publish-post-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Publishing...'; }
 
-        const categoryImages = {
-            community: 'public/assets/news/community-survey.jpg',
-            'city-news': 'public/assets/news/police-operation.jpg',
-            videos: 'public/assets/news/emergency-system.jpg',
-        };
+        try {
+            const res = await Store.apiFetch('/api/posts', {
+                method: 'POST',
+                body: JSON.stringify({
+                    title,
+                    content: content || null,
+                    category: this._newPostCat,
+                    type: this._newPostCat === 'videos' ? 'video' : 'post',
+                }),
+            });
 
-        // Add to local posts array (mock — no backend persistence yet)
-        this.posts.unshift({
-            id: Date.now(),
-            category: this._newPostCat,
-            title: title,
-            excerpt: content || 'No description provided.',
-            date: dateStr,
-            type: this._newPostCat === 'videos' ? 'video' : 'post',
-            image: categoryImages[this._newPostCat] || categoryImages.community,
-        });
-
-        this.closeCreateModal();
-
-        // Re-render the list
-        document.getElementById('news-list').innerHTML = this.renderList();
+            if (res.success) {
+                // Prepend the new post to the local list
+                this.posts.unshift(res.data);
+                this.closeCreateModal();
+                this.refreshList();
+            } else {
+                alert(res.message || 'Failed to create post.');
+                if (btn) { btn.disabled = false; btn.textContent = 'Publish Post'; }
+            }
+        } catch (err) {
+            alert('Network error. Please try again.');
+            if (btn) { btn.disabled = false; btn.textContent = 'Publish Post'; }
+        }
     },
 
     /* --------------------------------------------------------
-     * 2b. QR Code Modal
+     * 6. Filter & search
+     * -------------------------------------------------------- */
+    setFilter(filter) {
+        this.activeFilter = filter;
+        document.querySelectorAll('.news-tab').forEach(t => t.classList.remove('active'));
+        event.target.closest('.news-tab').classList.add('active');
+        this.refreshList();
+    },
+
+    handleSearch(value) {
+        this.searchTerm = value;
+        this.refreshList();
+    },
+
+    /* --------------------------------------------------------
+     * 7. QR modal
      * -------------------------------------------------------- */
     showQRModal() {
         document.getElementById('qr-modal-container').innerHTML = `
@@ -318,65 +334,23 @@ const NewsUpdatesPage = {
     },
 
     /* --------------------------------------------------------
-     * 3. List & card rendering
+     * 8. Helpers
      * -------------------------------------------------------- */
-    renderList() {
-        let filtered = this.activeFilter === 'all'
-            ? this.posts
-            : this.posts.filter(p => p.category === this.activeFilter);
-
-        if (this.searchTerm) {
-            const term = this.searchTerm.toLowerCase();
-            filtered = filtered.filter(p =>
-                p.title.toLowerCase().includes(term) ||
-                p.excerpt.toLowerCase().includes(term)
-            );
-        }
-
-        if (filtered.length === 0) {
-            return '<div class="empty-state">No posts found.</div>';
-        }
-
-        return filtered.map(p => this.renderCard(p)).join('');
+    formatDate(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+        });
     },
 
-    renderCard(post) {
-        const categoryLabels = {
-            community: 'COMMUNITY',
-            'city-news': 'CITY NEWS',
-            videos: 'VIDEO',
-        };
-        const label = categoryLabels[post.category] || 'NEWS';
-        const isVideo = post.type === 'video';
-
-        return `
-            <div class="news-card">
-                <div class="news-card__thumb">
-                    <img src="${post.image}" alt="${post.title}" loading="lazy">
-                    ${isVideo ? '<div class="news-card__play-overlay"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></div>' : ''}
-                </div>
-                <div class="news-card__body">
-                    <span class="news-card__category">${label}</span>
-                    <div class="news-card__title">${post.title}</div>
-                    <div class="news-card__excerpt">${post.excerpt}</div>
-                    <div class="news-card__date">${post.date}</div>
-                </div>
-            </div>
-        `;
-    },
-
-    /* --------------------------------------------------------
-     * 4. Filter & search
-     * -------------------------------------------------------- */
-    setFilter(filter) {
-        this.activeFilter = filter;
-        document.querySelectorAll('.news-tab').forEach(t => t.classList.remove('active'));
-        event.target.closest('.news-tab').classList.add('active');
-        document.getElementById('news-list').innerHTML = this.renderList();
-    },
-
-    handleSearch(value) {
-        this.searchTerm = value;
-        document.getElementById('news-list').innerHTML = this.renderList();
+    escape(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     },
 };

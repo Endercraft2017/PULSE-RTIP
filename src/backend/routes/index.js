@@ -19,6 +19,7 @@
  * /api/media         - Media file uploads
  * /api/hotlines      - Emergency hotlines
  * /api/sms           - SMS gateway (TextBee)
+ * /api/posts         - Community board posts
  * =============================================================================
  */
 
@@ -39,6 +40,8 @@ router.use('/dashboard', require('./dashboard'));
 router.use('/media', require('./media'));
 router.use('/hotlines', require('./hotlines'));
 router.use('/sms', require('./sms'));
+router.use('/posts', require('./posts'));
+router.use('/news', require('./news'));
 
 /* --------------------------------------------------------------------------
  * 3. Health Check

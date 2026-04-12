@@ -1842,6 +1842,20 @@ select.input-group__field {
 .news-card__thumb img {
     width: 100%; height: 100%; object-fit: cover; display: block;
 }
+.news-card__thumb--avatar {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    display: flex; align-items: center; justify-content: center;
+}
+.news-card__thumb--avatar span {
+    font-size: 1.5rem; font-weight: 700; color: white;
+}
+.news-card__meta {
+    display: flex; gap: var(--spacing-sm); align-items: center;
+    margin-top: 4px;
+}
+.news-card__author {
+    font-size: var(--font-size-xs); font-weight: 600; color: var(--color-gray-600);
+}
 .news-card__play-overlay {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.35);

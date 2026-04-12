@@ -103,6 +103,57 @@ const HAZARDS = [
   },
 ];
 
+const COMMUNITY_POSTS = [
+  {
+    user_id: 1,
+    category: 'community',
+    title: 'Call for Respondents: Pulse 911 MDRRMO',
+    content: 'MDRRMO Morong is looking for community respondents to participate in the Pulse 911 emergency response survey. Help shape a more resilient community. Visit your barangay hall to sign up.',
+    type: 'post',
+    image_path: null,
+  },
+  {
+    user_id: 2,
+    category: 'community',
+    title: 'Packed dinner distribution at Municipal Gym Evacuation Center',
+    content: 'Muling namahagi ng packed dinner ang mga staff ng ating Mayor Sidney Soriano sa Evacuation Center sa Municipal Gym, Barangay San Pedro. Salamat po sa walang sawang tulong!',
+    type: 'post',
+    image_path: null,
+  },
+  {
+    user_id: 1,
+    category: 'community',
+    title: 'PAMAMAHAGI NG LIBRENG SCHOOL SUPPLIES',
+    content: 'Free school supplies distribution for students in Morong. Visit your nearest barangay hall to claim your school kits. Schedule and eligibility details posted at your barangay.',
+    type: 'post',
+    image_path: null,
+  },
+  {
+    user_id: 1,
+    category: 'city-news',
+    title: 'Provincial Most Wanted arrested in Morong, Rizal',
+    content: 'Isang Provincial Most Wanted, Arestado sa Morong Rizal. A provincial most-wanted individual has been arrested in Morong, Rizal by the local police force in a coordinated operation with the PPO.',
+    type: 'post',
+    image_path: null,
+  },
+  {
+    user_id: 1,
+    category: 'videos',
+    title: 'Morong, Rizal launches next-gen 911 emergency communication system',
+    content: 'A new 911 emergency communication system is now operational in Morong, Rizal, improving response times and citizen safety. Watch the full coverage.',
+    type: 'video',
+    image_path: null,
+  },
+  {
+    user_id: 2,
+    category: 'city-news',
+    title: 'Vaccine roll-outs conducted at Morong public hospitals',
+    content: 'Nauna ng isinagawa ang vaccine roll-outs sa mga public hospitals ng Antipolo, Binangonan, Montalban, at Morong. Prioritizing frontline workers and senior citizens.',
+    type: 'post',
+    image_path: null,
+  },
+];
+
 const HOTLINES = [
   { category: 'MDRRMO', label: 'Emergency', number: '0917-135-0541', sort_order: 1 },
   { category: 'MDRRMO', label: 'Mobile', number: '0919-081-7181', sort_order: 2 },
@@ -207,6 +258,21 @@ async function seedNotifications() {
 }
 
 /**
+ * Seeds community posts into the database.
+ * @returns {Promise<void>}
+ */
+async function seedPosts() {
+  for (const p of COMMUNITY_POSTS) {
+    await db.query(
+      `INSERT INTO community_posts (user_id, category, title, content, type, image_path)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [p.user_id, p.category, p.title, p.content, p.type, p.image_path]
+    );
+  }
+  console.log(`  [OK] Seeded ${COMMUNITY_POSTS.length} community posts`);
+}
+
+/**
  * Seeds emergency hotlines into the database.
  * @returns {Promise<void>}
  */
@@ -235,6 +301,7 @@ async function main() {
     await seedHazards();
     await seedNotifications();
     await seedHotlines();
+    await seedPosts();
 
     console.log('\n[Seed] Database seeded successfully.');
   } catch (err) {
