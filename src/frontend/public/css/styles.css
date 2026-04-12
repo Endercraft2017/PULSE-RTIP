@@ -1914,6 +1914,58 @@ select.input-group__field {
     font-size: 1.2rem; font-weight: 700;
 }
 
+/* Disaster Alerts (GDACS) */
+.disaster-banner--safe {
+    display: flex; align-items: center; gap: var(--spacing-md);
+    background: var(--color-success-light); border: 1px solid var(--color-primary);
+    border-radius: var(--radius-lg); padding: var(--spacing-lg);
+}
+.disaster-banner--safe svg {
+    width: 28px; height: 28px; fill: none; stroke: var(--color-primary);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+}
+.disaster-banner__title { font-size: var(--font-size-sm); font-weight: 700; color: var(--color-primary-dark); }
+.disaster-banner__desc { font-size: var(--font-size-xs); color: var(--color-gray-500); margin-top: 2px; }
+
+.disaster-alert {
+    display: flex; gap: var(--spacing-md);
+    padding: var(--spacing-md); border-radius: var(--radius-lg);
+    margin-bottom: var(--spacing-sm); text-decoration: none; color: inherit;
+    transition: box-shadow 0.15s; border: 1.5px solid;
+}
+.disaster-alert:hover { box-shadow: var(--shadow-md); }
+.disaster-alert--red { background: #FEF2F2; border-color: var(--color-danger); }
+.disaster-alert--orange { background: #FFFBEB; border-color: var(--color-warning); }
+.disaster-alert--green { background: var(--color-success-light); border-color: var(--color-primary); }
+
+.disaster-alert__icon {
+    width: 36px; height: 36px; border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.disaster-alert--red .disaster-alert__icon { background: var(--color-danger); }
+.disaster-alert--orange .disaster-alert__icon { background: var(--color-warning); }
+.disaster-alert--green .disaster-alert__icon { background: var(--color-primary); }
+.disaster-alert__icon svg {
+    width: 18px; height: 18px; fill: none; stroke: white;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+.disaster-alert__body { flex: 1; min-width: 0; }
+.disaster-alert__header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--spacing-sm); margin-bottom: 4px; }
+.disaster-alert__title { font-size: var(--font-size-sm); font-weight: 700; color: var(--color-gray-900); }
+.disaster-alert__level {
+    font-size: 0.6rem; font-weight: 700; padding: 2px 8px;
+    border-radius: var(--radius-full); text-transform: uppercase; flex-shrink: 0;
+}
+.disaster-alert__level--red { background: var(--color-danger); color: white; }
+.disaster-alert__level--orange { background: var(--color-warning); color: white; }
+.disaster-alert__level--green { background: var(--color-primary); color: white; }
+.disaster-alert__desc { font-size: var(--font-size-xs); color: var(--color-gray-600); line-height: 1.4; margin-bottom: 4px; }
+.disaster-alert__meta {
+    display: flex; gap: 6px; font-size: 0.65rem; color: var(--color-gray-400); font-weight: 500;
+}
+.disaster-alert__meta > span + span::before { content: '\00b7'; margin-right: 6px; }
+
 .notification-card__icon svg {
     width: 20px;
     height: 20px;
@@ -3619,6 +3671,261 @@ body.dark-mode {
 }
 .hazard-map__chip:hover {
     background: var(--color-gray-100);
+}
+
+/* ============================================================
+   SOS Offline Emergency Report
+   ============================================================ */
+
+/* SOS Button on citizen home */
+.sos-btn-container {
+    margin-bottom: var(--spacing-md);
+}
+.sos-btn.btn--danger {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 20px;
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    border-radius: var(--radius-lg);
+    animation: sos-pulse 2s ease-in-out infinite;
+}
+.sos-btn svg {
+    width: 32px;
+    height: 32px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.sos-btn small {
+    font-size: var(--font-size-xs);
+    font-weight: 400;
+    opacity: 0.85;
+}
+@keyframes sos-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    50% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+}
+
+/* SOS Offline Modal */
+.sos-offline-modal {
+    z-index: 10000;
+}
+.sos-offline-form {
+    background: var(--color-white);
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: var(--radius-xl);
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+}
+.sos-offline-form__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-gray-200);
+    background: var(--color-danger);
+    color: white;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+.sos-offline-form__header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: var(--font-size-md);
+}
+.sos-offline-form__header-title svg {
+    width: 20px; height: 20px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.sos-offline-form__header .modal__close { color: white; }
+.sos-offline-form__body {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+}
+.sos-offline-form__sender {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--color-gray-50);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-700);
+    margin-bottom: var(--spacing-md);
+}
+.sos-offline-form__sender svg {
+    width: 16px; height: 16px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
+}
+.sos-offline-form__section-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 8px;
+    margin-top: var(--spacing-md);
+}
+.sos-offline-form__types {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+.sos-type-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 4px;
+    background: var(--color-white);
+    border: 1.5px solid var(--color-gray-200);
+    border-radius: var(--radius-md);
+    font-family: var(--font-family);
+    font-size: 11px;
+    color: var(--color-gray-700);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.sos-type-chip svg {
+    width: 20px; height: 20px;
+    fill: none; stroke: var(--color-gray-500);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.sos-type-chip:hover { border-color: var(--color-primary); }
+.sos-type-chip--active {
+    background: var(--color-danger-light, #fef2f2);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+.sos-type-chip--active svg { stroke: var(--color-danger); }
+
+.sos-offline-form__severity {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+.sos-severity-chip {
+    padding: 10px;
+    border: 1.5px solid var(--color-gray-200);
+    border-radius: var(--radius-md);
+    background: var(--color-white);
+    font-family: var(--font-family);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+}
+.sos-severity-chip:hover { border-color: var(--color-gray-400); }
+.sos-severity-chip--high.sos-severity-chip--active { background: var(--color-danger-light, #fef2f2); border-color: var(--color-danger); color: var(--color-danger); }
+.sos-severity-chip--medium.sos-severity-chip--active { background: #fffbeb; border-color: var(--color-warning); color: var(--color-warning); }
+.sos-severity-chip--low.sos-severity-chip--active { background: var(--color-info-light, #eff6ff); border-color: var(--color-info); color: var(--color-info); }
+
+.sos-offline-form__textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid var(--color-gray-200);
+    border-radius: var(--radius-md);
+    font-family: var(--font-family);
+    font-size: var(--font-size-sm);
+    resize: vertical;
+    min-height: 70px;
+}
+.sos-offline-form__textarea:focus { outline: none; border-color: var(--color-primary); }
+.sos-offline-form__char-count {
+    text-align: right;
+    font-size: 11px;
+    color: var(--color-gray-400);
+    margin-top: 4px;
+}
+
+.sos-offline-form__gps {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--color-gray-50);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-600);
+    margin-top: var(--spacing-md);
+}
+.sos-offline-form__gps svg {
+    width: 16px; height: 16px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
+}
+.sos-gps-icon--success { stroke: var(--color-success, #16a34a); }
+.sos-gps-icon--failed { stroke: var(--color-gray-400); }
+
+.sos-offline-form__footer {
+    display: flex;
+    gap: var(--spacing-sm);
+    padding: 16px 20px;
+    border-top: 1px solid var(--color-gray-200);
+}
+.sos-offline-form__footer .btn--danger {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.sos-offline-form__footer .btn--danger svg {
+    width: 16px; height: 16px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+.sos-offline-form__confirmation {
+    text-align: center;
+    padding: 32px 16px;
+}
+.sos-offline-form__confirmation-icon svg {
+    width: 64px; height: 64px;
+    fill: none; stroke: var(--color-success, #16a34a);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    margin-bottom: 16px;
+}
+.sos-offline-form__confirmation h3 {
+    font-size: var(--font-size-lg);
+    margin-bottom: 12px;
+}
+.sos-offline-form__confirmation p {
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-600);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+.sos-offline-form__confirmation-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-400);
+}
+
+/* SMS Badge (admin dashboard) */
+.badge--sms {
+    background: var(--color-gray-100);
+    color: var(--color-gray-700);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    letter-spacing: 0.03em;
 }
 
 /* --- Touch device optimizations --- */

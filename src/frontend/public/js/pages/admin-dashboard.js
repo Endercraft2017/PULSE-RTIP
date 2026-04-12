@@ -84,6 +84,11 @@ const AdminDashboardPage = {
                         <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
                         Incidents
                     </button>
+                    <button type="button" class="dash-main-tab ${this.activeMainTab === 'sms' ? 'active' : ''}"
+                            onclick="AdminDashboardPage.setMainTab('sms')">
+                        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        SMS
+                    </button>
                 </div>
 
                 <!-- Content area -->
@@ -148,6 +153,10 @@ const AdminDashboardPage = {
                 break;
             case 'reports':
                 container.innerHTML = this.renderReportsView();
+                break;
+            case 'sms':
+                container.innerHTML = '<div class="loading-state">Loading SMS reports...</div>';
+                this.loadSmsReports();
                 break;
         }
     },
@@ -466,5 +475,115 @@ const AdminDashboardPage = {
 
     _escAttr(str) {
         return str.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+    },
+
+    /* --------------------------------------------------------
+     * SMS Reports View
+     * -------------------------------------------------------- */
+    async loadSmsReports() {
+        try {
+            const res = await Store.apiFetch('/api/sms-reports');
+            if (res.success) {
+                this.renderSmsView(res.data);
+            }
+        } catch (err) {
+            const container = document.getElementById('dashboard-content');
+            if (container) container.innerHTML = '<div class="empty-state">Failed to load SMS reports.</div>';
+        }
+    },
+
+    renderSmsView(reports) {
+        const container = document.getElementById('dashboard-content');
+        if (!container) return;
+
+        const pending = reports.filter(r => r.status === 'pending');
+        const others = reports.filter(r => r.status !== 'pending');
+
+        if (reports.length === 0) {
+            container.innerHTML = `
+                <div class="section-header">
+                    <div class="section-header__title">SMS Reports</div>
+                </div>
+                <div class="empty-state">No offline SMS reports received yet.</div>
+            `;
+            return;
+        }
+
+        const severityBadge = { high: 'high', medium: 'warning', low: 'info' };
+
+        const renderCard = (r) => {
+            const badge = severityBadge[r.severity] || 'info';
+            const locationLink = (r.latitude && r.longitude && r.latitude !== 0)
+                ? `<a href="https://www.google.com/maps?q=${r.latitude},${r.longitude}" target="_blank" rel="noopener">${r.latitude}, ${r.longitude}</a>`
+                : 'No GPS data';
+
+            const actions = r.status === 'pending' ? `
+                <div class="incident-card__actions">
+                    <button class="btn btn--primary btn--sm" onclick="AdminDashboardPage.convertSmsReport(${r.id})">Convert to Report</button>
+                    <button class="btn btn--outline btn--sm" onclick="AdminDashboardPage.dismissSmsReport(${r.id})">Dismiss</button>
+                </div>
+            ` : `<span class="badge badge--${r.status === 'converted' ? 'success' : 'default'}">${r.status}</span>`;
+
+            return `
+                <div class="incident-card">
+                    <div class="incident-card__header">
+                        <span class="incident-card__title">${this.escape(r.type || 'Emergency')}</span>
+                        <span class="badge badge--${badge}">${r.severity || 'medium'}</span>
+                        <span class="badge badge--sms">SMS</span>
+                    </div>
+                    <div class="incident-card__submitter">
+                        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        ${this.escape(r.sender_name || 'Unknown')} (${this.escape(r.sender_phone || 'N/A')})
+                    </div>
+                    <div class="incident-card__location">
+                        <svg viewBox="0 0 24 24" style="width:14px;height:14px;vertical-align:middle;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        ${locationLink}
+                    </div>
+                    <div class="incident-card__description">${this.escape(r.message || '')}</div>
+                    <div class="incident-card__footer">
+                        <span>Received ${this.formatDate(r.received_at || r.created_at)}</span>
+                    </div>
+                    ${actions}
+                </div>
+            `;
+        };
+
+        container.innerHTML = `
+            <div class="section-header">
+                <div class="section-header__title">SMS Reports</div>
+                <span class="badge badge--high">${pending.length} pending</span>
+            </div>
+            ${pending.map(renderCard).join('')}
+            ${others.length > 0 ? `
+                <div class="section-header" style="margin-top: var(--spacing-lg)">
+                    <div class="section-header__title">Processed</div>
+                </div>
+                ${others.map(renderCard).join('')}
+            ` : ''}
+        `;
+    },
+
+    async convertSmsReport(id) {
+        if (!confirm('Convert this SMS report to an incident report?')) return;
+        try {
+            const res = await Store.apiFetch(`/api/sms-reports/${id}/convert`, { method: 'POST' });
+            if (res.success) {
+                this.loadSmsReports();
+            }
+        } catch (err) {
+            alert('Failed to convert report.');
+        }
+    },
+
+    async dismissSmsReport(id) {
+        if (!confirm('Dismiss this SMS report?')) return;
+        try {
+            const res = await Store.apiFetch(`/api/sms-reports/${id}/dismiss`, { method: 'POST' });
+            if (res.success) {
+                this.loadSmsReports();
+            }
+        } catch (err) {
+            alert('Failed to dismiss report.');
+        }
     }
 };

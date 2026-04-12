@@ -65,6 +65,7 @@ const config = {
     apiKey: process.env.TEXTBEE_API_KEY || '',
     deviceId: process.env.TEXTBEE_DEVICE_ID || '',
     apiUrl: process.env.TEXTBEE_API_URL || 'https://api.textbee.dev/api/v1',
+    gatewayPhone: process.env.TEXTBEE_GATEWAY_PHONE || '',
   },
 };
 

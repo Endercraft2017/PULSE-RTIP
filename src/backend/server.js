@@ -31,6 +31,7 @@ const config = require('./config');
 const db = require('./config/database');
 const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
+const smsPoller = require('./services/sms/smsPoller');
 
 /* --------------------------------------------------------------------------
  * 2. App Initialization
@@ -112,6 +113,7 @@ app.use(errorHandler);
 async function start() {
   try {
     await db.initialize();
+    smsPoller.start();
     app.listen(config.port, () => {
       console.log(`\n========================================`);
       console.log(`  PULSE-RTIP Server`);

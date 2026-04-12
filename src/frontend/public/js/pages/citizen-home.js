@@ -30,6 +30,19 @@ const CitizenHomePage = {
                     </div>
                 </div>
 
+                <!-- Offline SOS Button (hidden when online) -->
+                <div class="sos-btn-container" id="sos-btn-container" style="display:none;">
+                    <button class="btn btn--danger btn--block sos-btn" onclick="SosOffline.show()">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13"></line>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                        <span>SOS Emergency Report</span>
+                        <small>Send via SMS (works offline)</small>
+                    </button>
+                </div>
+
                 <!-- Report New Incident CTA -->
                 <div class="report-cta" onclick="Router.navigate('report-incident')">
                     <div class="report-cta__icon">
@@ -219,6 +232,11 @@ const CitizenHomePage = {
     },
 
     async loadData() {
+        // Offline detection — show/hide SOS button
+        this._updateOfflineUI();
+        window.addEventListener('online', () => this._updateOfflineUI());
+        window.addEventListener('offline', () => this._updateOfflineUI());
+
         try {
             const [hazardsRes, reportsRes] = await Promise.all([
                 Store.apiFetch('/api/hazards'),
@@ -238,8 +256,27 @@ const CitizenHomePage = {
                 if (pendingEl) pendingEl.textContent = pending;
                 if (resolvedEl) resolvedEl.textContent = resolved;
             }
+
+            // Cache the gateway phone number while we have internet
+            this._cacheGatewayPhone();
         } catch (err) {
             console.error('Failed to load home data:', err);
+        }
+    },
+
+    _updateOfflineUI() {
+        const btn = document.getElementById('sos-btn-container');
+        if (btn) btn.style.display = navigator.onLine ? 'none' : 'block';
+    },
+
+    async _cacheGatewayPhone() {
+        try {
+            const res = await Store.apiFetch('/api/sms/gateway-phone');
+            if (res.success && res.data && res.data.phone) {
+                localStorage.setItem('pulse_gateway_phone', res.data.phone);
+            }
+        } catch (e) {
+            // Non-critical — may already be cached
         }
     },
 
