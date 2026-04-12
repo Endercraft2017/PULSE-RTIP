@@ -18,7 +18,7 @@
  * paths hit the same origin.
  * -------------------------------------------------------- */
 const API_BASE = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
-    ? 'http://76.13.215.54:3000'
+    ? 'https://pulse.afkcube.com'
     : '';
 
 /**

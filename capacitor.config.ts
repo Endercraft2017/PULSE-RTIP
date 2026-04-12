@@ -5,12 +5,7 @@ const config: CapacitorConfig = {
   appName: 'PULSE 911',
   webDir: 'src/frontend',
   server: {
-    // Allow mixed content and cleartext for dev server
-    cleartext: true,
-    allowNavigation: ['76.13.215.54'],
-  },
-  android: {
-    allowMixedContent: true,
+    allowNavigation: ['pulse.afkcube.com'],
   },
 };
 

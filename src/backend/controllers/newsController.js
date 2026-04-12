@@ -110,9 +110,18 @@ function fetchFromNewsAPI(endpoint, params) {
         const query = Object.entries(params)
             .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
             .join('&');
-        const url = `${newsConfig.baseUrl}${endpoint}?${query}&apiKey=${newsConfig.apiKey}`;
+        const fullUrl = `${newsConfig.baseUrl}${endpoint}?${query}&apiKey=${newsConfig.apiKey}`;
+        const parsed = new URL(fullUrl);
 
-        https.get(url, (response) => {
+        const options = {
+            hostname: parsed.hostname,
+            path: parsed.pathname + parsed.search,
+            headers: {
+                'User-Agent': 'PULSE-RTIP/1.0 (MDRRMO Morong Rizal)',
+            },
+        };
+
+        https.get(options, (response) => {
             let body = '';
             response.on('data', chunk => body += chunk);
             response.on('end', () => {
