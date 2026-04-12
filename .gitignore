@@ -37,6 +37,12 @@ uploads/
 # Electron
 release/
 
+# Android build output
+*.apk
+*.aab
+android/app/build/
+d:/gradle-home/
+
 # AI tools (must not reach main branch)
 CLAUDE.md
 .claude/

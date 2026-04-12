@@ -111,11 +111,34 @@ const NewsUpdatesPage = {
     /* --------------------------------------------------------
      * 3. Data Loading
      * -------------------------------------------------------- */
+    liveNews: [],
+
     async loadData() {
         try {
-            const res = await Store.apiFetch('/api/posts');
-            if (res.success) {
-                this.posts = res.data;
+            const [postsRes, newsRes] = await Promise.all([
+                Store.apiFetch('/api/posts'),
+                Store.apiFetch('/api/news').catch(() => ({ success: false })),
+            ]);
+
+            if (postsRes.success) {
+                this.posts = postsRes.data;
+            }
+
+            if (newsRes.success && newsRes.data && newsRes.data.length > 0) {
+                this.liveNews = newsRes.data.map(article => ({
+                    id: 'news-' + article.publishedAt,
+                    category: 'city-news',
+                    type: 'post',
+                    title: article.title,
+                    content: article.description || '',
+                    author_name: article.source || 'News',
+                    author_avatar: 'N',
+                    image_path: article.image || null,
+                    created_at: article.publishedAt,
+                    url: article.url,
+                    _isLiveNews: true,
+                    _relevance: article.relevance,
+                }));
             }
         } catch (err) {
             console.error('Failed to load posts:', err);
@@ -133,8 +156,10 @@ const NewsUpdatesPage = {
 
     renderList() {
         let filtered = this.activeFilter === 'all'
-            ? this.posts
-            : this.posts.filter(p => p.category === this.activeFilter);
+            ? [...this.posts, ...this.liveNews]
+            : this.activeFilter === 'city-news'
+                ? [...this.posts.filter(p => p.category === 'city-news'), ...this.liveNews]
+                : this.posts.filter(p => p.category === this.activeFilter);
 
         if (this.searchTerm) {
             const term = this.searchTerm.toLowerCase();
@@ -143,6 +168,9 @@ const NewsUpdatesPage = {
                 (p.content || '').toLowerCase().includes(term)
             );
         }
+
+        // Sort by date descending
+        filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
         if (filtered.length === 0) {
             return '<div class="empty-state">No posts found.</div>';
@@ -157,7 +185,9 @@ const NewsUpdatesPage = {
             'city-news': 'CITY NEWS',
             videos: 'VIDEO',
         };
-        const label = categoryLabels[post.category] || 'NEWS';
+        const label = post._isLiveNews
+            ? (post._relevance === 'local' ? 'LOCAL NEWS' : 'PH NEWS')
+            : (categoryLabels[post.category] || 'NEWS');
         const isVideo = post.type === 'video';
         const date = post.created_at ? this.formatDate(post.created_at) : '';
         const authorName = post.author_name || '';
@@ -165,12 +195,16 @@ const NewsUpdatesPage = {
         const imageUrl = post.image_path
             ? (post.image_path.startsWith('http') ? post.image_path : `/uploads/${post.image_path}`)
             : null;
+        const clickAction = post.url
+            ? `onclick="window.open('${post.url}', '_blank', 'noopener')"`
+            : '';
 
         return `
-            <div class="news-card">
+            <div class="news-card ${post._isLiveNews ? 'news-card--live' : ''}" ${clickAction}>
                 ${imageUrl ? `
                     <div class="news-card__thumb">
-                        <img src="${imageUrl}" alt="${this.escape(post.title)}" loading="lazy">
+                        <img src="${imageUrl}" alt="${this.escape(post.title)}" loading="lazy"
+                             onerror="this.parentElement.innerHTML='<div class=\\'news-card__thumb--fallback\\'><svg viewBox=\\'0 0 24 24\\'><path d=\\'M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2\\'></path><path d=\\'M18 14h-8\\'></path><path d=\\'M15 18h-5\\'></path><path d=\\'M10 6h8v4h-8V6z\\'></path></svg></div>'">
                         ${isVideo ? '<div class="news-card__play-overlay"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></div>' : ''}
                     </div>
                 ` : `
@@ -179,7 +213,7 @@ const NewsUpdatesPage = {
                     </div>
                 `}
                 <div class="news-card__body">
-                    <span class="news-card__category">${label}</span>
+                    <span class="news-card__category ${post._isLiveNews && post._relevance === 'local' ? 'news-card__category--local' : ''}">${label}</span>
                     <div class="news-card__title">${this.escape(post.title)}</div>
                     <div class="news-card__excerpt">${this.escape(post.content || '')}</div>
                     <div class="news-card__meta">

@@ -7,7 +7,10 @@
     "dev:web": "npx serve src/frontend --listen 3000 --no-clipboard",
     "dev:electron": "electron .",
     "build:win": "electron-builder --win",
-    "start": "electron ."
+    "start": "electron .",
+    "cap:sync": "npx cap sync android",
+    "cap:build": "set GRADLE_USER_HOME=d:/gradle-home && npx cap sync android && cd android && gradlew assembleDebug",
+    "cap:open": "npx cap open android"
   },
   "repository": {
     "type": "git",
@@ -35,7 +38,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -45,5 +50,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0"
   }
 }

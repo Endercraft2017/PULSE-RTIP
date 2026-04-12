@@ -2,12 +2,24 @@
    Store - Client-side state management
    ============================================================
    Table of Contents:
+   0. API base URL config
    1. Store class definition
    2. Initial state
    3. Authentication methods (login, logout, register)
    4. API fetch helper
    5. Token management
    ============================================================ */
+
+/* --------------------------------------------------------
+ * 0. API Base URL
+ * --------------------------------------------------------
+ * When running inside Capacitor (mobile app), API calls
+ * must target the remote server. On the web, relative
+ * paths hit the same origin.
+ * -------------------------------------------------------- */
+const API_BASE = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
+    ? 'http://76.13.215.54:3000'
+    : '';
 
 /**
  * Simple reactive store for managing application state.
@@ -58,7 +70,7 @@ const Store = {
      */
     async login(email, password) {
         try {
-            const res = await fetch('/api/auth/login', {
+            const res = await fetch(API_BASE + '/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -84,7 +96,7 @@ const Store = {
      */
     async register(userData) {
         try {
-            const res = await fetch('/api/auth/register', {
+            const res = await fetch(API_BASE + '/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData),
@@ -174,7 +186,7 @@ const Store = {
             headers['Content-Type'] = headers['Content-Type'] || 'application/json';
         }
 
-        const res = await fetch(url, { ...options, headers });
+        const res = await fetch(API_BASE + url, { ...options, headers });
 
         if (res.status === 401) {
             this.logout();
