@@ -59,6 +59,13 @@ const config = {
 
   /** Path to frontend static files */
   frontendPath: path.resolve(__dirname, '../../frontend'),
+
+  /** TextBee SMS Gateway */
+  textbee: {
+    apiKey: process.env.TEXTBEE_API_KEY || '',
+    deviceId: process.env.TEXTBEE_DEVICE_ID || '',
+    apiUrl: process.env.TEXTBEE_API_URL || 'https://api.textbee.dev/api/v1',
+  },
 };
 
 /* --------------------------------------------------------------------------

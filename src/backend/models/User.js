@@ -121,4 +121,29 @@ async function updateById(id, data) {
   return findById(id);
 }
 
-module.exports = { findByEmail, findById, create, updateById };
+/* --------------------------------------------------------------------------
+ * 6. findCitizenPhones
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Returns all non-null phone numbers for citizen users.
+ * Used by the SMS service to broadcast alerts.
+ * @returns {Promise<string[]>} Array of phone numbers
+ */
+async function findCitizenPhones() {
+  const rows = await db.query(
+    "SELECT phone FROM users WHERE role = 'citizen' AND phone IS NOT NULL AND phone != ''"
+  );
+  return rows.map(r => r.phone);
+}
+
+/**
+ * Finds all users with a given role.
+ * @param {string} role - 'admin' or 'citizen'
+ * @returns {Promise<Array>} Array of user objects
+ */
+async function findByRole(role) {
+  return db.query('SELECT * FROM users WHERE role = ?', [role]);
+}
+
+module.exports = { findByEmail, findById, create, updateById, findCitizenPhones, findByRole };

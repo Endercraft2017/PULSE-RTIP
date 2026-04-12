@@ -13,6 +13,8 @@
  */
 
 const Hazard = require('../models/Hazard');
+const User = require('../models/User');
+const textbee = require('../services/sms/textbee');
 
 /* --------------------------------------------------------------------------
  * 2. getHazards
@@ -58,6 +60,24 @@ async function createHazard(req, res, next) {
       description,
       created_by: req.user.id,
     });
+
+    // Fire-and-forget SMS alert to all citizens with phone numbers
+    if (textbee.isConfigured()) {
+      const severityLabel = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
+      const msg = `[PULSE 911 ALERT] ${severityLabel[severity] || severity} — ${title}` +
+        (location ? `\nLocation: ${location}` : '') +
+        (description ? `\n${description}` : '') +
+        `\n\nStay safe. Follow MDRRMO Morong instructions.`;
+
+      User.findCitizenPhones()
+        .then(phones => {
+          if (phones.length > 0) return textbee.sendBulkSMS(phones, msg);
+        })
+        .then(results => {
+          if (results) console.log(`[SMS] Hazard alert sent to ${results.length} batch(es)`);
+        })
+        .catch(err => console.error('[SMS] Failed to send hazard alert:', err.message));
+    }
 
     res.status(201).json({
       success: true,

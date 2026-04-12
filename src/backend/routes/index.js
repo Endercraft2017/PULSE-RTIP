@@ -18,6 +18,7 @@
  * /api/dashboard     - Admin dashboard statistics
  * /api/media         - Media file uploads
  * /api/hotlines      - Emergency hotlines
+ * /api/sms           - SMS gateway (TextBee)
  * =============================================================================
  */
 
@@ -37,6 +38,7 @@ router.use('/notifications', require('./notifications'));
 router.use('/dashboard', require('./dashboard'));
 router.use('/media', require('./media'));
 router.use('/hotlines', require('./hotlines'));
+router.use('/sms', require('./sms'));
 
 /* --------------------------------------------------------------------------
  * 3. Health Check
