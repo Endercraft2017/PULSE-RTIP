@@ -17,6 +17,7 @@
 const Report = require('../models/Report');
 const ReportImage = require('../models/ReportImage');
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 
 /* --------------------------------------------------------------------------
  * 2. getReports
@@ -127,6 +128,22 @@ async function createReport(req, res, next) {
     }
 
     const images = await ReportImage.findByReportId(report.id);
+
+    // Notify all admin users about the new report
+    try {
+      const admins = await User.findByRole('admin');
+      for (const admin of admins) {
+        await Notification.create({
+          user_id: admin.id,
+          report_id: report.id,
+          title: 'New Incident Report',
+          text: `"${title}" — a new ${type} incident has been submitted and needs review.`,
+          status: 'pending',
+        });
+      }
+    } catch (notifErr) {
+      console.error('Failed to notify admins:', notifErr);
+    }
 
     res.status(201).json({
       success: true,

@@ -1,15 +1,18 @@
 /* ============================================================
    Hazard Zones Page
    ============================================================
-   Reference: index2.html / hazard-user/* (Figma exports)
+   Reference: hazard-user/Hazard User1 (list view),
+              hazard-user/Hazard User3 (map view)
    Displays active hazard zones with severity and details.
    Table of Contents:
-   1. State (loaded hazards cache)
+   1. State (loaded hazards cache, view mode)
    2. Render method
    3. Data loading
-   4. Card rendering
-   5. Detail modal
-   6. Helper methods
+   4. List view rendering
+   5. Map view rendering
+   6. View toggle
+   7. Detail modal
+   8. Helper methods
    ============================================================ */
 
 const HazardsPage = {
@@ -17,12 +20,36 @@ const HazardsPage = {
        1. State
        -------------------------------------------------------- */
     _hazards: [],
+    _view: 'list', // 'list' | 'map'
+
+    // Approximate (x%, y%) positions of known Morong barangays on
+    // morong-map.png (a static satellite crop of the municipality).
+    // Values are eyeballed from the reference image and good enough
+    // to place pins near the right area without a real geocoder.
+    _barangayMap: {
+        'morong':        { x: 32, y: 45 },
+        'lagundi':       { x: 48, y: 38 },
+        'san pedro':     { x: 28, y: 58 },
+        'san guillermo': { x: 42, y: 30 },
+        'san jose':      { x: 58, y: 42 },
+        'san juan':      { x: 52, y: 52 },
+        'cailero':       { x: 55, y: 28 },
+        'calero':        { x: 55, y: 28 },
+        'caingin':       { x: 22, y: 38 },
+        'bombongan':     { x: 38, y: 48 },
+        'maybancal':     { x: 62, y: 35 },
+    },
 
     /* --------------------------------------------------------
        2. Render
        -------------------------------------------------------- */
     render() {
         setTimeout(() => this.loadData(), 0);
+
+        const toggleLabel = this._view === 'map' ? 'Map' : 'List';
+        const viewContent = this._view === 'map'
+            ? `<div id="hazards-map-view"><div class="loading-state">Loading map...</div></div>`
+            : `<div id="hazards-list"><div class="loading-state">Loading hazards...</div></div>`;
 
         return `
             <div class="page-padding">
@@ -35,12 +62,10 @@ const HazardsPage = {
                         </svg>
                         Active Hazard Zones
                     </div>
-                    <button class="btn btn--outline btn--sm">List</button>
+                    <button class="btn btn--outline btn--sm hazards-toggle" onclick="HazardsPage.toggleView()">${toggleLabel}</button>
                 </div>
 
-                <div id="hazards-list">
-                    <div class="loading-state">Loading hazards...</div>
-                </div>
+                ${viewContent}
 
                 <div class="safety-info">
                     <div class="safety-info__header">
@@ -68,15 +93,23 @@ const HazardsPage = {
             const res = await Store.apiFetch('/api/hazards');
             if (res.success) {
                 this._hazards = res.data;
-                this.renderHazardsList(res.data);
+                this.renderCurrentView();
             }
         } catch (err) {
             console.error('Failed to load hazards:', err);
         }
     },
 
+    renderCurrentView() {
+        if (this._view === 'map') {
+            this.renderHazardsMap(this._hazards);
+        } else {
+            this.renderHazardsList(this._hazards);
+        }
+    },
+
     /* --------------------------------------------------------
-       4. Card Rendering
+       4. List View Rendering
        -------------------------------------------------------- */
     renderHazardsList(hazards) {
         const container = document.getElementById('hazards-list');
@@ -113,135 +146,100 @@ const HazardsPage = {
     },
 
     /* --------------------------------------------------------
-       5. Detail Modal
+       5. Map View Rendering
        -------------------------------------------------------- */
-    openDetail(hazardId) {
-        const hazard = this._hazards.find(h => h.id === hazardId);
-        if (!hazard) return;
+    renderHazardsMap(hazards) {
+        const container = document.getElementById('hazards-map-view');
+        if (!container) return;
 
-        const badgeMap = { high: 'high', medium: 'warning', low: 'info' };
-        const labelMap = { high: 'High', medium: 'Medium', low: 'Low' };
-        const severityClass = badgeMap[hazard.severity] || 'info';
-        const severityLabel = labelMap[hazard.severity] || hazard.severity;
-
-        const safetyTips = this.getSafetyTips(hazard.title);
-
-        // Remove any existing modal
-        this.closeDetail();
-
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.id = 'hazard-detail-modal';
-        modal.onclick = (e) => {
-            if (e.target === modal) this.closeDetail();
+        const severityClass = {
+            high: 'hazard-map__marker--high',
+            medium: 'hazard-map__marker--medium',
+            low: 'hazard-map__marker--low'
         };
 
-        modal.innerHTML = `
-            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-                <div class="modal__header">
-                    <div>
-                        <h3 class="modal__title" id="modal-title">${this.escape(hazard.title)}</h3>
-                        <span class="badge badge--${severityClass}">${severityLabel}</span>
+        // Build markers for hazards whose location matches a known barangay
+        const markers = hazards.map(h => {
+            const pos = this.lookupPosition(h.location);
+            if (!pos) return null;
+            const cls = severityClass[h.severity] || 'hazard-map__marker--medium';
+            return `
+                <button type="button"
+                        class="hazard-map__marker ${cls}"
+                        style="left: ${pos.x}%; top: ${pos.y}%;"
+                        title="${this.escape(h.title)} — ${this.escape(h.location)}"
+                        onclick="HazardsPage.openDetail(${h.id})">
+                    <span class="hazard-map__marker-dot"></span>
+                </button>
+            `;
+        }).filter(Boolean).join('');
+
+        // Hazards that couldn't be placed on the map fall back to a chip list
+        const unplaced = hazards.filter(h => !this.lookupPosition(h.location));
+
+        container.innerHTML = `
+            <div class="hazard-map">
+                <div class="hazard-map__image">
+                    <img src="public/assets/images/morong-map.png" alt="Morong, Rizal satellite map">
+                    ${markers}
+                </div>
+                <div class="hazard-map__legend">
+                    <span class="hazard-map__legend-item"><span class="hazard-map__dot hazard-map__dot--high"></span>High</span>
+                    <span class="hazard-map__legend-item"><span class="hazard-map__dot hazard-map__dot--medium"></span>Medium</span>
+                    <span class="hazard-map__legend-item"><span class="hazard-map__dot hazard-map__dot--low"></span>Low</span>
+                    <span class="hazard-map__count">${hazards.length} active</span>
+                </div>
+                ${unplaced.length > 0 ? `
+                    <div class="hazard-map__unplaced">
+                        <div class="hazard-map__unplaced-label">Other active hazards</div>
+                        ${unplaced.map(h => `
+                            <button type="button" class="hazard-map__chip" onclick="HazardsPage.openDetail(${h.id})">
+                                ${this.escape(h.title)} — ${this.escape(h.location || 'Location unknown')}
+                            </button>
+                        `).join('')}
                     </div>
-                    <button class="modal__close" onclick="HazardsPage.closeDetail()" aria-label="Close">
-                        <svg viewBox="0 0 24 24">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="modal__body">
-                    ${hazard.location ? `
-                        <div class="modal__section">
-                            <div class="modal__section-label">
-                                <svg viewBox="0 0 24 24">
-                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                                    <circle cx="12" cy="10" r="3"></circle>
-                                </svg>
-                                Location
-                            </div>
-                            <div class="modal__section-text">${this.escape(hazard.location)}</div>
-                        </div>
-                    ` : ''}
-
-                    ${hazard.description ? `
-                        <div class="modal__section">
-                            <div class="modal__section-label">
-                                <svg viewBox="0 0 24 24">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                                </svg>
-                                Description
-                            </div>
-                            <div class="modal__section-text">${this.escape(hazard.description)}</div>
-                        </div>
-                    ` : ''}
-
-                    <div class="modal__section">
-                        <div class="modal__section-label">
-                            <svg viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <polyline points="12 6 12 12 16 14"></polyline>
-                            </svg>
-                            Last Updated
-                        </div>
-                        <div class="modal__section-text">${this.formatDate(hazard.updated_at)}</div>
-                    </div>
-
-                    ${safetyTips.length > 0 ? `
-                        <div class="modal__section">
-                            <div class="modal__section-label">
-                                <svg viewBox="0 0 24 24">
-                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                                </svg>
-                                Safety Recommendations
-                            </div>
-                            <ul class="modal__tips">
-                                ${safetyTips.map(tip => `<li>${tip}</li>`).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                </div>
-
-                <div class="modal__footer">
-                    <button class="btn btn--outline" onclick="HazardsPage.closeDetail()">Close</button>
-                    <button class="btn btn--primary" onclick="Router.navigate('emergency'); HazardsPage.closeDetail()">
-                        Emergency Hotlines
-                    </button>
-                </div>
+                ` : ''}
             </div>
         `;
-
-        document.body.appendChild(modal);
-        document.body.style.overflow = 'hidden';
-
-        // Trigger entry animation on next frame
-        requestAnimationFrame(() => modal.classList.add('modal-overlay--open'));
-
-        // Close on Escape key
-        this._escHandler = (e) => {
-            if (e.key === 'Escape') this.closeDetail();
-        };
-        document.addEventListener('keydown', this._escHandler);
     },
 
-    closeDetail() {
-        const modal = document.getElementById('hazard-detail-modal');
-        if (modal) {
-            modal.classList.remove('modal-overlay--open');
-            setTimeout(() => modal.remove(), 200);
+    lookupPosition(location) {
+        if (!location) return null;
+        const key = String(location).toLowerCase();
+        // Match the first barangay name that appears in the location string
+        for (const name in this._barangayMap) {
+            if (key.includes(name)) return this._barangayMap[name];
         }
-        document.body.style.overflow = '';
-        if (this._escHandler) {
-            document.removeEventListener('keydown', this._escHandler);
-            this._escHandler = null;
+        return null;
+    },
+
+    /* --------------------------------------------------------
+       6. View Toggle
+       -------------------------------------------------------- */
+    toggleView() {
+        this._view = this._view === 'map' ? 'list' : 'map';
+        // Re-render the entire page content to swap toggle label + view container
+        const app = document.getElementById('app-content');
+        if (app) {
+            app.innerHTML = this.render();
+            // render() schedules loadData which calls renderCurrentView;
+            // but we already have cached hazards — render immediately too
+            // so the switch feels instant even before the API resolves.
+            setTimeout(() => this.renderCurrentView(), 0);
         }
     },
 
     /* --------------------------------------------------------
-       6. Helper Methods
+       7. Detail Modal
+       -------------------------------------------------------- */
+    openDetail(hazardId) {
+        const hazard = this._hazards.find(h => h.id === hazardId);
+        if (!hazard) return;
+        DetailModal.showHazard(hazard);
+    },
+
+    /* --------------------------------------------------------
+       8. Helper Methods
        -------------------------------------------------------- */
     getSafetyTips(hazardTitle) {
         const title = (hazardTitle || '').toLowerCase();

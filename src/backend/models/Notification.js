@@ -93,4 +93,16 @@ async function markAsRead(id, userId) {
   );
 }
 
-module.exports = { findByUserId, create, countUnread, markAsRead };
+/**
+ * Marks all notifications for a user as read.
+ * @param {number} userId - The user ID
+ * @returns {Promise<object>} Update result
+ */
+async function markAllAsRead(userId) {
+  return db.query(
+    'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0',
+    [userId]
+  );
+}
+
+module.exports = { findByUserId, create, countUnread, markAsRead, markAllAsRead };

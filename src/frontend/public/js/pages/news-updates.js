@@ -150,8 +150,146 @@ const NewsUpdatesPage = {
                 </div>
             </div>
 
+            <!-- Create Post FAB -->
+            <button type="button" class="fab" onclick="NewsUpdatesPage.showCreateModal()" aria-label="Create Post">
+                <svg viewBox="0 0 24 24">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            </button>
+
             <div id="qr-modal-container"></div>
         `;
+    },
+
+    /* --------------------------------------------------------
+     * 2c. Create Post Modal
+     * -------------------------------------------------------- */
+    showCreateModal() {
+        let container = document.getElementById('create-post-modal');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'create-post-modal';
+            document.body.appendChild(container);
+        }
+        container.innerHTML = `
+            <div class="modal-overlay modal-overlay--centered" onclick="if(event.target===this) NewsUpdatesPage.closeCreateModal()">
+                <div class="modal" style="max-width:460px;max-height:90vh;padding:0;display:flex;flex-direction:column;overflow:hidden;">
+                    <div style="padding:var(--spacing-xl) var(--spacing-xl) var(--spacing-md);border-bottom:1px solid var(--color-gray-100);display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <div class="modal__title" style="margin-bottom:2px;">Create Post</div>
+                            <div style="font-size:var(--font-size-xs);color:var(--color-gray-400);">Share with the community</div>
+                        </div>
+                        <button type="button" style="width:32px;height:32px;border-radius:var(--radius-full);background:var(--color-gray-100);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="NewsUpdatesPage.closeCreateModal()">
+                            <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:var(--color-gray-600);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+                    <div style="padding:var(--spacing-lg) var(--spacing-xl);overflow-y:auto;flex:1;">
+                        <div class="report-form">
+                            <div class="form-group">
+                                <div class="form-group__label">Category <span class="form-group__required">*</span></div>
+                                <div class="category-chips">
+                                    <div class="category-chip selected" onclick="NewsUpdatesPage._selectPostCat('community', this)">Community</div>
+                                    <div class="category-chip" onclick="NewsUpdatesPage._selectPostCat('city-news', this)">City News</div>
+                                    <div class="category-chip" onclick="NewsUpdatesPage._selectPostCat('videos', this)">Videos</div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-group__label">Title <span class="form-group__required">*</span></div>
+                                <input class="form-input" type="text" id="post-title" placeholder="Post title">
+                            </div>
+                            <div class="form-group">
+                                <div class="form-group__label">Content</div>
+                                <textarea class="form-input" id="post-content" placeholder="Write your post..." style="min-height:80px;"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-group__label">Image (optional)</div>
+                                <div class="upload-zone" onclick="document.getElementById('post-image-input').click()" style="padding:var(--spacing-md);">
+                                    <div class="upload-zone__text">Tap to <strong>add image</strong></div>
+                                </div>
+                                <input type="file" id="post-image-input" accept="image/*" style="display:none" onchange="NewsUpdatesPage._handlePostImage(this)">
+                                <div id="post-image-preview"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding:var(--spacing-md) var(--spacing-xl) var(--spacing-xl);border-top:1px solid var(--color-gray-100);">
+                        <button type="button" class="btn btn--primary btn--block" onclick="NewsUpdatesPage.submitPost()">
+                            <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;"><path d="M22 2L11 13"></path><path d="M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
+                            Publish Post
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.style.overflow = 'hidden';
+        this._newPostCat = 'community';
+        this._newPostImage = null;
+    },
+
+    closeCreateModal() {
+        const container = document.getElementById('create-post-modal');
+        if (container) container.innerHTML = '';
+        document.body.style.overflow = '';
+    },
+
+    _selectPostCat(cat, el) {
+        this._newPostCat = cat;
+        document.querySelectorAll('#create-post-modal .category-chip').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+    },
+
+    _handlePostImage(input) {
+        const file = input.files[0];
+        if (!file) return;
+        this._newPostImage = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('post-image-preview').innerHTML = `
+                <div style="margin-top:var(--spacing-sm);position:relative;display:inline-block;">
+                    <img src="${e.target.result}" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius-md);">
+                    <button type="button" class="upload-preview__remove" onclick="NewsUpdatesPage._removePostImage()">x</button>
+                </div>
+            `;
+        };
+        reader.readAsDataURL(file);
+        input.value = '';
+    },
+
+    _removePostImage() {
+        this._newPostImage = null;
+        document.getElementById('post-image-preview').innerHTML = '';
+    },
+
+    submitPost() {
+        const title = document.getElementById('post-title').value.trim();
+        const content = document.getElementById('post-content').value.trim();
+
+        if (!title) { alert('Please enter a title.'); return; }
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+        const categoryImages = {
+            community: 'public/assets/news/community-survey.jpg',
+            'city-news': 'public/assets/news/police-operation.jpg',
+            videos: 'public/assets/news/emergency-system.jpg',
+        };
+
+        // Add to local posts array (mock — no backend persistence yet)
+        this.posts.unshift({
+            id: Date.now(),
+            category: this._newPostCat,
+            title: title,
+            excerpt: content || 'No description provided.',
+            date: dateStr,
+            type: this._newPostCat === 'videos' ? 'video' : 'post',
+            image: categoryImages[this._newPostCat] || categoryImages.community,
+        });
+
+        this.closeCreateModal();
+
+        // Re-render the list
+        document.getElementById('news-list').innerHTML = this.renderList();
     },
 
     /* --------------------------------------------------------

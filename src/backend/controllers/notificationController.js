@@ -41,4 +41,16 @@ async function getNotifications(req, res, next) {
   }
 }
 
-module.exports = { getNotifications };
+/**
+ * Marks all notifications for the current user as read.
+ */
+async function markAllRead(req, res, next) {
+  try {
+    await Notification.markAllAsRead(req.user.id);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getNotifications, markAllRead };

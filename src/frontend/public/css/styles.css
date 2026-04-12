@@ -699,6 +699,70 @@ h4 { font-size: var(--font-size-base); }
     border-color: var(--color-primary);
 }
 
+/* Report tab groups (Active / History toggle) */
+.report-tab-groups {
+    margin-bottom: var(--spacing-md);
+}
+.report-tab-group {
+    display: flex;
+    background: var(--color-gray-200);
+    border-radius: var(--radius-md);
+    padding: 2px;
+}
+.report-tab-group__btn {
+    flex: 1;
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-align: center;
+    font-family: var(--font-family);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-gray-500);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.report-tab-group__btn.active {
+    background: var(--color-white);
+    color: var(--color-gray-900);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Featured report card */
+.featured-report-card {
+    background: var(--color-white);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    border: 1.5px solid var(--color-primary);
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: var(--shadow-sm);
+}
+.featured-report-card:hover {
+    box-shadow: var(--shadow-md);
+}
+.featured-report-card:active {
+    transform: scale(0.99);
+}
+.featured-report-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+.featured-report-card__desc {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-600);
+    line-height: 1.5;
+    margin: var(--spacing-sm) 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
 /* ============================================================
    9. Login Page
    ============================================================ */
@@ -1630,6 +1694,12 @@ select.input-group__field {
     padding: var(--spacing-lg);
     border: 1px solid var(--color-gray-200);
     margin-bottom: var(--spacing-md);
+    transition: background 0.15s;
+}
+
+.notification-card--unread {
+    background-color: var(--color-info-light);
+    border-color: var(--color-info);
 }
 
 .notification-card__icon {
@@ -2471,6 +2541,157 @@ body.theme-dark {
     box-shadow: var(--shadow-sm);
 }
 
+/* Main dashboard tabs (Hazards / Reports / Incidents) */
+.dash-main-tabs {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+}
+.dash-main-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: var(--spacing-md) var(--spacing-sm);
+    border-radius: var(--radius-lg);
+    background: var(--color-white);
+    border: 1.5px solid var(--color-gray-200);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    font-family: var(--font-family);
+    color: var(--color-gray-600);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.dash-main-tab:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.dash-main-tab.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+}
+.dash-main-tab svg {
+    width: 16px; height: 16px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ============================================================
+   Detail Modal (Incident / Hazard full view)
+   ============================================================ */
+.detail-modal {
+    padding: 0 !important;
+    max-width: 480px !important;
+    max-height: 85vh !important;
+    display: flex !important;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+}
+.detail-modal__close {
+    position: absolute;
+    top: var(--spacing-md); right: var(--spacing-md);
+    width: 32px; height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--color-gray-100);
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1;
+    transition: background 0.15s;
+}
+.detail-modal__close:hover { background: var(--color-gray-200); }
+.detail-modal__close svg {
+    width: 16px; height: 16px;
+    fill: none; stroke: var(--color-gray-600);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.detail-modal__body {
+    padding: var(--spacing-xl);
+    overflow-y: auto;
+    flex: 1;
+}
+.detail-modal__badge-row {
+    display: flex; gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+.detail-modal__title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-gray-900);
+    margin-bottom: var(--spacing-md);
+    padding-right: 36px;
+}
+.detail-modal__desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-600);
+    line-height: 1.6;
+    margin-bottom: var(--spacing-lg);
+}
+.detail-modal__meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+.detail-modal__meta-item {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: flex-start;
+}
+.detail-modal__meta-item svg {
+    width: 18px; height: 18px;
+    fill: none; stroke: var(--color-gray-400);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.detail-modal__meta-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-400);
+    font-weight: 500;
+}
+.detail-modal__meta-value {
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-900);
+    font-weight: 600;
+}
+.detail-modal__coords {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-400);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-gray-50);
+    border-radius: var(--radius-md);
+}
+.detail-modal__coords svg {
+    width: 14px; height: 14px;
+    fill: none; stroke: var(--color-success);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.detail-modal__section {
+    margin-bottom: var(--spacing-lg);
+}
+.detail-modal__section:last-child { margin-bottom: 0; }
+.detail-modal__section-title {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--color-gray-700);
+    margin-bottom: var(--spacing-xs);
+}
+.detail-modal__section-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-500);
+    line-height: 1.5;
+}
+.detail-modal__footer {
+    padding: var(--spacing-md) var(--spacing-xl) var(--spacing-xl);
+    border-top: 1px solid var(--color-gray-100);
+    flex-shrink: 0;
+}
+
 /* Floating action button */
 .fab {
     position: fixed;
@@ -2570,7 +2791,6 @@ body.theme-dark {
     box-shadow: var(--shadow-lg);
     transform: none !important;
     opacity: 1 !important;
-    display: block;
 }
 .modal-overlay--centered .modal.terms-modal {
     padding: 0;
@@ -3226,6 +3446,140 @@ body.dark-mode {
     .page-enter-active {
         transition: none;
     }
+}
+
+/* ============================================================
+   Hazard Zones — Map View
+   ============================================================
+   Reference: reference/html-designs/hazard-user/Hazard User3
+   Renders a static satellite map of Morong with clickable
+   severity-coded pins for each active hazard.
+   ============================================================ */
+.hazards-toggle {
+    min-width: 64px;
+}
+
+.hazard-map {
+    background: var(--color-white);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-gray-200);
+    overflow: hidden;
+    margin-bottom: var(--spacing-lg);
+}
+
+.hazard-map__image {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 375 / 543;
+    background: var(--color-gray-100);
+    overflow: hidden;
+}
+.hazard-map__image img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.hazard-map__marker {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease-out;
+}
+.hazard-map__marker:hover,
+.hazard-map__marker:focus-visible {
+    transform: translate(-50%, -100%) scale(1.15);
+    outline: none;
+}
+.hazard-map__marker-dot {
+    display: block;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 3px solid var(--color-white);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.hazard-map__marker--high .hazard-map__marker-dot {
+    background: var(--color-danger, #dc2626);
+}
+.hazard-map__marker--medium .hazard-map__marker-dot {
+    background: var(--color-warning, #f59e0b);
+}
+.hazard-map__marker--low .hazard-map__marker-dot {
+    background: var(--color-info, #0284c7);
+}
+
+.hazard-map__legend {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-top: 1px solid var(--color-gray-200);
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-700);
+    flex-wrap: wrap;
+}
+.hazard-map__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.hazard-map__dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+.hazard-map__dot--high { background: var(--color-danger, #dc2626); }
+.hazard-map__dot--medium { background: var(--color-warning, #f59e0b); }
+.hazard-map__dot--low { background: var(--color-info, #0284c7); }
+.hazard-map__count {
+    margin-left: auto;
+    font-weight: 600;
+    color: var(--color-gray-900);
+}
+
+.hazard-map__unplaced {
+    padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+    border-top: 1px solid var(--color-gray-200);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.hazard-map__unplaced-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.hazard-map__chip {
+    text-align: left;
+    background: var(--color-gray-50);
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    font-family: var(--font-family);
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-800);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.hazard-map__chip:hover {
+    background: var(--color-gray-100);
 }
 
 /* --- Touch device optimizations --- */

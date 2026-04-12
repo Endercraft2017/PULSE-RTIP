@@ -22,5 +22,6 @@ const router = Router();
  * -------------------------------------------------------------------------- */
 
 router.get('/', authenticate, notificationController.getNotifications);
+router.put('/read', authenticate, notificationController.markAllRead);
 
 module.exports = router;
