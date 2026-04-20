@@ -2844,6 +2844,28 @@ body.theme-dark {
 
     background-color: var(--color-bg);
     color: var(--color-gray-800);
+    /* Tell the browser to render native UI controls (scrollbars, form
+       controls, caret, selection) in their dark variants. Without this
+       the scrollbar stays light on Chrome/Edge even when the page is
+       dark. */
+    color-scheme: dark;
+}
+
+/* Scrollbar — explicit styling for both light and dark modes */
+body.theme-dark ::-webkit-scrollbar-track {
+    background: transparent;
+}
+body.theme-dark ::-webkit-scrollbar-thumb {
+    background-color: var(--color-gray-200);
+    border-radius: 4px;
+}
+body.theme-dark ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-gray-300);
+}
+/* Firefox scrollbar (thin variant) */
+body.theme-dark {
+    scrollbar-color: var(--color-gray-200) transparent;
+    scrollbar-width: thin;
 }
 
 /* ---- Dark-mode explicit overrides for hardcoded colors ---- */
@@ -2917,11 +2939,6 @@ body.theme-dark .hazard-info-card {
 /* Select arrow icon (hardcoded gray stroke in SVG data URL) */
 body.theme-dark select.input-group__field {
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23CBD5E1' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-}
-
-/* Scrollbar */
-body.theme-dark ::-webkit-scrollbar-thumb {
-    background-color: var(--color-gray-300);
 }
 
 /* SOS button stays red — ensure text is white */
