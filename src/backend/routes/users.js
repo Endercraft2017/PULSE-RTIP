@@ -7,8 +7,9 @@
  * 1. Imports
  * 2. Route Definitions
  *
- * GET  /api/users/me - Get current user profile
- * PUT  /api/users/me - Update current user profile
+ * GET  /api/users/me          - Get current user profile
+ * PUT  /api/users/me          - Update current user profile
+ * PUT  /api/users/me/password - Change current user's password
  * =============================================================================
  */
 
@@ -31,5 +32,10 @@ router.put('/me', authenticate, validate([
   body('phone').optional().trim(),
   body('address').optional().trim(),
 ]), userController.updateMe);
+
+router.put('/me/password', authenticate, validate([
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
+]), userController.changePassword);
 
 module.exports = router;

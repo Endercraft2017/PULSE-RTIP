@@ -229,6 +229,25 @@ const Store = {
     },
 
     /**
+     * Changes the password of the currently authenticated user.
+     * Requires the current password as proof. Does not log the user out.
+     * @param {string} currentPassword
+     * @param {string} newPassword
+     * @returns {Promise<object>} { success, message }
+     */
+    async changePassword(currentPassword, newPassword) {
+        try {
+            const res = await this.apiFetch('/api/users/me/password', {
+                method: 'PUT',
+                body: JSON.stringify({ currentPassword, newPassword }),
+            });
+            return res;
+        } catch (err) {
+            return { success: false, message: 'Network error. Please try again.' };
+        }
+    },
+
+    /**
      * Initiates password reset — finds the user by email or phone and
      * dispatches an SMS OTP to their registered phone number.
      * @param {string} identifier - Email or phone

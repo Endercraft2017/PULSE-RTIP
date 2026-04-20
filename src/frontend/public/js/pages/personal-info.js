@@ -72,10 +72,127 @@ const PersonalInfoPage = {
 
     /**
      * Initiates password change flow.
-     * Reuses the existing forgot-password recovery flow (OTP-based).
+     * Opens an in-page modal so the logged-in user can change their
+     * password without losing their session. The forgot-password OTP
+     * flow is reserved for locked-out users on the login screen.
      */
     changePassword() {
-        Router.navigate('forgot-password');
+        this._openChangePasswordModal();
+    },
+
+    _openChangePasswordModal() {
+        this._closeChangePasswordModal();
+
+        const modal = document.createElement('div');
+        modal.id = 'change-password-modal';
+        modal.className = 'modal-overlay modal-overlay--centered';
+        modal.onclick = (e) => {
+            if (e.target === modal) this._closeChangePasswordModal();
+        };
+
+        modal.innerHTML = `
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cp-title" style="max-width: 460px;">
+                <div class="modal__header">
+                    <h3 class="modal__title" id="cp-title">Change Password</h3>
+                    <button class="modal__close" type="button"
+                            onclick="PersonalInfoPage._closeChangePasswordModal()" aria-label="Close">
+                        <svg viewBox="0 0 24 24">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <form class="modal__body" id="change-password-form"
+                      onsubmit="event.preventDefault(); PersonalInfoPage._submitChangePassword(event)">
+                    <div class="input-group">
+                        <label class="input-group__label" for="cp-current">Current password</label>
+                        <input class="input-group__field" type="password" id="cp-current"
+                               autocomplete="current-password" required>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-group__label" for="cp-new">New password</label>
+                        <input class="input-group__field" type="password" id="cp-new"
+                               autocomplete="new-password" minlength="8" required>
+                        <div class="input-group__hint">* Must be at least 8 characters</div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-group__label" for="cp-confirm">Confirm new password</label>
+                        <input class="input-group__field" type="password" id="cp-confirm"
+                               autocomplete="new-password" minlength="8" required>
+                    </div>
+                    <div class="modal__footer" style="grid-template-columns: 1fr 1fr;">
+                        <button type="button" class="btn btn--outline"
+                                onclick="PersonalInfoPage._closeChangePasswordModal()">Cancel</button>
+                        <button type="submit" class="btn btn--primary" id="cp-submit">Update</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        document.body.style.overflow = 'hidden';
+        requestAnimationFrame(() => modal.classList.add('modal-overlay--open'));
+
+        // Escape key closes the modal
+        this._cpEscHandler = (e) => {
+            if (e.key === 'Escape') this._closeChangePasswordModal();
+        };
+        document.addEventListener('keydown', this._cpEscHandler);
+
+        // Focus the first field
+        setTimeout(() => {
+            const firstInput = document.getElementById('cp-current');
+            if (firstInput) firstInput.focus();
+        }, 100);
+    },
+
+    _closeChangePasswordModal() {
+        const modal = document.getElementById('change-password-modal');
+        if (modal) {
+            modal.classList.remove('modal-overlay--open');
+            setTimeout(() => modal.remove(), 200);
+        }
+        document.body.style.overflow = '';
+        if (this._cpEscHandler) {
+            document.removeEventListener('keydown', this._cpEscHandler);
+            this._cpEscHandler = null;
+        }
+    },
+
+    async _submitChangePassword(event) {
+        const current = document.getElementById('cp-current').value;
+        const next = document.getElementById('cp-new').value;
+        const confirm = document.getElementById('cp-confirm').value;
+
+        if (next !== confirm) {
+            alert('New passwords do not match.');
+            return;
+        }
+
+        if (next.length < 8) {
+            alert('New password must be at least 8 characters.');
+            return;
+        }
+
+        if (current === next) {
+            alert('New password must be different from your current password.');
+            return;
+        }
+
+        const btn = document.getElementById('cp-submit');
+        if (btn) { btn.disabled = true; btn.textContent = 'Updating...'; }
+
+        const result = await Store.changePassword(current, next);
+
+        if (btn) { btn.disabled = false; btn.textContent = 'Update'; }
+
+        if (!result.success) {
+            alert(result.message || 'Failed to change password.');
+            return;
+        }
+
+        this._closeChangePasswordModal();
+        alert('Password updated successfully.');
     },
 
     /**

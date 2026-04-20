@@ -12,6 +12,7 @@
  * =============================================================================
  */
 
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 
 /* --------------------------------------------------------------------------
@@ -62,4 +63,68 @@ async function updateMe(req, res, next) {
   }
 }
 
-module.exports = { getMe, updateMe };
+/* --------------------------------------------------------------------------
+ * 4. changePassword
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Changes the authenticated user's password. Requires the current
+ * password to be supplied to defend against session hijacks.
+ * The user's JWT remains valid — no forced re-login.
+ *
+ * @param {object} req - Express request (body: { currentPassword, newPassword })
+ * @param {object} res - Express response
+ * @param {function} next - Express next function
+ */
+async function changePassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current and new password are both required.',
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters.',
+      });
+    }
+
+    // Fetch full user row (findById omits password_hash)
+    const user = await User.findByEmail(req.user.email);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const matches = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!matches) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect.',
+      });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from your current password.',
+      });
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, 10);
+    await User.updatePassword(user.id, password_hash);
+
+    res.json({
+      success: true,
+      message: 'Password updated successfully.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getMe, updateMe, changePassword };
