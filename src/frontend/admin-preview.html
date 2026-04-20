@@ -131,6 +131,57 @@
     overflow-y: auto;
     transition: width 0.2s ease, transform 0.25s ease;
     flex-shrink: 0;
+    /* Flex column so the logout button can be pinned to the bottom */
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar__spacer {
+    flex: 1;
+    min-height: var(--spacing-lg);
+  }
+
+  .sidebar__footer {
+    border-top: 1px solid var(--color-gray-200);
+    padding: 8px 0;
+  }
+
+  .sidebar__logout {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    color: #DC2626;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .sidebar__logout:hover {
+    background: #FEE2E2;
+  }
+  .sidebar__logout svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .sidebar.collapsed .sidebar__logout {
+    justify-content: center;
+    padding: 12px;
+  }
+  .sidebar.collapsed .sidebar__logout-label {
+    display: none;
   }
 
   .sidebar.collapsed {
@@ -266,6 +317,9 @@
     background: #1E293B;
     box-shadow: 0 4px 12px rgba(0,0,0,0.55);
   }
+  html.theme-dark .sidebar__footer { border-top-color: #334155; }
+  html.theme-dark .sidebar__logout { color: #FCA5A5; }
+  html.theme-dark .sidebar__logout:hover { background: rgba(239, 68, 68, 0.15); }
 
   /* ----- Mobile overlay mode ----- */
   @media (max-width: 767px) {
@@ -301,8 +355,10 @@
   @media (min-width: 768px) and (max-width: 1023px) {
     .sidebar { width: var(--sidebar-collapsed); }
     .sidebar .sidebar__group-label { display: none; }
-    .sidebar .sidebar__item-label { display: none; }
-    .sidebar .sidebar__item { justify-content: center; padding: 12px; }
+    .sidebar .sidebar__item-label,
+    .sidebar .sidebar__logout-label { display: none; }
+    .sidebar .sidebar__item,
+    .sidebar .sidebar__logout { justify-content: center; padding: 12px; }
     .topbar__menu { display: none; }
   }
 </style>
@@ -410,8 +466,10 @@
   const currentLabel  = document.getElementById('current-label');
 
   /* --- Render sidebar --- */
+  const logoutIcon = icon('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>');
+
   function renderSidebar() {
-    sidebar.innerHTML = groups.map(group => `
+    const groupsHtml = groups.map(group => `
       <div class="sidebar__group">
         <div class="sidebar__group-label">${group.label}</div>
         ${group.items.map(item => `
@@ -423,9 +481,44 @@
       </div>
     `).join('');
 
+    sidebar.innerHTML = `
+      ${groupsHtml}
+      <div class="sidebar__spacer"></div>
+      <div class="sidebar__footer">
+        <button class="sidebar__logout" id="sidebar-logout" title="Log out">
+          ${logoutIcon}
+          <span class="sidebar__logout-label">Log out</span>
+        </button>
+      </div>
+    `;
+
     sidebar.querySelectorAll('.sidebar__item').forEach(btn => {
       btn.addEventListener('click', () => selectRoute(btn.dataset.route, btn.title));
     });
+
+    document.getElementById('sidebar-logout').addEventListener('click', handleLogout);
+  }
+
+  /* --- Logout --- */
+  function handleLogout() {
+    if (!confirm('Log out of PULSE 911?')) return;
+
+    // Clear the auth token — localStorage is shared across origin, so the
+    // iframe's next navigation will fail auth and redirect to login.
+    try {
+      localStorage.removeItem('pulse_token');
+    } catch (e) {}
+
+    // Reload the iframe to the login page
+    iframe.src = 'index.html?embed=1#/login';
+    currentLabel.textContent = 'Login';
+    sidebar.querySelectorAll('.sidebar__item').forEach(b => b.classList.remove('active'));
+
+    // Close mobile overlay if open
+    if (window.innerWidth < 768) {
+      sidebar.classList.remove('open');
+      backdrop.classList.remove('visible');
+    }
   }
 
   /* --- Navigation --- */
