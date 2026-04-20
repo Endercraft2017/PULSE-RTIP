@@ -30,6 +30,8 @@ const CitizenHomePage = {
                     </div>
                 </div>
 
+                ${this.renderAppDownload ? this.renderAppDownload() : ''}
+
                 <!-- Offline SOS Button (hidden when online) -->
                 <div class="sos-btn-container" id="sos-btn-container" style="display:none;">
                     <button class="btn btn--danger btn--block sos-btn" onclick="SosOffline.show()">
@@ -203,6 +205,35 @@ const CitizenHomePage = {
                     </div>
                 </div>
             </div>
+        `;
+    },
+
+    /**
+     * Small "Get the mobile app" banner shown only on the web.
+     * Hidden automatically inside the Capacitor APK since they're
+     * already using it.
+     */
+    renderAppDownload() {
+        if (Store.get('isNativeApp')) return '';
+        return `
+            <a class="app-download-card" href="/downloads/" target="_blank" rel="noopener">
+                <div class="app-download-card__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                        <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                    </svg>
+                </div>
+                <div class="app-download-card__content">
+                    <div class="app-download-card__title">Get the Pulse 911 app</div>
+                    <div class="app-download-card__desc">Faster access + offline SOS reporting</div>
+                </div>
+                <div class="app-download-card__cta">
+                    Install
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </div>
+            </a>
         `;
     },
 

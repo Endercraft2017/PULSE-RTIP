@@ -129,6 +129,7 @@ const Store = {
         role: null, // 'citizen' or 'admin'
         isAuthenticated: false,
         isElectron: !!(window.electronAPI && window.electronAPI.isElectron),
+        isNativeApp: !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()),
         notifications: [],
         notificationCount: 0
     },
