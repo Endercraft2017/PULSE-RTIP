@@ -28,14 +28,19 @@ const db = require('../config/database');
  * Examples: "+63 912 345 6789" -> "09123456789"
  *           "63 912 345 6789"  -> "09123456789"
  *           "09123456789"      -> "09123456789"
+ *           "9123456789"       -> "09123456789" (missing leading 0)
  * @param {string} phone
  * @returns {string}
  */
 function normalizePhone(phone) {
   if (!phone) return '';
   let clean = String(phone).replace(/[^\d+]/g, '');
+
   if (clean.startsWith('+63')) clean = '0' + clean.slice(3);
   else if (clean.startsWith('63') && clean.length === 12) clean = '0' + clean.slice(2);
+  // Missing leading 0 — user typed "9171234567" instead of "09171234567"
+  else if (clean.length === 10 && clean.startsWith('9')) clean = '0' + clean;
+
   return clean;
 }
 

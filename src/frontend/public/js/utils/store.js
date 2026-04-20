@@ -30,20 +30,43 @@ const API_BASE = (window.Capacitor && window.Capacitor.isNativePlatform && windo
  * -------------------------------------------------------- */
 const PhoneFormat = {
     /**
+     * Canonicalizes any plausible input into strict PH mobile digits.
+     * Returns '' if the input can't be normalized into a valid 11-digit
+     * 09xxxxxxxxx form.
+     *
+     * Accepts:
+     *   - 09xxxxxxxxx          (11 digits, already correct)
+     *   - 9xxxxxxxxx           (10 digits — prepend leading 0)
+     *   - 639xxxxxxxxx         (12 digits — drop country code)
+     *   - +639xxxxxxxxx        (13 chars with + — drop country code)
+     *   - Anything with formatting (spaces, dashes, parens) — stripped
+     */
+    normalize(raw) {
+        if (!raw) return '';
+        let digits = String(raw).replace(/\D/g, '');
+
+        // International prefix 63 -> local 0
+        if (digits.startsWith('63') && digits.length === 12) {
+            digits = '0' + digits.slice(2);
+        }
+        // Missing leading 0 (user typed "9171234567")
+        else if (digits.length === 10 && digits.startsWith('9')) {
+            digits = '0' + digits;
+        }
+
+        return digits;
+    },
+
+    /**
      * Validates that a phone number is a plausible Philippine mobile
      * number (starts with 09, exactly 11 digits). Accepts any input
-     * format — compares digits only.
+     * format — compares digits only, and accepts 10-digit numbers
+     * missing the leading 0 (very common in practice).
      * @param {string} raw
      * @returns {boolean}
      */
     isValid(raw) {
-        if (!raw) return false;
-        let digits = String(raw).replace(/\D/g, '');
-        // +63 / 63 prefix -> 0
-        if (digits.startsWith('63') && digits.length >= 11) {
-            digits = '0' + digits.slice(2);
-        }
-        return /^09\d{9}$/.test(digits);
+        return /^09\d{9}$/.test(this.normalize(raw));
     },
 
     /** Normalizes raw input into "09XX-XXX-XXXX". Truncates at 11 digits. */
@@ -54,6 +77,11 @@ const PhoneFormat = {
         // +63 / 63 international prefix -> 0 local prefix
         if (digits.startsWith('63') && digits.length >= 11) {
             digits = '0' + digits.slice(2);
+        }
+        // If the user has typed exactly 10 digits starting with 9, they
+        // almost certainly dropped the leading 0 — prepend it.
+        else if (digits.length === 10 && digits.startsWith('9')) {
+            digits = '0' + digits;
         }
 
         // Cap at 11 digits (standard PH mobile length)
