@@ -216,7 +216,7 @@ const ReportIncidentPage = {
                 <div style="font-size:0.875rem;color:var(--color-gray-500);margin-bottom:var(--spacing-2xl);max-width:280px;line-height:1.5;">
                     Your incident report has been sent to the MDRRMO team. You will receive notifications on status updates.
                 </div>
-                <button class="btn btn--primary btn--block" onclick="Router.navigate('citizen-home')" style="max-width:280px;">
+                <button class="btn btn--primary btn--block" onclick="Router.navigate('home')" style="max-width:280px;">
                     Back to Home
                 </button>
                 <button class="btn btn--outline mt-md" onclick="ReportIncidentPage.restart()" style="max-width:280px;width:100%;">

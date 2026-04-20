@@ -2,13 +2,13 @@
  * =============================================================================
  * NewsAPI Configuration
  * =============================================================================
- * Paste your free NewsAPI key below.
- * Get one at: https://newsapi.org/register
- *
  * Free tier limits:
  * - 100 requests/day
- * - Works on localhost only (dev mode)
+ * - Works on localhost ONLY (blocked on production domains)
  * - Results delayed by ~15 min
+ *
+ * On production (pulse.afkcube.com), NewsAPI will fail silently.
+ * GDACS disaster alerts work everywhere — no key, no restrictions.
  * =============================================================================
  */
 
@@ -17,6 +17,4 @@ module.exports = {
     baseUrl: 'https://newsapi.org/v2',
     /** Cache TTL in milliseconds (30 min — saves API calls) */
     cacheTtl: 30 * 60 * 1000,
-    /** Keywords to filter Philippines news for Morong/Rizal relevance */
-    keywords: ['Morong', 'Rizal', 'MDRRMO', 'Morong Rizal'],
 };

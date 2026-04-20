@@ -46,6 +46,11 @@ const NewsUpdatesPage = {
                            oninput="NewsUpdatesPage.handleSearch(this.value)">
                 </div>
 
+                <!-- Disaster Alerts (GDACS) -->
+                <div id="disaster-alerts" class="mb-lg">
+                    <div class="loading-state">Checking disaster alerts...</div>
+                </div>
+
                 <!-- Featured Latest News card -->
                 <div class="featured-news mb-lg">
                     <div class="featured-news__brand">
@@ -112,6 +117,7 @@ const NewsUpdatesPage = {
      * 3. Data Loading
      * -------------------------------------------------------- */
     liveNews: [],
+    disasters: [],
 
     async loadData() {
         try {
@@ -124,26 +130,86 @@ const NewsUpdatesPage = {
                 this.posts = postsRes.data;
             }
 
-            if (newsRes.success && newsRes.data && newsRes.data.length > 0) {
-                this.liveNews = newsRes.data.map(article => ({
-                    id: 'news-' + article.publishedAt,
-                    category: 'city-news',
-                    type: 'post',
-                    title: article.title,
-                    content: article.description || '',
-                    author_name: article.source || 'News',
-                    author_avatar: 'N',
-                    image_path: article.image || null,
-                    created_at: article.publishedAt,
-                    url: article.url,
-                    _isLiveNews: true,
-                    _relevance: article.relevance,
-                }));
+            if (newsRes.success && newsRes.data) {
+                // Disaster alerts from GDACS
+                if (newsRes.data.disasters && newsRes.data.disasters.length > 0) {
+                    this.disasters = newsRes.data.disasters;
+                }
+
+                // News articles from NewsAPI
+                const articles = newsRes.data.news || newsRes.data;
+                if (Array.isArray(articles) && articles.length > 0 && articles[0].title) {
+                    this.liveNews = articles.map(article => ({
+                        id: 'news-' + article.publishedAt,
+                        category: 'city-news',
+                        type: 'post',
+                        title: article.title,
+                        content: article.description || '',
+                        author_name: article.source || 'News',
+                        author_avatar: 'N',
+                        image_path: article.image || null,
+                        created_at: article.publishedAt,
+                        url: article.url,
+                        _isLiveNews: true,
+                        _relevance: article.relevance,
+                    }));
+                }
             }
         } catch (err) {
             console.error('Failed to load posts:', err);
         }
+        this.renderDisasterAlerts();
         this.refreshList();
+    },
+
+    renderDisasterAlerts() {
+        const container = document.getElementById('disaster-alerts');
+        if (!container) return;
+
+        if (this.disasters.length === 0) {
+            container.innerHTML = `
+                <div class="disaster-banner disaster-banner--safe">
+                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    <div>
+                        <div class="disaster-banner__title">No Active Disaster Alerts</div>
+                        <div class="disaster-banner__desc">No disasters detected near Morong, Rizal. Stay prepared.</div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = this.disasters.map(d => {
+            const levelClass = (d.alertLevel || 'green').toLowerCase();
+            const typeIcons = {
+                'Tropical Cyclone': '<path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2.5 2.5 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path>',
+                'Earthquake': '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>',
+                'Flood': '<path d="M2 15c6.667-6 13.333 0 20-6"></path><path d="M2 19c6.667-6 13.333 0 20-6"></path>',
+                'Wildfire': '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
+                'Volcano': '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+            };
+            const icon = typeIcons[d.type] || typeIcons['Earthquake'];
+
+            return `
+                <a href="${d.url}" target="_blank" rel="noopener" class="disaster-alert disaster-alert--${levelClass}">
+                    <div class="disaster-alert__icon">
+                        <svg viewBox="0 0 24 24">${icon}</svg>
+                    </div>
+                    <div class="disaster-alert__body">
+                        <div class="disaster-alert__header">
+                            <span class="disaster-alert__title">${d.title}</span>
+                            <span class="disaster-alert__level disaster-alert__level--${levelClass}">${d.alertLevel}</span>
+                        </div>
+                        <div class="disaster-alert__desc">${d.description}</div>
+                        <div class="disaster-alert__meta">
+                            <span>${d.type}</span>
+                            ${d.distanceKm ? '<span>' + d.distanceKm + ' km away</span>' : ''}
+                            <span>${d.source}</span>
+                        </div>
+                    </div>
+                </a>
+            `;
+        }).join('');
     },
 
     /* --------------------------------------------------------

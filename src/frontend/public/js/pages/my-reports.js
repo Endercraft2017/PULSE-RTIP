@@ -34,21 +34,21 @@ const MyReportsPage = {
 
         return `
             <div class="page-padding">
-                <div id="featured-report">
-                    <div class="loading-state">Loading reports...</div>
-                </div>
-
-                <div class="filter-tabs" id="report-filters">
+                <div class="filter-tabs filter-tabs--scroll" id="report-filters">
                     <button class="filter-tabs__tab ${this.activeFilter === 'all' ? 'active' : ''}"
                             onclick="MyReportsPage.setFilter('all')">All</button>
                     <button class="filter-tabs__tab ${this.activeFilter === 'submitted' ? 'active' : ''}"
                             onclick="MyReportsPage.setFilter('submitted')">Submitted</button>
                     <button class="filter-tabs__tab ${this.activeFilter === 'investigating' ? 'active' : ''}"
-                            onclick="MyReportsPage.setFilter('investigating')">Under Review</button>
+                            onclick="MyReportsPage.setFilter('investigating')">Investigating</button>
+                    <button class="filter-tabs__tab ${this.activeFilter === 'in_progress' ? 'active' : ''}"
+                            onclick="MyReportsPage.setFilter('in_progress')">In Progress</button>
                     <button class="filter-tabs__tab ${this.activeFilter === 'resolved' ? 'active' : ''}"
                             onclick="MyReportsPage.setFilter('resolved')">Resolved</button>
                     <button class="filter-tabs__tab ${this.activeFilter === 'rejected' ? 'active' : ''}"
                             onclick="MyReportsPage.setFilter('rejected')">Rejected</button>
+                    <button class="filter-tabs__tab ${this.activeFilter === 'cancelled' ? 'active' : ''}"
+                            onclick="MyReportsPage.setFilter('cancelled')">Cancelled</button>
                 </div>
 
                 <div id="reports-list"></div>
@@ -64,7 +64,6 @@ const MyReportsPage = {
             const res = await Store.apiFetch('/api/reports');
             if (res.success) {
                 this.reports = res.data;
-                this.renderFeatured();
                 this.renderReportsList();
             }
         } catch (err) {
@@ -73,54 +72,7 @@ const MyReportsPage = {
     },
 
     /* --------------------------------------------------------
-     * 4. Featured Report Card
-     * -------------------------------------------------------- */
-    renderFeatured() {
-        const container = document.getElementById('featured-report');
-        if (!container) return;
-
-        const latest = this.reports.length > 0
-            ? [...this.reports].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
-            : null;
-
-        if (!latest) {
-            container.innerHTML = '';
-            return;
-        }
-
-        container.innerHTML = `
-            <div class="featured-report-card" onclick="DetailModal.showIncident(${this._escAttr(JSON.stringify(latest))})">
-                <div class="featured-report-card__header">
-                    <span class="incident-card__title">${this.escape(latest.title)}</span>
-                    <span class="badge badge--${latest.status}">${this.statusLabel(latest.status)}</span>
-                </div>
-                <span class="badge badge--type">${this.escape(latest.type)}</span>
-                <div class="featured-report-card__desc">${this.escape(latest.description || '')}</div>
-                ${latest.images && latest.images.length > 0 ? `
-                    <div class="incident-card__images" style="margin-top:var(--spacing-sm);">
-                        ${latest.images.map(img => `<div class="incident-card__image" style="background-image: url('${img.file_path}')"></div>`).join('')}
-                    </div>
-                ` : ''}
-                <div class="card__meta">
-                    <div class="card__meta-item">
-                        <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                        ${this.escape(latest.location || 'Unknown')}
-                    </div>
-                    <div class="card__meta-item">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        ${this.formatDate(latest.created_at)}
-                    </div>
-                    <div class="card__meta-item">
-                        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                        ${this.escape(latest.submitted_by_name || 'Unknown')}
-                    </div>
-                </div>
-            </div>
-        `;
-    },
-
-    /* --------------------------------------------------------
-     * 5. Report List Rendering
+     * 4. Report List Rendering
      * -------------------------------------------------------- */
     renderReportsList() {
         const container = document.getElementById('reports-list');
@@ -131,6 +83,8 @@ const MyReportsPage = {
             filtered = this.reports;
         } else if (this.activeFilter === 'submitted') {
             filtered = this.reports.filter(r => r.status === 'submitted' || r.status === 'pending');
+        } else if (this.activeFilter === 'in_progress') {
+            filtered = this.reports.filter(r => r.status === 'in_progress' || r.status === 'pending_confirmation');
         } else {
             filtered = this.reports.filter(r => r.status === this.activeFilter);
         }
@@ -147,8 +101,13 @@ const MyReportsPage = {
      * 6. Report Card
      * -------------------------------------------------------- */
     renderCard(report) {
+        const isAdmin = Store.get('role') === 'admin';
+        const bodyAttrs = isAdmin
+            ? `class="incident-card__body incident-card__body--clickable" onclick="MyReportsPage.openInDashboard(${report.id})"`
+            : 'class="incident-card__body"';
         return `
             <div class="incident-card">
+                <div ${bodyAttrs}>
                 <div class="incident-card__header">
                     <span class="incident-card__title">${this.escape(report.title)}</span>
                     <span class="badge badge--${report.status}">${this.statusLabel(report.status)}</span>
@@ -184,8 +143,40 @@ const MyReportsPage = {
                         <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
                 </div>
+                </div>
+
+                ${this._canCancel(report) ? `
+                    <div class="incident-card__actions">
+                        <button type="button" class="btn btn--outline btn--sm" onclick="MyReportsPage.cancelReport(${report.id})">Cancel Report</button>
+                    </div>
+                ` : ''}
             </div>
         `;
+    },
+
+    openInDashboard(reportId) {
+        window.location.hash = '#/dashboard?focus=' + reportId;
+    },
+
+    _canCancel(report) {
+        return ['submitted', 'pending', 'investigating'].includes(report.status);
+    },
+
+    async cancelReport(id) {
+        if (!confirm('Cancel this report? You cannot undo this.')) return;
+        try {
+            const res = await Store.apiFetch('/api/reports/' + id + '/status', {
+                method: 'PUT',
+                body: JSON.stringify({ status: 'cancelled' }),
+            });
+            if (res.success) {
+                this.loadData();
+            } else {
+                alert(res.message || 'Failed to cancel report.');
+            }
+        } catch (err) {
+            alert('Network error. Please try again.');
+        }
     },
 
     /* --------------------------------------------------------
@@ -205,7 +196,9 @@ const MyReportsPage = {
         const map = {
             submitted: 'Submitted',
             pending: 'Pending',
-            investigating: 'Under Review',
+            investigating: 'Investigating',
+            in_progress: 'In Progress',
+            pending_confirmation: 'Pending Confirmation',
             resolved: 'Resolved',
             rejected: 'Rejected',
             cancelled: 'Cancelled',

@@ -28,8 +28,8 @@ const EmergencyPage = {
     mdrrmoHotlines: [
         { label: 'Emergency',  number: '0917-135-0541' },
         { label: 'Mobile',     number: '0919-081-7181' },
-        { label: 'Landline 1', number: '(02) 7212-5741' },
-        { label: 'Landline 2', number: '(02) 8786-9398' },
+        { label: 'Mobile',     number: '0926-691-4281' },
+        { label: 'Landline',   number: '(02) 7212-5741' },
     ],
 
     categories: {
@@ -42,8 +42,8 @@ const EmergencyPage = {
                     title: 'Philippine National Police (PNP)',
                     subtitle: 'Morong Police Station',
                     numbers: [
-                        { number: '0998-598-5725' },
-                        { number: '0906-513-0718' },
+                        { label: 'Smart', number: '0998-598-5725' },
+                        { label: 'Globe', number: '0906-513-0718' },
                     ],
                 },
                 {
@@ -66,9 +66,15 @@ const EmergencyPage = {
                     subtitle: 'Morong, Rizal',
                     numbers: [
                         { number: '(02) 8653-1051' },
-                        { number: '(028) 653-1053' },
                     ],
                     note: "Can't reach this office?",
+                },
+                {
+                    title: 'Morong Doctors\' Hospital',
+                    subtitle: 'Private Hospital — Gov. Martinez St.',
+                    numbers: [
+                        { number: '(02) 8653-2491' },
+                    ],
                 },
                 {
                     title: 'Morong Rural Health Unit',
@@ -78,17 +84,10 @@ const EmergencyPage = {
                     ],
                 },
                 {
-                    title: 'San Geronimo Medical and Orthopedic Hospital',
-                    subtitle: 'Specialized Care Facility',
-                    numbers: [
-                        { number: '(02) 8653-0967' },
-                    ],
-                },
-                {
                     title: 'Supreme Care Medical Diagnostic and Imaging Center',
                     subtitle: 'Diagnostic Services',
                     numbers: [
-                        { number: '(02) 8653-2100' },
+                        { number: '(02) 7369-2504' },
                     ],
                 },
             ],
@@ -102,6 +101,7 @@ const EmergencyPage = {
                     title: 'Bureau of Fire Protection (BFP)',
                     subtitle: 'Morong Fire Station',
                     numbers: [
+                        { number: '0965-123-9369' },
                         { number: '0908-441-7754' },
                         { number: '0916-641-1175' },
                     ],
@@ -158,9 +158,9 @@ const EmergencyPage = {
                             <line x1="12" y1="9" x2="12" y2="13"></line>
                             <line x1="12" y1="17" x2="12.01" y2="17"></line>
                         </svg>
-                        For Emergencies, Call 911 (Police)
+                        For Emergencies, Call MDRRMO 0917-135-0541
                     </div>
-                    <a class="emergency-banner__action" href="tel:911">
+                    <a class="emergency-banner__action" href="tel:09171350541">
                         <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;">
                             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
                         </svg>

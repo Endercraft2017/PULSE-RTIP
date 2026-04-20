@@ -33,7 +33,9 @@ const Router = {
      */
     getPath() {
         const hash = window.location.hash.slice(2) || '';
-        return hash || 'login';
+        // Strip query string — pages can read params directly from window.location.hash
+        const path = hash.split('?')[0];
+        return path || 'login';
     },
 
     /**

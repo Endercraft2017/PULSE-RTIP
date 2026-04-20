@@ -56,9 +56,11 @@ async function login(req, res, next) {
 
     const user = await User.findByEmail(email);
     if (!user) {
+      // Generic response to prevent email enumeration, but descriptive
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.',
+        code: 'INVALID_CREDENTIALS',
+        message: 'Incorrect email or password. Check for typos, or tap "Forgot password?" to reset.',
       });
     }
 
@@ -66,7 +68,24 @@ async function login(req, res, next) {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.',
+        code: 'INVALID_CREDENTIALS',
+        message: 'Incorrect email or password. Check for typos, or tap "Forgot password?" to reset.',
+      });
+    }
+
+    // Account might exist but admin request is still pending review
+    if (user.admin_request_status === 'pending') {
+      return res.status(403).json({
+        success: false,
+        code: 'ADMIN_REQUEST_PENDING',
+        message: 'Your admin account request is still awaiting MDRRMO approval. You\'ll receive a notification once reviewed.',
+      });
+    }
+    if (user.admin_request_status === 'rejected') {
+      return res.status(403).json({
+        success: false,
+        code: 'ADMIN_REQUEST_REJECTED',
+        message: 'Your admin account request was not approved. Contact MDRRMO support if you believe this is a mistake.',
       });
     }
 
@@ -115,7 +134,8 @@ async function register(req, res, next) {
     if (existing) {
       return res.status(409).json({
         success: false,
-        message: 'An account with this email already exists.',
+        code: 'EMAIL_TAKEN',
+        message: `An account already exists for ${email}. Please log in or use a different email.`,
       });
     }
 
@@ -124,6 +144,7 @@ async function register(req, res, next) {
     if (!phone) {
       return res.status(400).json({
         success: false,
+        code: 'PHONE_REQUIRED',
         message: 'A phone number is required. It must be verified via SMS before signup.',
       });
     }
@@ -131,7 +152,8 @@ async function register(req, res, next) {
     if (!phoneVerified) {
       return res.status(403).json({
         success: false,
-        message: 'Phone number has not been verified. Please verify via SMS before completing signup.',
+        code: 'PHONE_NOT_VERIFIED',
+        message: 'Phone verification expired. Please restart signup and verify the 6-digit SMS code again.',
       });
     }
 
@@ -230,7 +252,8 @@ async function sendOtp(req, res, next) {
     if (!/^09\d{9}$/.test(normalized)) {
       return res.status(400).json({
         success: false,
-        message: 'Please enter a valid Philippine mobile number (e.g. 0917-123-4567).',
+        code: 'INVALID_PHONE_FORMAT',
+        message: 'That doesn\'t look like a valid Philippine mobile number. Expected format: 0917-123-4567 (11 digits starting with 09).',
       });
     }
 
@@ -238,9 +261,13 @@ async function sendOtp(req, res, next) {
     if (purpose === 'signup') {
       const existingUser = await User.findByPhone(normalized);
       if (existingUser) {
+        // Partially mask the email so users recognize their own account
+        // without letting a stranger enumerate phone->email pairs.
+        const masked = maskEmail(existingUser.email);
         return res.status(409).json({
           success: false,
-          message: 'This phone number is already registered. Please log in instead.',
+          code: 'PHONE_TAKEN',
+          message: `An account already exists for this phone number (${masked}). Use "Forgot password?" to recover it, or use a different number.`,
         });
       }
     }
@@ -317,7 +344,8 @@ async function verifyOtp(req, res, next) {
     if (!record) {
       return res.status(404).json({
         success: false,
-        message: 'No verification code found for this number. Please request a new one.',
+        code: 'OTP_NOT_FOUND',
+        message: 'No verification code has been sent to this number yet. Tap "Resend" to request one.',
       });
     }
 
@@ -325,7 +353,8 @@ async function verifyOtp(req, res, next) {
     if (new Date(record.expires_at + 'Z') < new Date()) {
       return res.status(410).json({
         success: false,
-        message: 'This verification code has expired. Please request a new one.',
+        code: 'OTP_EXPIRED',
+        message: 'This code has expired (codes are valid for 10 minutes). Tap "Resend" to get a new one.',
       });
     }
 
@@ -333,15 +362,20 @@ async function verifyOtp(req, res, next) {
     if (record.attempts >= 5) {
       return res.status(429).json({
         success: false,
-        message: 'Too many failed attempts. Please request a new code.',
+        code: 'OTP_TOO_MANY_ATTEMPTS',
+        message: 'Too many wrong codes entered. For your security, please tap "Resend" to request a fresh code.',
       });
     }
 
     if (String(code).trim() !== record.code) {
       await OtpVerification.incrementAttempt(record.id);
+      const attemptsLeft = Math.max(0, 5 - (record.attempts + 1));
       return res.status(400).json({
         success: false,
-        message: 'Invalid verification code.',
+        code: 'OTP_INVALID',
+        message: attemptsLeft > 0
+          ? `Incorrect code. You have ${attemptsLeft} ${attemptsLeft === 1 ? 'try' : 'tries'} left before you'll need to request a new one.`
+          : 'Incorrect code. Please tap "Resend" to request a new one.',
       });
     }
 
@@ -364,6 +398,20 @@ async function verifyOtp(req, res, next) {
  * Masks a phone number for UI display, keeping the first 4 and last 3 digits.
  * 09171234567 -> 0917****567
  */
+/**
+ * Masks an email for display — keeps first 3 and last 2 chars of the
+ * local part, fully shows the domain. kyle.reneg@example.com -> ky***eg@example.com
+ */
+function maskEmail(email) {
+  if (!email || typeof email !== 'string') return '';
+  const at = email.lastIndexOf('@');
+  if (at < 0) return email;
+  const local = email.slice(0, at);
+  const domain = email.slice(at);
+  if (local.length <= 3) return local[0] + '***' + domain;
+  return local.slice(0, 2) + '***' + local.slice(-2) + domain;
+}
+
 function maskPhone(phone) {
   if (!phone) return '';
   const clean = String(phone).replace(/[^\d+]/g, '');
@@ -401,14 +449,18 @@ async function forgotPassword(req, res, next) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'No account found for that email or phone number.',
+        code: 'ACCOUNT_NOT_FOUND',
+        message: looksLikeEmail
+          ? `No account is registered under ${identifier}. Check for typos or create a new account.`
+          : 'No account is registered under that phone number. Check for typos or create a new account.',
       });
     }
 
     if (!user.phone) {
       return res.status(400).json({
         success: false,
-        message: 'This account has no phone number on file. Contact MDRRMO support to reset your password.',
+        code: 'NO_PHONE_ON_FILE',
+        message: 'This account has no phone number on file, so an SMS reset isn\'t possible. Contact MDRRMO support to reset your password.',
       });
     }
 
@@ -491,14 +543,19 @@ async function resetPassword(req, res, next) {
     if (!verified) {
       return res.status(403).json({
         success: false,
-        message: 'Phone has not been verified. Please request a new code.',
+        code: 'OTP_NOT_VERIFIED',
+        message: 'Your verification has expired (codes are valid for 15 minutes). Please restart the password reset and verify the code again.',
       });
     }
 
     const normalized = OtpVerification.normalizePhone(phone);
     const user = await User.findByPhone(normalized);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'No account found for this phone number.' });
+      return res.status(404).json({
+        success: false,
+        code: 'ACCOUNT_NOT_FOUND',
+        message: 'No account found for this phone number.',
+      });
     }
 
     const password_hash = await bcrypt.hash(newPassword, 10);

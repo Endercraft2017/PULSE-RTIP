@@ -485,34 +485,44 @@ const SignupPage = {
         const termsEl = document.querySelector('#signup-form input[name="agreeTerms"]');
         f.agreeTerms = termsEl ? termsEl.checked : false;
 
+        const toast = (msg, type = 'error') => {
+            if (window.Toast) Toast.show(msg, { type, duration: 5000 });
+            else alert(msg);
+        };
+
         if (!f.name) {
-            alert('Please enter your full name.');
+            toast('Please enter your full name.');
+            document.getElementById('signup-name').focus();
             return;
         }
 
         if (!newPhone) {
-            alert('Please enter your phone number. SMS verification is required.');
+            toast('Please enter your phone number — we\'ll send a 6-digit SMS code to verify it.');
+            document.getElementById('signup-phone').focus();
             return;
         }
 
         // Strict PH mobile format check — fail fast before server round-trip
         if (!window.PhoneFormat || !PhoneFormat.isValid(newPhone)) {
-            alert('Please enter a valid Philippine mobile number (e.g. 0917-123-4567).');
+            toast('That doesn\'t look like a valid Philippine mobile number. Expected format: 0917-123-4567 (11 digits starting with 09).');
+            document.getElementById('signup-phone').focus();
             return;
         }
 
         if (f.password !== f.confirmPassword) {
-            alert('Passwords do not match.');
+            toast('The two passwords you entered don\'t match. Please retype them.');
+            document.getElementById('signup-confirm').focus();
             return;
         }
 
         if (f.password.length < 8) {
-            alert('Password must be at least 8 characters.');
+            toast('Your password is too short — it needs to be at least 8 characters.');
+            document.getElementById('signup-password').focus();
             return;
         }
 
         if (!f.agreeTerms) {
-            alert('You must agree to the Terms & Conditions.');
+            toast('You must accept the Terms & Conditions to create an account.');
             return;
         }
 
@@ -538,7 +548,7 @@ const SignupPage = {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create account'; }
 
         if (!result.success) {
-            alert(result.message || 'Unable to send verification code. Please try again.');
+            toast(result.message || 'Couldn\'t send the verification code. Please try again in a moment.');
             return;
         }
 

@@ -119,14 +119,16 @@ async function changePassword(req, res, next) {
     if (!matches) {
       return res.status(401).json({
         success: false,
-        message: 'Current password is incorrect.',
+        code: 'WRONG_CURRENT_PASSWORD',
+        message: 'The current password you entered is incorrect. If you forgot it, log out and use "Forgot password?" on the login page.',
       });
     }
 
     if (currentPassword === newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'New password must be different from your current password.',
+        code: 'SAME_PASSWORD',
+        message: 'Your new password must be different from your current one.',
       });
     }
 

@@ -28,7 +28,7 @@ const router = Router();
  * 2. Validation Rules
  * -------------------------------------------------------------------------- */
 
-const VALID_STATUSES = ['submitted', 'pending', 'under-review', 'investigating', 'resolved'];
+const VALID_STATUSES = ['submitted', 'pending', 'investigating', 'in_progress', 'pending_confirmation', 'resolved', 'rejected', 'cancelled'];
 const VALID_TYPES = ['Flood', 'Fire', 'Infrastructure Damage', 'Earthquake', 'Landslide', 'Typhoon', 'Others'];
 
 const createRules = [
@@ -52,6 +52,6 @@ const statusRules = [
 router.get('/', authenticate, reportController.getReports);
 router.post('/', authenticate, upload.array('images', 5), validate(createRules), reportController.createReport);
 router.get('/:id', authenticate, reportController.getReport);
-router.put('/:id/status', authenticate, requireAdmin, validate(statusRules), reportController.updateReportStatus);
+router.put('/:id/status', authenticate, validate(statusRules), reportController.updateReportStatus);
 
 module.exports = router;

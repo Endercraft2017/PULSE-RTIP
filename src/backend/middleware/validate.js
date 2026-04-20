@@ -33,13 +33,14 @@ function validate(validations) {
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      const arr = errors.array();
+      // Use the first field error as the top-level message so frontend
+      // alerts actually show something useful instead of "Validation failed".
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: errors.array().map(e => ({
-          field: e.path,
-          message: e.msg,
-        })),
+        code: 'VALIDATION_FAILED',
+        message: arr[0].msg,
+        errors: arr.map(e => ({ field: e.path, message: e.msg })),
       });
     }
 

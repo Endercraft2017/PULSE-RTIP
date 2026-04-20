@@ -124,9 +124,42 @@ const AdminDashboardPage = {
             if (reportsRes.success) this.incidents = reportsRes.data;
             if (hazardsRes.success) this.hazards = hazardsRes.data;
 
+            // If we were navigated here with #/dashboard?focus=<id>, switch to
+            // the matching tab + filter so the card is rendered, then scroll & highlight.
+            const focusId = this._readFocusParam();
+            if (focusId) {
+                this.activeMainTab = 'incidents';
+                this.activeFilter = 'all';
+            }
+
             this.renderContent();
+
+            if (focusId) setTimeout(() => this._focusCard(focusId), 60);
         } catch (err) {
             console.error('Failed to load dashboard data:', err);
+        }
+    },
+
+    _readFocusParam() {
+        const hash = window.location.hash || '';
+        const qIdx = hash.indexOf('?');
+        if (qIdx === -1) return null;
+        const params = new URLSearchParams(hash.slice(qIdx + 1));
+        const v = parseInt(params.get('focus'), 10);
+        return Number.isFinite(v) ? v : null;
+    },
+
+    _focusCard(id) {
+        const el = document.getElementById('incident-' + id);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('incident-card--highlight');
+        setTimeout(() => el.classList.remove('incident-card--highlight'), 3000);
+        // Clean the focus param so refresh doesn't re-trigger
+        const hash = window.location.hash || '';
+        const cleaned = hash.split('?')[0];
+        if (cleaned !== hash) {
+            history.replaceState(null, '', cleaned);
         }
     },
 
@@ -169,21 +202,36 @@ const AdminDashboardPage = {
             <div class="section-header">
                 <div class="section-header__title">Incidents</div>
             </div>
-            <div class="dashboard-subtabs" id="dashboard-tabs">
+            <div class="dashboard-subtabs dashboard-subtabs--scroll" id="dashboard-tabs">
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'all' ? 'active' : ''}"
                         onclick="AdminDashboardPage.setFilter('all')">All</button>
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'pending' ? 'active' : ''}"
                         onclick="AdminDashboardPage.setFilter('pending')">Pending</button>
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'investigating' ? 'active' : ''}"
                         onclick="AdminDashboardPage.setFilter('investigating')">Investigating</button>
+                <button class="dashboard-subtabs__tab ${this.activeFilter === 'in_progress' ? 'active' : ''}"
+                        onclick="AdminDashboardPage.setFilter('in_progress')">In Progress</button>
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'resolved' ? 'active' : ''}"
                         onclick="AdminDashboardPage.setFilter('resolved')">Resolved</button>
+                <button class="dashboard-subtabs__tab ${this.activeFilter === 'rejected' ? 'active' : ''}"
+                        onclick="AdminDashboardPage.setFilter('rejected')">Rejected</button>
+                <button class="dashboard-subtabs__tab ${this.activeFilter === 'cancelled' ? 'active' : ''}"
+                        onclick="AdminDashboardPage.setFilter('cancelled')">Cancelled</button>
             </div>
         `;
 
-        let filtered = this.activeFilter === 'all'
-            ? this.incidents
-            : this.incidents.filter(i => i.status === this.activeFilter);
+        const submittedLike = ['submitted', 'pending'];
+        const inProgressLike = ['in_progress', 'pending_confirmation'];
+        let filtered;
+        if (this.activeFilter === 'all') {
+            filtered = this.incidents;
+        } else if (this.activeFilter === 'pending') {
+            filtered = this.incidents.filter(i => submittedLike.includes(i.status));
+        } else if (this.activeFilter === 'in_progress') {
+            filtered = this.incidents.filter(i => inProgressLike.includes(i.status));
+        } else {
+            filtered = this.incidents.filter(i => i.status === this.activeFilter);
+        }
 
         if (searchTerm || this._searchTerm) {
             const term = (searchTerm || this._searchTerm).toLowerCase();
@@ -202,13 +250,14 @@ const AdminDashboardPage = {
     },
 
     renderIncidentCard(incident) {
-        const needsAction = incident.status === 'submitted' || incident.status === 'pending';
+        const terminal = ['resolved', 'rejected', 'cancelled'];
+        const showActions = !terminal.includes(incident.status);
 
         return `
             <div class="incident-card" id="incident-${incident.id}">
                 <div class="incident-card__header">
                     <span class="incident-card__title">${incident.title}</span>
-                    <span class="badge badge--${incident.status}">${this.capitalize(incident.status)}</span>
+                    <span class="badge badge--${incident.status}">${this.statusLabel(incident.status)}</span>
                 </div>
                 <span class="badge badge--type" style="margin-bottom: 8px; display: inline-flex;">${incident.type}</span>
 
@@ -244,20 +293,38 @@ const AdminDashboardPage = {
                     </button>
                 </div>
 
-                ${needsAction ? `
-                    <div class="incident-card__actions">
-                        <button type="button" class="btn btn--approve" onclick="AdminDashboardPage.approveReport(${incident.id})">
-                            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            Approve
-                        </button>
-                        <button type="button" class="btn btn--reject" onclick="AdminDashboardPage.showRejectModal(${incident.id})">
-                            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                            Reject
-                        </button>
-                    </div>
-                ` : ''}
+                ${showActions ? this._renderStatusActions(incident) : ''}
             </div>
         `;
+    },
+
+    _renderStatusActions(incident) {
+        const s = incident.status;
+        const transitions = {
+            submitted: ['investigating', 'rejected'],
+            pending: ['investigating', 'rejected'],
+            investigating: ['in_progress', 'rejected'],
+            in_progress: ['pending_confirmation'],
+            pending_confirmation: ['resolved', 'in_progress'],
+        };
+        const options = transitions[s] || [];
+        const meta = {
+            investigating: { label: 'Investigate', cls: 'btn--info' },
+            in_progress: { label: 'Mark In Progress', cls: 'btn--primary' },
+            pending_confirmation: { label: 'Await Confirmation', cls: 'btn--warning' },
+            resolved: { label: 'Resolve', cls: 'btn--approve' },
+            rejected: { label: 'Reject', cls: 'btn--reject' },
+        };
+
+        const buttons = options.map(opt => {
+            const m = meta[opt];
+            if (opt === 'rejected') {
+                return `<button type="button" class="btn ${m.cls}" onclick="AdminDashboardPage.showRejectModal(${incident.id})">${m.label}</button>`;
+            }
+            return `<button type="button" class="btn ${m.cls}" onclick="AdminDashboardPage.changeStatus(${incident.id}, '${opt}')">${m.label}</button>`;
+        }).join('');
+
+        return `<div class="incident-card__actions">${buttons}</div>`;
     },
 
     /* --------------------------------------------------------
@@ -321,7 +388,7 @@ const AdminDashboardPage = {
             <div class="incident-card">
                 <div class="incident-card__header">
                     <span class="incident-card__title">${r.title}</span>
-                    <span class="badge badge--${r.status}">${this.capitalize(r.status)}</span>
+                    <span class="badge badge--${r.status}">${this.statusLabel(r.status)}</span>
                 </div>
                 <span class="badge badge--type" style="margin-bottom: 6px; display: inline-flex;">${r.type}</span>
                 <div class="incident-card__submitter">
@@ -369,7 +436,7 @@ const AdminDashboardPage = {
     /* --------------------------------------------------------
      * 9. Approve / Reject Actions
      * -------------------------------------------------------- */
-    async approveReport(id) {
+    async changeStatus(id, status) {
         const card = document.getElementById('incident-' + id);
         const btns = card ? card.querySelectorAll('.incident-card__actions .btn') : [];
         btns.forEach(b => { b.disabled = true; });
@@ -377,13 +444,13 @@ const AdminDashboardPage = {
         try {
             const res = await Store.apiFetch('/api/reports/' + id + '/status', {
                 method: 'PUT',
-                body: JSON.stringify({ status: 'investigating' }),
+                body: JSON.stringify({ status }),
             });
 
             if (res.success) {
                 this.loadData();
             } else {
-                alert(res.message || 'Failed to approve report.');
+                alert(res.message || 'Failed to update status.');
                 btns.forEach(b => { b.disabled = false; });
             }
         } catch (err) {
@@ -397,21 +464,7 @@ const AdminDashboardPage = {
         if (!reason) { alert('Please provide a reason for rejection.'); return; }
 
         this.closeRejectModal();
-
-        try {
-            const res = await Store.apiFetch('/api/reports/' + id + '/status', {
-                method: 'PUT',
-                body: JSON.stringify({ status: 'resolved' }),
-            });
-
-            if (res.success) {
-                this.loadData();
-            } else {
-                alert(res.message || 'Failed to reject report.');
-            }
-        } catch (err) {
-            alert('Network error. Please try again.');
-        }
+        await this.changeStatus(id, 'rejected');
     },
 
     /* --------------------------------------------------------
@@ -448,6 +501,20 @@ const AdminDashboardPage = {
      * -------------------------------------------------------- */
     capitalize(str) {
         return str.charAt(0).toUpperCase() + str.slice(1);
+    },
+
+    statusLabel(status) {
+        const map = {
+            submitted: 'Submitted',
+            pending: 'Pending',
+            investigating: 'Investigating',
+            in_progress: 'In Progress',
+            pending_confirmation: 'Pending Confirmation',
+            resolved: 'Resolved',
+            rejected: 'Rejected',
+            cancelled: 'Cancelled',
+        };
+        return map[status] || this.capitalize(status || '');
     },
 
     timeAgo(dateStr) {

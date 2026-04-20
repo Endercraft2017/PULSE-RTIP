@@ -47,16 +47,27 @@ async function findByUserId(userId) {
  * @returns {Promise<object>} Created notification
  */
 async function create(data) {
-  const { user_id, report_id, title, text, status } = data;
+  const { user_id, report_id, title, text, status, type, actor_user_id } = data;
   const result = await db.query(
-    `INSERT INTO notifications (user_id, report_id, title, text, status)
-     VALUES (?, ?, ?, ?, ?)`,
-    [user_id, report_id || null, title, text || null, status || null]
+    `INSERT INTO notifications (user_id, report_id, title, text, status, type, actor_user_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [user_id, report_id || null, title, text || null, status || null, type || null, actor_user_id || null]
   );
 
   const insertId = result.insertId || result.lastInsertRowid;
   const rows = await db.query('SELECT * FROM notifications WHERE id = ?', [insertId]);
   return rows[0] || null;
+}
+
+/**
+ * Deletes notifications by type + actor (used to clean up an admin-request
+ * notification across all admins after it is approved/rejected).
+ */
+async function deleteByTypeAndActor(type, actor_user_id) {
+  return db.query(
+    'DELETE FROM notifications WHERE type = ? AND actor_user_id = ?',
+    [type, actor_user_id]
+  );
 }
 
 /* --------------------------------------------------------------------------
@@ -105,4 +116,4 @@ async function markAllAsRead(userId) {
   );
 }
 
-module.exports = { findByUserId, create, countUnread, markAsRead, markAllAsRead };
+module.exports = { findByUserId, create, deleteByTypeAndActor, countUnread, markAsRead, markAllAsRead };

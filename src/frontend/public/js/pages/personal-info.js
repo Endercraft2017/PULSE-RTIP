@@ -176,8 +176,14 @@ const PersonalInfoPage = {
         const phone = document.getElementById('ei-phone').value.trim();
         const address = document.getElementById('ei-address').value.trim();
 
+        const toast = (msg, type = 'error') => {
+            if (window.Toast) Toast.show(msg, { type, duration: 5000 });
+            else alert(msg);
+        };
+
         if (!name) {
-            alert('Name is required.');
+            toast('Full name is required — please enter it before saving.');
+            document.getElementById('ei-name').focus();
             return;
         }
 
@@ -197,7 +203,8 @@ const PersonalInfoPage = {
             // Step 1: client-side format check — fail fast, no server call
             if (!window.PhoneFormat || !PhoneFormat.isValid(phone)) {
                 if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
-                alert('Please enter a valid Philippine mobile number (e.g. 0917-123-4567).');
+                toast('That doesn\'t look like a valid Philippine mobile number. Expected format: 0917-123-4567 (11 digits starting with 09).');
+                document.getElementById('ei-phone').focus();
                 return;
             }
 
@@ -205,7 +212,7 @@ const PersonalInfoPage = {
             const avail = await Store.checkPhoneAvailable(phone);
             if (!avail.available) {
                 if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
-                alert(avail.message || 'This phone number can\'t be used.');
+                toast(avail.message || 'This phone number can\'t be used.');
                 return;
             }
 
@@ -227,7 +234,7 @@ const PersonalInfoPage = {
             if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
 
             if (!otpRes.success) {
-                alert(otpRes.message || 'Unable to send verification code.');
+                toast(otpRes.message || 'Couldn\'t send the verification code. Please try again in a moment.');
                 return;
             }
 
@@ -249,16 +256,16 @@ const PersonalInfoPage = {
             if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
 
             if (!res.success) {
-                alert(res.message || 'Failed to update profile.');
+                toast(res.message || 'Couldn\'t save your profile. Please try again.');
                 return;
             }
 
             Store.set('user', Object.assign({}, current, res.data || { name, phone, address }));
             this._closeEditInfoModal();
-            alert('Profile updated successfully.');
+            toast('Profile updated successfully.', 'success');
         } catch (err) {
             if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
-            alert('Network error. Please try again.');
+            toast('Network error — check your connection and try again.');
         }
     },
 
@@ -338,6 +345,12 @@ const PersonalInfoPage = {
         }
     },
 
+    /** Shared toast helper for personal-info flows */
+    _piToast(msg, type = 'error') {
+        if (window.Toast) Toast.show(msg, { type, duration: 5000 });
+        else alert(msg);
+    },
+
     async _resendPhoneOtp(event) {
         const link = event.target;
         const original = link.textContent;
@@ -350,11 +363,11 @@ const PersonalInfoPage = {
         link.style.pointerEvents = '';
 
         if (!result.success) {
-            alert(result.message || 'Unable to resend code.');
+            this._piToast(result.message || 'Couldn\'t resend the code. Please try again.');
             return;
         }
         if (result.devCode) console.warn('[edit-info] dev OTP code:', result.devCode);
-        alert('A new code has been sent.');
+        this._piToast('A fresh 6-digit code has been sent via SMS.', 'success');
     },
 
     async _submitPhoneOtp(event) {
@@ -362,7 +375,7 @@ const PersonalInfoPage = {
         const code = Array.from(inputs).map(i => i.value).join('');
 
         if (code.length !== 6) {
-            alert('Please enter the complete 6-digit code.');
+            this._piToast('Please enter the full 6-digit code from the SMS.', 'info');
             return;
         }
 
@@ -374,7 +387,7 @@ const PersonalInfoPage = {
         if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
 
         if (!result.success) {
-            alert(result.message || 'Invalid verification code.');
+            this._piToast(result.message || 'That code didn\'t match. Please try again.');
             inputs.forEach(i => { i.value = ''; });
             inputs[0] && inputs[0].focus();
             return;
@@ -386,7 +399,7 @@ const PersonalInfoPage = {
         this._pendingPhone = null;
         this._pendingMaskedPhone = null;
         this._closeEditInfoModal();
-        alert('Phone number updated successfully.');
+        this._piToast('Phone number updated successfully.', 'success');
     },
 
     _escapeHtml(str) {
@@ -490,18 +503,23 @@ const PersonalInfoPage = {
         const next = document.getElementById('cp-new').value;
         const confirm = document.getElementById('cp-confirm').value;
 
+        const toast = (msg, type = 'error') => {
+            if (window.Toast) Toast.show(msg, { type, duration: 5000 });
+            else alert(msg);
+        };
+
         if (next !== confirm) {
-            alert('New passwords do not match.');
+            toast('The two new passwords don\'t match. Please retype them.');
             return;
         }
 
         if (next.length < 8) {
-            alert('New password must be at least 8 characters.');
+            toast('Your new password is too short — it needs to be at least 8 characters.');
             return;
         }
 
         if (current === next) {
-            alert('New password must be different from your current password.');
+            toast('Your new password must be different from your current one.');
             return;
         }
 
@@ -513,12 +531,12 @@ const PersonalInfoPage = {
         if (btn) { btn.disabled = false; btn.textContent = 'Update'; }
 
         if (!result.success) {
-            alert(result.message || 'Failed to change password.');
+            toast(result.message || 'Couldn\'t change your password. Please try again.');
             return;
         }
 
         this._closeChangePasswordModal();
-        alert('Password updated successfully.');
+        toast('Password updated successfully.', 'success');
     },
 
     /**

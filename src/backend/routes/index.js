@@ -44,6 +44,7 @@ router.use('/sms', require('./sms'));
 router.use('/sms-reports', require('./smsReports'));
 router.use('/posts', require('./posts'));
 router.use('/news', require('./news'));
+router.use('/admin-requests', require('./adminRequests'));
 
 /* --------------------------------------------------------------------------
  * 3. Health Check

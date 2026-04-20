@@ -33,6 +33,15 @@ const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 const smsPoller = require('./services/sms/smsPoller');
 
+// Global safety net: don't let stray errors take down the process.
+// pm2 will still restart on a hard crash, but logging keeps signal visible.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason && reason.stack ? reason.stack : reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err && err.stack ? err.stack : err);
+});
+
 /* --------------------------------------------------------------------------
  * 2. App Initialization
  * -------------------------------------------------------------------------- */
@@ -73,6 +82,8 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
+  // Skip rate limiting on /api/reports for testing.
+  skip: (req) => req.path.startsWith('/reports'),
 });
 
 app.use('/api', limiter);

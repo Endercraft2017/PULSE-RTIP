@@ -16,9 +16,13 @@ const DetailModal = {
 
         const statusMap = {
             pending: { label: 'Pending', cls: 'pending' },
-            submitted: { label: 'Submitted', cls: 'pending' },
+            submitted: { label: 'Submitted', cls: 'submitted' },
             investigating: { label: 'Investigating', cls: 'investigating' },
+            in_progress: { label: 'In Progress', cls: 'in_progress' },
+            pending_confirmation: { label: 'Pending Confirmation', cls: 'pending_confirmation' },
             resolved: { label: 'Resolved', cls: 'resolved' },
+            rejected: { label: 'Rejected', cls: 'rejected' },
+            cancelled: { label: 'Cancelled', cls: 'cancelled' },
         };
         const st = statusMap[data.status] || statusMap.pending;
 

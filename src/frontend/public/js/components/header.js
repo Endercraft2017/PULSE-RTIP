@@ -13,6 +13,9 @@ const Header = {
     getTitleForRoute(route) {
         const role = Store.get('role');
         const titles = {
+            'home': 'MDRRMO Incident Reporter',
+            'profile': 'Profile',
+            'dashboard': 'MDRRMO Dashboard',
             'citizen-home': 'MDRRMO Incident Reporter',
             'hazards': 'Hazard Zones',
             'my-reports': 'My Reports',

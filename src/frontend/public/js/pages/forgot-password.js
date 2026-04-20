@@ -231,7 +231,7 @@ const ForgotPasswordPage = {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Code'; }
 
         if (!result.success) {
-            alert(result.message || 'Unable to send verification code.');
+            this._toast(result.message || 'Couldn\'t send the verification code. Please try again.');
             return;
         }
 
@@ -269,7 +269,7 @@ const ForgotPasswordPage = {
         const code = Array.from(inputs).map(i => i.value).join('');
 
         if (code.length !== 6) {
-            alert('Please enter the complete 6-digit code.');
+            this._toast('Please enter the full 6-digit code from the SMS.', 'info');
             return;
         }
 
@@ -281,7 +281,7 @@ const ForgotPasswordPage = {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Verify'; }
 
         if (!result.success) {
-            alert(result.message || 'Invalid verification code.');
+            this._toast(result.message || 'That code didn\'t match. Please try again.');
             inputs.forEach(i => { i.value = ''; });
             inputs[0] && inputs[0].focus();
             return;
@@ -295,11 +295,17 @@ const ForgotPasswordPage = {
         // Re-send by calling forgot-password again with the same identifier
         const result = await Store.forgotPassword(this._state.form.identifier);
         if (!result.success) {
-            alert(result.message || 'Unable to resend code.');
+            this._toast(result.message || 'Couldn\'t resend the code. Please try again.');
             return;
         }
         if (result.devCode) console.warn('[forgot-password] dev OTP code:', result.devCode);
-        alert('A new code has been sent.');
+        this._toast('A fresh 6-digit code has been sent via SMS.', 'success');
+    },
+
+    /** Shared toast helper with alert fallback if Toast isn't loaded */
+    _toast(msg, type = 'error') {
+        if (window.Toast) Toast.show(msg, { type, duration: 5000 });
+        else alert(msg);
     },
 
     async handleResetPassword(event) {
@@ -308,12 +314,12 @@ const ForgotPasswordPage = {
         const confirmPassword = form.confirmPassword.value;
 
         if (newPassword !== confirmPassword) {
-            alert('Passwords do not match.');
+            this._toast('The two passwords you entered don\'t match. Please retype them.');
             return;
         }
 
         if (newPassword.length < 8) {
-            alert('Password must be at least 8 characters.');
+            this._toast('Your new password is too short — it needs to be at least 8 characters.');
             return;
         }
 
@@ -325,7 +331,7 @@ const ForgotPasswordPage = {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Change Password'; }
 
         if (!result.success) {
-            alert(result.message || 'Failed to reset password.');
+            this._toast(result.message || 'Couldn\'t reset your password. Please try again.');
             return;
         }
 

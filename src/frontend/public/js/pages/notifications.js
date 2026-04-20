@@ -44,6 +44,8 @@ const NotificationsPage = {
     /* --------------------------------------------------------
      * 2. Data Loading
      * -------------------------------------------------------- */
+    _seenAdminRequestIds: new Set(),
+
     async loadData() {
         try {
             const res = await Store.apiFetch('/api/notifications');
@@ -51,9 +53,26 @@ const NotificationsPage = {
                 this.renderNotifications(res.data.notifications);
                 Store.set('notificationCount', res.data.unreadCount);
                 Header.render();
+                this._popAdminRequestToasts(res.data.notifications);
             }
         } catch (err) {
             console.error('Failed to load notifications:', err);
+        }
+    },
+
+    /** Pop a transient toast for any unseen admin-request notifications. */
+    _popAdminRequestToasts(notifications) {
+        if (Store.get('role') !== 'admin' || typeof Toast === 'undefined') return;
+        for (const n of (notifications || [])) {
+            if (n.type !== 'admin_request') continue;
+            if (n.is_read) continue;
+            if (this._seenAdminRequestIds.has(n.id)) continue;
+            this._seenAdminRequestIds.add(n.id);
+            Toast.show(n.text || 'A user is requesting admin access.', {
+                type: 'info',
+                title: n.title || 'Admin request',
+                duration: 5000,
+            });
         }
     },
 
@@ -90,10 +109,16 @@ const NotificationsPage = {
             return;
         }
 
+        const isAdmin = Store.get('role') === 'admin';
         container.innerHTML = notifications.map(n => {
+            if (n.type === 'admin_request') return this._renderAdminRequestCard(n);
             const isUnread = !n.is_read;
+            const clickable = isAdmin && n.report_id;
+            const cardAttrs = clickable
+                ? `class="notification-card notification-card--clickable ${isUnread ? 'notification-card--unread' : ''}" onclick="NotificationsPage.openReport(${n.report_id})"`
+                : `class="notification-card ${isUnread ? 'notification-card--unread' : ''}"`;
             return `
-                <div class="notification-card ${isUnread ? 'notification-card--unread' : ''}">
+                <div ${cardAttrs}>
                     <div class="notification-card__icon notification-card__icon--${n.status || 'pending'}">
                         ${this.getStatusIcon(n.status)}
                     </div>
@@ -108,6 +133,57 @@ const NotificationsPage = {
                 </div>
             `;
         }).join('');
+    },
+
+    openReport(reportId) {
+        window.location.hash = '#/dashboard?focus=' + reportId;
+    },
+
+    _renderAdminRequestCard(n) {
+        const isUnread = !n.is_read;
+        return `
+            <div class="notification-card notification-card--admin-request ${isUnread ? 'notification-card--unread' : ''}" id="admin-req-${n.id}">
+                <div class="notification-card__icon notification-card__icon--investigating">
+                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+                <div class="notification-card__content">
+                    <div class="notification-card__title">${n.title || 'Admin request'}</div>
+                    <div class="notification-card__text">${n.text || ''}</div>
+                    <div class="notification-card__meta">
+                        <span class="notification-card__time">${this.timeAgo(n.created_at)}</span>
+                    </div>
+                    <div class="notification-card__actions">
+                        <button type="button" class="btn btn--approve btn--sm" onclick="NotificationsPage.handleAdminRequest(${n.actor_user_id}, ${n.id}, 'approve')">Approve</button>
+                        <button type="button" class="btn btn--reject btn--sm" onclick="NotificationsPage.handleAdminRequest(${n.actor_user_id}, ${n.id}, 'reject')">Reject</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    async handleAdminRequest(actorId, notifId, action) {
+        const card = document.getElementById('admin-req-' + notifId);
+        const btns = card ? card.querySelectorAll('.btn') : [];
+        btns.forEach(b => { b.disabled = true; });
+
+        try {
+            const res = await Store.apiFetch(`/api/admin-requests/${actorId}/${action}`, { method: 'PUT' });
+            if (res.success) {
+                if (typeof Toast !== 'undefined') {
+                    Toast.show(
+                        action === 'approve' ? 'User promoted to admin.' : 'Admin request rejected.',
+                        { type: action === 'approve' ? 'success' : 'info', duration: 3000 }
+                    );
+                }
+                this.loadData();
+            } else {
+                alert(res.message || 'Failed to update request.');
+                btns.forEach(b => { b.disabled = false; });
+            }
+        } catch (err) {
+            alert('Network error. Please try again.');
+            btns.forEach(b => { b.disabled = false; });
+        }
     },
 
     /* --------------------------------------------------------

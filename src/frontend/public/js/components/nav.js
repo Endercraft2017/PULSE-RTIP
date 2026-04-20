@@ -28,20 +28,20 @@ const Nav = {
 
         if (role === 'admin') {
             return [
-                { id: 'admin-home', label: 'Home', icon: 'home' },
-                { id: 'admin-dashboard', label: 'Dashboard', icon: 'dashboard' },
+                { id: 'home', label: 'Home', icon: 'home' },
+                { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
                 { id: 'hazards', label: 'Hazards', icon: 'hazards' },
                 { id: 'my-reports', label: 'Reports', icon: 'reports' },
-                { id: 'admin-profile', label: 'Profile', icon: 'profile' }
+                { id: 'profile', label: 'Profile', icon: 'profile' }
             ];
         }
 
         return [
-            { id: 'citizen-home', label: 'Home', icon: 'home' },
+            { id: 'home', label: 'Home', icon: 'home' },
             { id: 'emergency', label: 'Emergency', icon: 'emergency' },
             { id: 'hazards', label: 'Hazards', icon: 'hazards' },
             { id: 'my-reports', label: 'Reports', icon: 'reports' },
-            { id: 'citizen-profile', label: 'Profile', icon: 'profile' }
+            { id: 'profile', label: 'Profile', icon: 'profile' }
         ];
     },
 

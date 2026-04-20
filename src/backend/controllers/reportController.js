@@ -178,15 +178,35 @@ async function updateReportStatus(req, res, next) {
       });
     }
 
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = existing.submitted_by === req.user.id;
+
+    // Citizens can only cancel their own reports, and only if still actionable
+    if (!isAdmin) {
+      if (!isOwner) {
+        return res.status(403).json({ success: false, message: 'Access denied.' });
+      }
+      if (status !== 'cancelled') {
+        return res.status(403).json({ success: false, message: 'Citizens can only cancel their own reports.' });
+      }
+      const cancellable = ['submitted', 'pending', 'investigating'];
+      if (!cancellable.includes(existing.status)) {
+        return res.status(400).json({ success: false, message: 'This report can no longer be cancelled.' });
+      }
+    }
+
     const report = await Report.updateStatus(req.params.id, status);
 
-    await Notification.create({
-      user_id: existing.submitted_by,
-      report_id: existing.id,
-      title: 'Report Status Update',
-      text: `Your report "${existing.title}" has been updated to: ${status}.`,
-      status,
-    });
+    // Notify the report owner (only when admin changes status)
+    if (isAdmin) {
+      await Notification.create({
+        user_id: existing.submitted_by,
+        report_id: existing.id,
+        title: 'Report Status Update',
+        text: `Your report "${existing.title}" has been updated to: ${status.replace(/_/g, ' ')}.`,
+        status,
+      });
+    }
 
     res.json({
       success: true,
