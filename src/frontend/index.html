@@ -40,10 +40,10 @@
           return;
         }
 
-        /* Desktop (>=1024px) users get the sidebar shell at admin-preview.html.
+        /* Desktop (>=1024px) users get the sidebar shell at desktop.html.
            Mobile/tablet users stay on this mobile-first index. */
         if (window.innerWidth >= 1024) {
-          window.location.replace('./admin-preview.html' + (location.hash || ''));
+          window.location.replace('./desktop.html' + (location.hash || ''));
         }
       })();
     </script>

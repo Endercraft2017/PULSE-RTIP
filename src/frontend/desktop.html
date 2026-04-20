@@ -31,8 +31,9 @@
 <link rel="preload" href="public/assets/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin="anonymous">
 <style>
   /* ============================================================
-     Admin Preview Shell — standalone desktop-optimized preview.
-     Independent from the main app's styles (only shares the font).
+     PULSE 911 Desktop Shell — desktop-optimized layout with left
+     sidebar navigation. Independent from the main app's styles (only
+     shares the font); pages are loaded inside an iframe via ?embed=1.
      ============================================================ */
   @font-face {
     font-family: 'Inter';
@@ -387,14 +388,14 @@
     <div class="backdrop" id="backdrop"></div>
     <main class="content">
       <div class="frame-wrap" id="frame-wrap">
-        <iframe id="preview-frame" title="Admin page preview" src="about:blank"></iframe>
+        <iframe id="preview-frame" title="PULSE 911 page" src="about:blank"></iframe>
       </div>
     </main>
   </div>
 
   <script>
   /* ============================================================
-     Admin Preview Controller
+     Desktop Shell Controller
      - Renders the sidebar menu
      - Swaps iframe src on item click
      - Toggles sidebar collapse/overlay
