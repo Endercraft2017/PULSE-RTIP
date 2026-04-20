@@ -24,7 +24,7 @@ const PersonalInfoPage = {
                     ${this.renderMenuItem({
                         icon: 'edit',
                         label: 'Edit Information',
-                        onclick: "Router.navigate('edit-profile')"
+                        onclick: "PersonalInfoPage.editInformation()"
                     })}
                     ${this.renderMenuItem({
                         icon: 'lock',
@@ -72,6 +72,144 @@ const PersonalInfoPage = {
 
     /**
      * Initiates password change flow.
+     * Opens an in-page modal for editing the user's profile fields.
+     * Avoids the full-page navigation to /edit-profile so the user
+     * stays anchored on the Personal Info screen.
+     */
+    editInformation() {
+        this._openEditInfoModal();
+    },
+
+    _openEditInfoModal() {
+        this._closeEditInfoModal();
+        const user = Store.get('user') || {};
+
+        const esc = (s) => String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        const modal = document.createElement('div');
+        modal.id = 'edit-info-modal';
+        modal.className = 'modal-overlay modal-overlay--centered';
+        modal.onclick = (e) => {
+            if (e.target === modal) this._closeEditInfoModal();
+        };
+
+        modal.innerHTML = `
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ei-title" style="max-width: 460px;">
+                <div class="modal__header">
+                    <h3 class="modal__title" id="ei-title">Edit Information</h3>
+                    <button class="modal__close" type="button"
+                            onclick="PersonalInfoPage._closeEditInfoModal()" aria-label="Close">
+                        <svg viewBox="0 0 24 24">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <form class="modal__body" id="edit-info-form"
+                      onsubmit="event.preventDefault(); PersonalInfoPage._submitEditInfo(event)">
+                    <div class="input-group">
+                        <label class="input-group__label" for="ei-name">Full name</label>
+                        <input class="input-group__field" type="text" id="ei-name"
+                               value="${esc(user.name)}" required>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-group__label" for="ei-email">Email</label>
+                        <input class="input-group__field" type="email" id="ei-email"
+                               value="${esc(user.email)}" disabled>
+                        <div class="input-group__hint">Email cannot be changed. Contact MDRRMO support if needed.</div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-group__label" for="ei-phone">Phone number</label>
+                        <input class="input-group__field" type="tel" id="ei-phone"
+                               inputmode="numeric" placeholder="0917-123-4567"
+                               value="${esc(user.phone)}">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-group__label" for="ei-address">Address / Barangay</label>
+                        <input class="input-group__field" type="text" id="ei-address"
+                               value="${esc(user.address)}">
+                    </div>
+                    <div class="modal__footer" style="grid-template-columns: 1fr 1fr;">
+                        <button type="button" class="btn btn--outline"
+                                onclick="PersonalInfoPage._closeEditInfoModal()">Cancel</button>
+                        <button type="submit" class="btn btn--primary" id="ei-submit">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        document.body.style.overflow = 'hidden';
+        requestAnimationFrame(() => modal.classList.add('modal-overlay--open'));
+
+        this._eiEscHandler = (e) => {
+            if (e.key === 'Escape') this._closeEditInfoModal();
+        };
+        document.addEventListener('keydown', this._eiEscHandler);
+
+        // Live-format the phone input
+        setTimeout(() => {
+            const phoneEl = document.getElementById('ei-phone');
+            if (phoneEl && window.PhoneFormat) PhoneFormat.bind(phoneEl);
+            const nameEl = document.getElementById('ei-name');
+            if (nameEl) nameEl.focus();
+        }, 100);
+    },
+
+    _closeEditInfoModal() {
+        const modal = document.getElementById('edit-info-modal');
+        if (modal) {
+            modal.classList.remove('modal-overlay--open');
+            setTimeout(() => modal.remove(), 200);
+        }
+        document.body.style.overflow = '';
+        if (this._eiEscHandler) {
+            document.removeEventListener('keydown', this._eiEscHandler);
+            this._eiEscHandler = null;
+        }
+    },
+
+    async _submitEditInfo(event) {
+        const name = document.getElementById('ei-name').value.trim();
+        const phone = document.getElementById('ei-phone').value.trim();
+        const address = document.getElementById('ei-address').value.trim();
+
+        if (!name) {
+            alert('Name is required.');
+            return;
+        }
+
+        const btn = document.getElementById('ei-submit');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+        try {
+            const res = await Store.apiFetch('/api/users/me', {
+                method: 'PUT',
+                body: JSON.stringify({ name, phone, address }),
+            });
+
+            if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+
+            if (!res.success) {
+                alert(res.message || 'Failed to update profile.');
+                return;
+            }
+
+            // Update the local Store state so the Profile page reflects it immediately
+            const current = Store.get('user') || {};
+            Store.set('user', Object.assign({}, current, res.data || { name, phone, address }));
+
+            this._closeEditInfoModal();
+            alert('Profile updated successfully.');
+        } catch (err) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+            alert('Network error. Please try again.');
+        }
+    },
+
+     /**
      * Opens an in-page modal so the logged-in user can change their
      * password without losing their session. The forgot-password OTP
      * flow is reserved for locked-out users on the login screen.
