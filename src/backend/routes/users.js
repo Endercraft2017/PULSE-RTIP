@@ -7,9 +7,11 @@
  * 1. Imports
  * 2. Route Definitions
  *
- * GET  /api/users/me          - Get current user profile
- * PUT  /api/users/me          - Update current user profile
- * PUT  /api/users/me/password - Change current user's password
+ * GET  /api/users/me                - Get current user profile
+ * PUT  /api/users/me                - Update current user profile (name, address)
+ * PUT  /api/users/me/password       - Change current user's password
+ * POST /api/users/me/phone/send-otp - Send OTP to a new phone number
+ * PUT  /api/users/me/phone          - Verify OTP and update phone number
  * =============================================================================
  */
 
@@ -37,5 +39,14 @@ router.put('/me/password', authenticate, validate([
   body('currentPassword').notEmpty().withMessage('Current password is required'),
   body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
 ]), userController.changePassword);
+
+router.post('/me/phone/send-otp', authenticate, validate([
+  body('phone').trim().notEmpty().withMessage('Phone number is required'),
+]), userController.sendPhoneChangeOtp);
+
+router.put('/me/phone', authenticate, validate([
+  body('phone').trim().notEmpty().withMessage('Phone number is required'),
+  body('code').trim().isLength({ min: 6, max: 6 }).withMessage('Code must be 6 digits'),
+]), userController.updatePhone);
 
 module.exports = router;

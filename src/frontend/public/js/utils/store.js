@@ -229,6 +229,40 @@ const Store = {
     },
 
     /**
+     * Sends an SMS OTP to a new phone number (for the currently
+     * authenticated user who wants to change their phone).
+     * @param {string} phone
+     * @returns {Promise<object>} { success, maskedPhone, message, devCode? }
+     */
+    async sendPhoneChangeOtp(phone) {
+        try {
+            return await this.apiFetch('/api/users/me/phone/send-otp', {
+                method: 'POST',
+                body: JSON.stringify({ phone }),
+            });
+        } catch (err) {
+            return { success: false, message: 'Network error. Please try again.' };
+        }
+    },
+
+    /**
+     * Verifies the OTP and commits the phone change on the server.
+     * @param {string} phone
+     * @param {string} code - 6-digit OTP
+     * @returns {Promise<object>} { success, data? }
+     */
+    async updatePhone(phone, code) {
+        try {
+            return await this.apiFetch('/api/users/me/phone', {
+                method: 'PUT',
+                body: JSON.stringify({ phone, code }),
+            });
+        } catch (err) {
+            return { success: false, message: 'Network error. Please try again.' };
+        }
+    },
+
+    /**
      * Changes the password of the currently authenticated user.
      * Requires the current password as proof. Does not log the user out.
      * @param {string} currentPassword

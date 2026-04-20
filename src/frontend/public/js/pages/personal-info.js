@@ -181,9 +181,55 @@ const PersonalInfoPage = {
             return;
         }
 
+        const current = Store.get('user') || {};
+
+        // Compare digits-only so formatting differences don't trigger OTP
+        const digits = (s) => String(s || '').replace(/\D/g, '');
+        const phoneChanged = phone && digits(phone) !== digits(current.phone);
+
         const btn = document.getElementById('ei-submit');
         if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
 
+        // If the phone changed, save name/address first (quick win) then
+        // swap the modal into the OTP step to verify the new phone number.
+        if (phoneChanged) {
+            if (digits(phone).length < 10) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+                alert('Please enter a valid phone number.');
+                return;
+            }
+
+            // Save name/address if they changed (don't block on failure)
+            if (name !== current.name || address !== (current.address || '')) {
+                try {
+                    const res = await Store.apiFetch('/api/users/me', {
+                        method: 'PUT',
+                        body: JSON.stringify({ name, address }),
+                    });
+                    if (res.success) {
+                        Store.set('user', Object.assign({}, current, res.data || { name, address }));
+                    }
+                } catch (e) { /* non-fatal — continue to phone flow */ }
+            }
+
+            // Send the OTP
+            const otpRes = await Store.sendPhoneChangeOtp(phone);
+            if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+
+            if (!otpRes.success) {
+                alert(otpRes.message || 'Unable to send verification code.');
+                return;
+            }
+
+            if (otpRes.devCode) console.warn('[edit-info] dev OTP code:', otpRes.devCode);
+
+            this._pendingPhone = phone;
+            this._pendingMaskedPhone = otpRes.maskedPhone || phone;
+            this._renderOtpStep();
+            return;
+        }
+
+        // No phone change — straight-through update
         try {
             const res = await Store.apiFetch('/api/users/me', {
                 method: 'PUT',
@@ -197,16 +243,148 @@ const PersonalInfoPage = {
                 return;
             }
 
-            // Update the local Store state so the Profile page reflects it immediately
-            const current = Store.get('user') || {};
             Store.set('user', Object.assign({}, current, res.data || { name, phone, address }));
-
             this._closeEditInfoModal();
             alert('Profile updated successfully.');
         } catch (err) {
             if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
             alert('Network error. Please try again.');
         }
+    },
+
+    /**
+     * Swaps the Edit Information modal into a "Verify new phone number"
+     * OTP step. Only rendered when the user changes their phone number.
+     */
+    _renderOtpStep() {
+        const modal = document.getElementById('edit-info-modal');
+        if (!modal) return;
+        const body = modal.querySelector('.modal');
+        if (!body) return;
+
+        const masked = this._pendingMaskedPhone || this._pendingPhone || 'your new number';
+
+        body.innerHTML = `
+            <div class="modal__header">
+                <h3 class="modal__title">Verify new phone</h3>
+                <button class="modal__close" type="button"
+                        onclick="PersonalInfoPage._closeEditInfoModal()" aria-label="Close">
+                    <svg viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <form class="modal__body" id="ei-otp-form"
+                  onsubmit="event.preventDefault(); PersonalInfoPage._submitPhoneOtp(event)">
+                <p style="margin:0 0 var(--spacing-lg);color:var(--color-gray-600);font-size:var(--font-size-sm);line-height:1.5;">
+                    We sent a 6-digit verification code via SMS to
+                    <strong>${this._escapeHtml(masked)}</strong>.
+                    Enter it below to confirm this phone number.
+                </p>
+
+                <div class="otp-input-group" id="ei-otp-group">
+                    ${Array.from({ length: 6 }).map((_, i) => `
+                        <input type="text" inputmode="numeric" pattern="[0-9]*"
+                               class="otp-input" maxlength="1" data-index="${i}"
+                               oninput="PersonalInfoPage._otpInput(event, ${i})"
+                               onkeydown="PersonalInfoPage._otpKeydown(event, ${i})">
+                    `).join('')}
+                </div>
+
+                <div style="text-align:center;font-size:var(--font-size-xs);color:var(--color-gray-500);margin-top:var(--spacing-md);">
+                    Didn't get the code?
+                    <a href="#" onclick="event.preventDefault(); PersonalInfoPage._resendPhoneOtp(event)">Resend</a>
+                </div>
+
+                <div class="modal__footer" style="grid-template-columns: 1fr 1fr;">
+                    <button type="button" class="btn btn--outline"
+                            onclick="PersonalInfoPage._closeEditInfoModal()">Cancel</button>
+                    <button type="submit" class="btn btn--primary" id="ei-otp-submit">Verify</button>
+                </div>
+            </form>
+        `;
+
+        // Focus first OTP input
+        setTimeout(() => {
+            const first = body.querySelector('.otp-input');
+            if (first) first.focus();
+        }, 50);
+    },
+
+    _otpInput(event, index) {
+        const input = event.target;
+        input.value = input.value.replace(/\D/g, '');
+        if (input.value && index < 5) {
+            const next = document.querySelector(`#ei-otp-group .otp-input[data-index="${index + 1}"]`);
+            if (next) next.focus();
+        }
+    },
+
+    _otpKeydown(event, index) {
+        if (event.key === 'Backspace' && !event.target.value && index > 0) {
+            const prev = document.querySelector(`#ei-otp-group .otp-input[data-index="${index - 1}"]`);
+            if (prev) prev.focus();
+        }
+    },
+
+    async _resendPhoneOtp(event) {
+        const link = event.target;
+        const original = link.textContent;
+        link.textContent = 'Sending...';
+        link.style.pointerEvents = 'none';
+
+        const result = await Store.sendPhoneChangeOtp(this._pendingPhone);
+
+        link.textContent = original;
+        link.style.pointerEvents = '';
+
+        if (!result.success) {
+            alert(result.message || 'Unable to resend code.');
+            return;
+        }
+        if (result.devCode) console.warn('[edit-info] dev OTP code:', result.devCode);
+        alert('A new code has been sent.');
+    },
+
+    async _submitPhoneOtp(event) {
+        const inputs = document.querySelectorAll('#ei-otp-group .otp-input');
+        const code = Array.from(inputs).map(i => i.value).join('');
+
+        if (code.length !== 6) {
+            alert('Please enter the complete 6-digit code.');
+            return;
+        }
+
+        const btn = document.getElementById('ei-otp-submit');
+        if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+
+        const result = await Store.updatePhone(this._pendingPhone, code);
+
+        if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
+
+        if (!result.success) {
+            alert(result.message || 'Invalid verification code.');
+            inputs.forEach(i => { i.value = ''; });
+            inputs[0] && inputs[0].focus();
+            return;
+        }
+
+        const current = Store.get('user') || {};
+        Store.set('user', Object.assign({}, current, result.data || { phone: this._pendingPhone }));
+
+        this._pendingPhone = null;
+        this._pendingMaskedPhone = null;
+        this._closeEditInfoModal();
+        alert('Phone number updated successfully.');
+    },
+
+    _escapeHtml(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     },
 
      /**

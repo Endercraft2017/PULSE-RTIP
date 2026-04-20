@@ -14,6 +14,21 @@
 
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const OtpVerification = require('../models/OtpVerification');
+const textbee = require('../services/sms/textbee');
+
+/** Digits-only for phone equality comparison (tolerant of -, spaces, etc.) */
+function sameDigits(a, b) {
+  return String(a || '').replace(/\D/g, '') === String(b || '').replace(/\D/g, '');
+}
+
+/** Masks middle digits for display: 09171234567 -> 0917****567 */
+function maskPhone(phone) {
+  if (!phone) return '';
+  const clean = String(phone).replace(/[^\d+]/g, '');
+  if (clean.length < 7) return clean;
+  return clean.slice(0, 4) + '*'.repeat(clean.length - 7) + clean.slice(-3);
+}
 
 /* --------------------------------------------------------------------------
  * 2. getMe
@@ -127,4 +142,167 @@ async function changePassword(req, res, next) {
   }
 }
 
-module.exports = { getMe, updateMe, changePassword };
+/* --------------------------------------------------------------------------
+ * 5. sendPhoneChangeOtp
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Dispatches an SMS OTP to the user's proposed NEW phone number to prove
+ * ownership before the phone change is persisted. Authenticated endpoint.
+ *
+ * Rules:
+ * - Reject if phone is the same as the current phone (no-op)
+ * - Reject if phone is already tied to a different user
+ * - Rate-limit to one send per 30 seconds per phone
+ *
+ * @param {object} req - Express request (body: { phone })
+ * @param {object} res - Express response
+ * @param {function} next - Express next function
+ */
+async function sendPhoneChangeOtp(req, res, next) {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, message: 'Phone number is required.' });
+    }
+
+    const normalized = OtpVerification.normalizePhone(phone);
+    if (!normalized || normalized.length < 10) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid phone number.' });
+    }
+
+    // Reject if phone didn't actually change
+    if (sameDigits(normalized, req.user.phone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'This is already your current phone number.',
+      });
+    }
+
+    // Reject if phone is already registered to a different user
+    const existing = await User.findByPhone(normalized);
+    if (existing && existing.id !== req.user.id) {
+      return res.status(409).json({
+        success: false,
+        message: 'This phone number is already registered to another account.',
+      });
+    }
+
+    // Rate-limit: 30s per phone+purpose
+    const lastOtp = await OtpVerification.findLatest(normalized, 'phone_change');
+    if (lastOtp) {
+      const age = (Date.now() - new Date(lastOtp.created_at + 'Z').getTime()) / 1000;
+      if (age < 30) {
+        return res.status(429).json({
+          success: false,
+          message: `Please wait ${Math.ceil(30 - age)}s before requesting a new code.`,
+        });
+      }
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    await OtpVerification.create({ phone: normalized, code, purpose: 'phone_change', ttlSeconds: 600 });
+
+    const message = `PULSE 911 phone change code: ${code}\nValid for 10 minutes. Do not share this code with anyone.`;
+
+    if (!textbee.isConfigured()) {
+      console.warn('[sendPhoneChangeOtp] TextBee not configured, returning code in response for dev');
+      return res.json({
+        success: true,
+        maskedPhone: maskPhone(normalized),
+        devCode: code,
+        message: 'OTP generated (SMS gateway not configured — dev mode).',
+      });
+    }
+
+    try {
+      await textbee.sendSMS(normalized, message);
+    } catch (smsErr) {
+      console.error('[sendPhoneChangeOtp] SMS send failed:', smsErr.message);
+      return res.status(502).json({
+        success: false,
+        message: 'Unable to deliver the SMS code right now. Please try again shortly.',
+      });
+    }
+
+    res.json({
+      success: true,
+      maskedPhone: maskPhone(normalized),
+      message: 'Verification code sent via SMS to the new number.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * 6. updatePhone
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Verifies the OTP for the new phone number and commits the change.
+ * Authenticated.
+ *
+ * @param {object} req - Express request (body: { phone, code })
+ * @param {object} res - Express response
+ * @param {function} next - Express next function
+ */
+async function updatePhone(req, res, next) {
+  try {
+    const { phone, code } = req.body;
+    if (!phone || !code) {
+      return res.status(400).json({ success: false, message: 'Phone and code are required.' });
+    }
+
+    const normalized = OtpVerification.normalizePhone(phone);
+    const record = await OtpVerification.findLatest(normalized, 'phone_change');
+
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: 'No verification code found for this number. Please request a new one.',
+      });
+    }
+
+    if (new Date(record.expires_at + 'Z') < new Date()) {
+      return res.status(410).json({
+        success: false,
+        message: 'This verification code has expired. Please request a new one.',
+      });
+    }
+
+    if (record.attempts >= 5) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many failed attempts. Please request a new code.',
+      });
+    }
+
+    if (String(code).trim() !== record.code) {
+      await OtpVerification.incrementAttempt(record.id);
+      return res.status(400).json({ success: false, message: 'Invalid verification code.' });
+    }
+
+    // Double-check the phone isn't now taken by someone else (race condition guard)
+    const taken = await User.findByPhone(normalized);
+    if (taken && taken.id !== req.user.id) {
+      return res.status(409).json({
+        success: false,
+        message: 'This phone number is already registered to another account.',
+      });
+    }
+
+    await OtpVerification.markVerified(record.id);
+    const updated = await User.updateById(req.user.id, { phone: normalized });
+
+    res.json({
+      success: true,
+      message: 'Phone number updated successfully.',
+      data: updated,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getMe, updateMe, changePassword, sendPhoneChangeOtp, updatePhone };
