@@ -164,6 +164,12 @@ const PhoneFormat = {
     }
 };
 
+// Expose globally for pages that check `window.PhoneFormat`. In classic
+// (non-module) <script> tags, top-level `const` bindings don't attach
+// to window — direct name references work, but `window.X` returns
+// undefined. Explicit assignment keeps both paths valid.
+window.PhoneFormat = PhoneFormat;
+
 /**
  * Simple reactive store for managing application state.
  * Provides get/set with subscriber notification and API integration.
@@ -507,3 +513,6 @@ const Store = {
         return localStorage.getItem('pulse_token');
     }
 };
+
+// See note above — expose on window so `window.Store` works too.
+window.Store = Store;

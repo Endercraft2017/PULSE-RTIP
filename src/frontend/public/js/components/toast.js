@@ -60,3 +60,9 @@ const Toast = {
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 };
+
+// Expose on window — top-level `const` doesn't attach to window in
+// classic <script> tags, so `window.Toast` would otherwise be undefined
+// and guarded calls like `if (window.Toast) Toast.show(...)` would fall
+// back to alert() even when the component is loaded.
+window.Toast = Toast;
