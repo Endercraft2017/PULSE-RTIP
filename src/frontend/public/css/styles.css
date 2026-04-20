@@ -189,7 +189,12 @@ h4 { font-size: var(--font-size-base); }
     position: fixed;
     top: 0;
     left: 50%;
-    transform: translateX(-50%);
+    /* Force GPU compositing — prevents flicker when mobile browser URL
+       bar appears/disappears on scroll. */
+    transform: translate3d(-50%, 0, 0);
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
     width: 100%;
     max-width: var(--max-width);
     height: var(--header-height);
@@ -214,10 +219,18 @@ h4 { font-size: var(--font-size-base); }
     position: fixed;
     bottom: 0;
     left: 50%;
-    transform: translateX(-50%);
+    /* translate3d forces GPU compositing so iOS Safari / Chrome Android
+       don't repaint the nav when their URL bar toggles on scroll —
+       without this the nav appears to flicker or briefly hide. */
+    transform: translate3d(-50%, 0, 0);
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
     width: 100%;
     max-width: var(--max-width);
     height: var(--nav-height);
+    /* Respect iOS home-indicator safe area */
+    padding-bottom: env(safe-area-inset-bottom, 0);
     z-index: 100;
 }
 
