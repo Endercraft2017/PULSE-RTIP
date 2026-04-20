@@ -63,6 +63,8 @@
     /* Neutral Colors */
     --color-bg: #F3F4F6;
     --color-white: #FFFFFF;
+    --color-surface: #FFFFFF;       /* Card/elevated background (dark-mode aware) */
+    --color-surface-alt: #F9FAFB;   /* Subtle alt surface (inputs, hover) */
     --color-gray-50: #F9FAFB;
     --color-gray-100: #F3F4F6;
     --color-gray-200: #E5E7EB;
@@ -315,7 +317,7 @@ h4 { font-size: var(--font-size-base); }
     align-items: center;
     justify-content: space-around;
     height: var(--nav-height);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-top: 1px solid var(--color-gray-200);
     padding: var(--spacing-xs) 0;
 }
@@ -361,7 +363,7 @@ h4 { font-size: var(--font-size-base); }
 }
 
 .card {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     box-shadow: var(--shadow-sm);
@@ -432,7 +434,7 @@ h4 { font-size: var(--font-size-base); }
 
 /* Incident card (used in hazards, reports, dashboard) */
 .incident-card {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     box-shadow: var(--shadow-sm);
@@ -592,7 +594,7 @@ h4 { font-size: var(--font-size-base); }
     font-family: var(--font-family);
     font-size: var(--font-size-sm);
     color: var(--color-gray-800);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     transition: border-color 0.2s;
     outline: none;
 }
@@ -611,7 +613,7 @@ h4 { font-size: var(--font-size-base); }
     align-items: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-md) var(--spacing-lg);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border: 1px solid var(--color-gray-200);
     border-radius: var(--radius-lg);
     margin-bottom: var(--spacing-lg);
@@ -730,7 +732,7 @@ h4 { font-size: var(--font-size-base); }
     font-weight: 500;
     cursor: pointer;
     border: 1px solid var(--color-gray-200);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     color: var(--color-gray-600);
     white-space: nowrap;
     transition: all 0.2s;
@@ -772,14 +774,14 @@ h4 { font-size: var(--font-size-base); }
     transition: all 0.2s;
 }
 .report-tab-group__btn.active {
-    background: var(--color-white);
+    background: var(--color-surface);
     color: var(--color-gray-900);
     box-shadow: var(--shadow-sm);
 }
 
 /* Featured report card */
 .featured-report-card {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-xl);
     padding: var(--spacing-lg);
     margin-bottom: var(--spacing-lg);
@@ -836,7 +838,7 @@ h4 { font-size: var(--font-size-base); }
 .auth-screen__brand-icon {
     width: 61px;
     height: 61px;
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -881,7 +883,7 @@ h4 { font-size: var(--font-size-base); }
 .auth-screen__body {
     flex: 1;
     padding: 24px;
-    background: var(--color-white);
+    background: var(--color-surface);
 }
 
 .auth-screen__body--center {
@@ -998,7 +1000,7 @@ h4 { font-size: var(--font-size-base); }
     text-align: center;
     font-size: 10px;
     color: #6B7280;
-    background: var(--color-white);
+    background: var(--color-surface);
     border-top: 1px solid var(--color-gray-100);
 }
 
@@ -1055,7 +1057,7 @@ h4 { font-size: var(--font-size-base); }
     display: flex;
     gap: 10px;
     align-items: flex-start;
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: 10px;
     padding: 12px 14px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.15);
@@ -1140,7 +1142,7 @@ h4 { font-size: var(--font-size-base); }
 
 .offline-card__cta {
     width: 100%;
-    background: var(--color-white);
+    background: var(--color-surface);
     color: #111827;
     border: none;
     border-radius: 8px;
@@ -1169,7 +1171,7 @@ h4 { font-size: var(--font-size-base); }
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     padding: var(--spacing-2xl);
 }
 
@@ -1372,7 +1374,7 @@ h4 { font-size: var(--font-size-base); }
     align-items: flex-start;
     gap: var(--spacing-sm);
     padding: var(--spacing-lg);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border: 2px solid var(--color-gray-200);
     border-radius: var(--radius-lg);
     cursor: pointer;
@@ -1487,7 +1489,7 @@ select.input-group__field {
     font-weight: 700;
     font-family: var(--font-family);
     color: var(--color-gray-900);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border: 2px solid var(--color-gray-200);
     border-radius: var(--radius-md);
     outline: none;
@@ -1577,7 +1579,7 @@ select.input-group__field {
 }
 
 .modal {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     width: 100%;
     max-width: var(--max-width);
@@ -1760,7 +1762,7 @@ select.input-group__field {
 }
 
 .safety-info {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     border: 1px solid var(--color-gray-200);
@@ -1874,7 +1876,7 @@ select.input-group__field {
     align-items: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-lg);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border: 1px solid var(--color-gray-200);
     border-radius: var(--radius-lg);
     cursor: pointer;
@@ -1924,7 +1926,7 @@ select.input-group__field {
     margin-bottom: var(--spacing-lg);
 }
 .emergency-tab {
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 1.5px solid var(--color-gray-200);
     border-radius: var(--radius-lg);
     padding: var(--spacing-sm) 4px;
@@ -1949,7 +1951,7 @@ select.input-group__field {
     display: flex; align-items: center; justify-content: center;
     margin-bottom: 2px;
 }
-.emergency-tab.active .emergency-tab__icon { background: var(--color-white); }
+.emergency-tab.active .emergency-tab__icon { background: var(--color-surface); }
 .emergency-tab__icon svg {
     width: 16px; height: 16px;
     fill: none; stroke: var(--color-primary);
@@ -1987,7 +1989,7 @@ select.input-group__field {
 
 /* Detailed contact cards */
 .contact-card {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     margin-bottom: var(--spacing-md);
@@ -2063,7 +2065,7 @@ select.input-group__field {
     align-items: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-md) var(--spacing-xl);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     color: var(--color-danger);
     font-weight: 700;
     border-radius: var(--radius-full);
@@ -2084,7 +2086,7 @@ select.input-group__field {
 .notification-card {
     display: flex;
     gap: var(--spacing-md);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     border: 1px solid var(--color-gray-200);
@@ -2204,7 +2206,7 @@ select.input-group__field {
     flex-shrink: 0;
     display: inline-flex; align-items: center; gap: 6px;
     padding: 8px 14px; border-radius: var(--radius-full);
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 1.5px solid var(--color-gray-200);
     color: var(--color-gray-600);
     font-size: var(--font-size-xs); font-weight: 600;
@@ -2220,7 +2222,7 @@ select.input-group__field {
 /* News card */
 .news-card {
     display: flex; gap: var(--spacing-md);
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     padding: var(--spacing-md);
@@ -2404,7 +2406,7 @@ select.input-group__field {
 .profile-header {
     text-align: center;
     padding: var(--spacing-2xl) var(--spacing-lg);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-bottom: 1px solid var(--color-gray-200);
 }
 
@@ -2505,7 +2507,7 @@ select.input-group__field {
     align-items: center;
     justify-content: space-between;
     padding: var(--spacing-lg);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-bottom: 1px solid var(--color-gray-100);
     cursor: pointer;
     transition: background-color 0.2s;
@@ -2552,7 +2554,7 @@ select.input-group__field {
 
 /* Avatar card at top */
 .profile-card {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-xl);
     padding: var(--spacing-xl) var(--spacing-lg);
     box-shadow: var(--shadow-sm);
@@ -2624,7 +2626,7 @@ select.input-group__field {
 
 /* Grouped menu container (rounded card with menu items) */
 .profile-page__group {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
@@ -2703,7 +2705,7 @@ select.input-group__field {
     gap: var(--spacing-md);
     width: 100%;
     padding: var(--spacing-lg);
-    background: var(--color-white);
+    background: var(--color-surface);
     border: none;
     border-bottom: 1px solid var(--color-gray-100);
     cursor: pointer;
@@ -2797,10 +2799,27 @@ html.text-small  { font-size: 14px; }
 html.text-medium { font-size: 16px; }
 html.text-large  { font-size: 18px; }
 
+/* ============================================================
+   DARK MODE
+   ============================================================
+   Rewrites the color tokens so the existing CSS automatically
+   picks up dark equivalents. --color-white stays literal white
+   (used for button text, header title, etc). --color-surface
+   is the card/elevated bg which flips to a dark slate.
+   ============================================================ */
 body.theme-dark {
+    /* Surfaces and background */
     --color-bg: #0F172A;
-    --color-white: #1E293B;
-    --color-gray-50: #1E293B;
+    --color-surface: #1E293B;
+    --color-surface-alt: #0F172A;
+
+    /* Keep --color-white truly white — used for text on primary/danger
+       buttons, the green header, emergency banners, etc. */
+    --color-white: #FFFFFF;
+
+    /* Grayscale — inverted so "gray-50" (light bg) → dark slate,
+       and "gray-900" (darkest text) → white. */
+    --color-gray-50:  #1E293B;
     --color-gray-100: #334155;
     --color-gray-200: #475569;
     --color-gray-300: #64748B;
@@ -2810,8 +2829,122 @@ body.theme-dark {
     --color-gray-700: #F1F5F9;
     --color-gray-800: #F8FAFC;
     --color-gray-900: #FFFFFF;
+
+    /* Status-color light tints — use translucent accent colors so
+       badges read cleanly on dark backgrounds. */
+    --color-danger-light:  rgba(239, 68, 68, 0.18);
+    --color-warning-light: rgba(245, 158, 11, 0.18);
+    --color-info-light:    rgba(59, 130, 246, 0.20);
+    --color-success-light: rgba(22, 163, 74, 0.22);
+
+    /* Stronger shadows so elevated surfaces are visible on dark bg */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.65);
+
     background-color: var(--color-bg);
     color: var(--color-gray-800);
+}
+
+/* ---- Dark-mode explicit overrides for hardcoded colors ---- */
+
+/* Active tabs: primary green background + white text */
+body.theme-dark .filter-tabs__tab.active,
+body.theme-dark .news-tab.active,
+body.theme-dark .dashboard-subtabs__tab.active {
+    background-color: var(--color-primary);
+    color: #FFFFFF;
+}
+
+/* Badge text should stay readable on the translucent tints — use
+   brighter accent text colors */
+body.theme-dark .badge--high,
+body.theme-dark .badge--danger    { color: #FCA5A5; }
+body.theme-dark .badge--medium,
+body.theme-dark .badge--warning,
+body.theme-dark .badge--pending   { color: #FCD34D; }
+body.theme-dark .badge--low,
+body.theme-dark .badge--info,
+body.theme-dark .badge--investigating { color: #93C5FD; }
+body.theme-dark .badge--success,
+body.theme-dark .badge--resolved  { color: #86EFAC; }
+
+/* Input fields: use surface-alt so they contrast against cards */
+body.theme-dark .input-group__field,
+body.theme-dark .search-bar,
+body.theme-dark select.input-group__field,
+body.theme-dark .otp-input {
+    background-color: var(--color-surface-alt);
+    color: var(--color-gray-800);
+    border-color: var(--color-gray-200);
+}
+
+body.theme-dark .input-group__field::placeholder,
+body.theme-dark .search-bar input::placeholder {
+    color: var(--color-gray-400);
+}
+
+/* Admin sidebar (desktop layout) — surface-colored background */
+body.theme-dark .bottom-nav {
+    background-color: var(--color-surface);
+    border-top-color: var(--color-gray-200);
+}
+
+/* Dashboard subtabs container */
+body.theme-dark .dashboard-subtabs {
+    background-color: var(--color-surface-alt);
+}
+body.theme-dark .dashboard-subtabs__tab {
+    color: var(--color-gray-500);
+}
+body.theme-dark .dashboard-subtabs__tab.active {
+    background-color: var(--color-surface);
+    color: var(--color-gray-900);
+}
+
+/* Weather widget: keep existing gradient/bg, just ensure contrast */
+body.theme-dark .weather-widget {
+    background: linear-gradient(135deg, #1E40AF, #1E3A8A);
+    color: #FFFFFF;
+}
+
+/* Hazard info cards need explicit surface color */
+body.theme-dark .hazard-info-card {
+    background-color: var(--color-surface);
+    border-color: var(--color-gray-200);
+}
+
+/* Select arrow icon (hardcoded gray stroke in SVG data URL) */
+body.theme-dark select.input-group__field {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23CBD5E1' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
+
+/* Scrollbar */
+body.theme-dark ::-webkit-scrollbar-thumb {
+    background-color: var(--color-gray-300);
+}
+
+/* SOS button stays red — ensure text is white */
+body.theme-dark .sos-btn { color: #FFFFFF; }
+
+/* Keep the green gradient welcome/auth header readable */
+body.theme-dark .welcome-card,
+body.theme-dark .auth-screen__header,
+body.theme-dark .featured-news,
+body.theme-dark .emergency-banner {
+    color: #FFFFFF;
+}
+
+/* Modal footer buttons — border color */
+body.theme-dark .modal__footer,
+body.theme-dark .modal__header {
+    border-color: var(--color-gray-200);
+}
+
+/* Loading-state / empty-state text */
+body.theme-dark .loading-state,
+body.theme-dark .empty-state {
+    color: var(--color-gray-500);
 }
 
 /* Logout button at bottom */
@@ -2860,7 +2993,7 @@ body.theme-dark {
 }
 
 .stat-card {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     border: 1px solid var(--color-gray-200);
@@ -2912,7 +3045,7 @@ body.theme-dark {
     display: flex;
     gap: var(--spacing-md);
     padding: var(--spacing-md);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-lg);
     border: 1px solid var(--color-gray-200);
     margin-bottom: var(--spacing-sm);
@@ -2976,7 +3109,7 @@ body.theme-dark {
 }
 
 .dashboard-stat {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     border-radius: var(--radius-md);
     padding: var(--spacing-md);
     text-align: center;
@@ -3021,7 +3154,7 @@ body.theme-dark {
 }
 
 .dashboard-subtabs__tab.active {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     color: var(--color-gray-900);
     font-weight: 600;
     box-shadow: var(--shadow-sm);
@@ -3041,7 +3174,7 @@ body.theme-dark {
     gap: 6px;
     padding: var(--spacing-md) var(--spacing-sm);
     border-radius: var(--radius-lg);
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 1.5px solid var(--color-gray-200);
     font-size: var(--font-size-xs);
     font-weight: 600;
@@ -3305,7 +3438,7 @@ body.theme-dark {
     to   { opacity: 1; transform: scale(1); }
 }
 .modal-overlay--centered .modal {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-xl) !important;
     padding: var(--spacing-xl);
     width: 100%;
@@ -3447,7 +3580,7 @@ body.theme-dark {
 .forecast-row::-webkit-scrollbar { display: none; }
 .forecast-item {
     flex-shrink: 0;
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--spacing-md);
     text-align: center;
@@ -3473,7 +3606,7 @@ body.theme-dark {
     margin-bottom: var(--spacing-lg);
 }
 .hazard-info-card {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--spacing-md);
     border: 1px solid var(--color-gray-200);
@@ -3497,7 +3630,7 @@ body.theme-dark {
 
 /* Report CTA Card (Citizen only) */
 .report-cta {
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 2px solid var(--color-primary);
     border-radius: var(--radius-xl);
     padding: var(--spacing-lg);
@@ -3536,7 +3669,7 @@ body.theme-dark {
     padding: 12px 14px; border: 1.5px solid var(--color-gray-200);
     border-radius: var(--radius-md); font-size: var(--font-size-sm);
     font-family: var(--font-family); transition: border-color 0.15s;
-    background: var(--color-white); color: var(--color-gray-900); width: 100%;
+    background: var(--color-surface); color: var(--color-gray-900); width: 100%;
 }
 .form-input:focus { outline: none; border-color: var(--color-primary); }
 .form-input::placeholder { color: var(--color-gray-300); }
@@ -3545,7 +3678,7 @@ textarea.form-input { resize: vertical; min-height: 100px; }
 .form-select {
     padding: 12px 14px; border: 1.5px solid var(--color-gray-200);
     border-radius: var(--radius-md); font-size: var(--font-size-sm);
-    font-family: var(--font-family); background: var(--color-white);
+    font-family: var(--font-family); background: var(--color-surface);
     color: var(--color-gray-900); width: 100%; appearance: none; cursor: pointer;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px;
@@ -3557,7 +3690,7 @@ textarea.form-input { resize: vertical; min-height: 100px; }
     padding: 8px 14px; border-radius: var(--radius-full);
     font-size: var(--font-size-sm); font-weight: 500; cursor: pointer;
     border: 1.5px solid var(--color-gray-200);
-    background: var(--color-white); color: var(--color-gray-600);
+    background: var(--color-surface); color: var(--color-gray-600);
     transition: all 0.15s; display: flex; align-items: center; gap: 4px;
 }
 .category-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
@@ -3675,7 +3808,7 @@ textarea.form-input { resize: vertical; min-height: 100px; }
     padding: 10px 12px; border: 1.5px solid var(--color-gray-200);
     border-radius: var(--radius-md); font-size: var(--font-size-sm);
     font-family: var(--font-family); transition: border-color 0.15s;
-    background: var(--color-white); color: var(--color-gray-900);
+    background: var(--color-surface); color: var(--color-gray-900);
 }
 .edit-form .input-group__field:focus { outline: none; border-color: var(--color-primary); }
 .edit-form .input-group__field:disabled { background: var(--color-gray-50); color: var(--color-gray-400); }
@@ -3688,7 +3821,7 @@ textarea.form-input { resize: vertical; min-height: 100px; }
     margin-bottom: var(--spacing-lg);
 }
 .progress-stat {
-    background: var(--color-white); border-radius: var(--radius-lg);
+    background: var(--color-surface); border-radius: var(--radius-lg);
     padding: var(--spacing-lg); text-align: center;
     box-shadow: var(--shadow-sm); border: 1px solid var(--color-gray-200);
 }
@@ -3784,22 +3917,6 @@ textarea.form-input { resize: vertical; min-height: 100px; }
 .empty-state {
     text-align: center; padding: var(--spacing-xl);
     color: var(--color-gray-400); font-size: var(--font-size-sm);
-}
-
-/* Dark Mode */
-body.dark-mode {
-    --color-bg: #111827;
-    --color-white: #1F2937;
-    --color-gray-50: #1F2937;
-    --color-gray-100: #374151;
-    --color-gray-200: #4B5563;
-    --color-gray-300: #6B7280;
-    --color-gray-400: #9CA3AF;
-    --color-gray-500: #D1D5DB;
-    --color-gray-600: #E5E7EB;
-    --color-gray-700: #F3F4F6;
-    --color-gray-800: #F9FAFB;
-    --color-gray-900: #FFFFFF;
 }
 
 /* ============================================================
@@ -4012,7 +4129,7 @@ body.dark-mode {
         max-width: none;
         transform: none;
         border-radius: 0;
-        background-color: var(--color-white);
+        background-color: var(--color-surface);
         border-right: 1px solid var(--color-gray-200);
         z-index: 110;
     }
@@ -4140,7 +4257,7 @@ body.dark-mode {
         border-radius: var(--radius-xl);
         overflow: hidden;
         box-shadow: var(--shadow-lg);
-        background-color: var(--color-white);
+        background-color: var(--color-surface);
         min-height: 0;
     }
 
@@ -4278,7 +4395,7 @@ html.embed-mode .fab {
 }
 
 .hazard-map {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-lg);
     border: 1px solid var(--color-gray-200);
     overflow: hidden;
@@ -4443,7 +4560,7 @@ html.embed-mode .fab {
     z-index: 10000;
 }
 .sos-offline-form {
-    background: var(--color-white);
+    background: var(--color-surface);
     width: 100%;
     max-width: 480px;
     max-height: 90vh;
@@ -4518,7 +4635,7 @@ html.embed-mode .fab {
     align-items: center;
     gap: 4px;
     padding: 10px 4px;
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 1.5px solid var(--color-gray-200);
     border-radius: var(--radius-md);
     font-family: var(--font-family);
@@ -4549,7 +4666,7 @@ html.embed-mode .fab {
     padding: 10px;
     border: 1.5px solid var(--color-gray-200);
     border-radius: var(--radius-md);
-    background: var(--color-white);
+    background: var(--color-surface);
     font-family: var(--font-family);
     font-size: var(--font-size-sm);
     font-weight: 600;

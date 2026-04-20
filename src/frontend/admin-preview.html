@@ -12,6 +12,19 @@
     if (window.innerWidth < 1024) {
       window.location.replace('./index.html' + (window.location.hash || ''));
     }
+
+    /* Apply dark theme before first paint if the user's saved appearance
+       is dark (or system-dark). Mirrors AppearancePage.restoreAppearance(). */
+    try {
+      var saved = JSON.parse(localStorage.getItem('pulse_appearance') || '{}');
+      var theme = saved.theme || 'system';
+      var isDark = theme === 'dark' ||
+        (theme === 'system' && window.matchMedia &&
+         window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (isDark) {
+        document.documentElement.classList.add('theme-dark');
+      }
+    } catch (e) {}
   })();
 </script>
 
@@ -213,6 +226,32 @@
     height: 100%;
     border: none;
     display: block;
+  }
+
+  /* ----- Dark mode (applied when user's saved appearance is dark) ----- */
+  html.theme-dark body {
+    background-color: #0F172A;
+    color: #F1F5F9;
+  }
+  html.theme-dark .sidebar {
+    background: #1E293B;
+    border-right-color: #334155;
+  }
+  html.theme-dark .sidebar__group { border-bottom-color: #334155; }
+  html.theme-dark .sidebar__group-label { color: #94A3B8; }
+  html.theme-dark .sidebar__item { color: #CBD5E1; }
+  html.theme-dark .sidebar__item:hover {
+    background: #334155;
+    color: #86EFAC;
+  }
+  html.theme-dark .sidebar__item.active {
+    background: rgba(22, 163, 74, 0.22);
+    color: #86EFAC;
+  }
+  html.theme-dark .content { background: #0F172A; }
+  html.theme-dark .frame-wrap {
+    background: #1E293B;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.55);
   }
 
   /* ----- Mobile overlay mode ----- */
