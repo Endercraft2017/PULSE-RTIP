@@ -322,6 +322,21 @@
   html.theme-dark .sidebar__logout { color: #FCA5A5; }
   html.theme-dark .sidebar__logout:hover { background: rgba(239, 68, 68, 0.15); }
 
+  /* ----- Auth mode: hide shell chrome on login / signup / forgot-password ----- */
+  body.auth-mode .topbar,
+  body.auth-mode .sidebar,
+  body.auth-mode .backdrop { display: none; }
+  body.auth-mode .shell { top: 0; }
+  body.auth-mode .content {
+    padding: 0;
+    background: transparent;
+  }
+  body.auth-mode .frame-wrap {
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
   /* ----- Mobile overlay mode ----- */
   @media (max-width: 767px) {
     .sidebar {
@@ -536,6 +551,34 @@
       backdrop.classList.remove('visible');
     }
   }
+
+  /* --- Auth-mode chrome toggle ---
+     Watches the iframe's hash and hides the shell (topbar + sidebar)
+     when the SPA is on an auth route so login/signup feel full-screen. */
+  const AUTH_ROUTES = ['login', 'login-offline', 'signup', 'forgot-password'];
+
+  function updateAuthMode() {
+    try {
+      const hash = iframe.contentWindow.location.hash || '';
+      const route = hash.replace(/^#\/?/, '').split(/[?&]/)[0];
+      if (AUTH_ROUTES.includes(route)) {
+        document.body.classList.add('auth-mode');
+      } else {
+        document.body.classList.remove('auth-mode');
+      }
+    } catch (e) {
+      /* cross-origin or not ready — iframe src resolves to same origin so
+         this should normally succeed; ignore transient failures */
+    }
+  }
+
+  iframe.addEventListener('load', () => {
+    updateAuthMode();
+    try {
+      // Re-check whenever the inner SPA changes hash routes
+      iframe.contentWindow.addEventListener('hashchange', updateAuthMode);
+    } catch (e) {}
+  });
 
   /* --- Sidebar toggle --- */
   menuToggle.addEventListener('click', () => {
