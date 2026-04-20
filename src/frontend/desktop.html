@@ -6,11 +6,13 @@
 <title>PULSE 911</title>
 
 <!-- Mobile/tablet fallback: redirect to the mobile-optimized root.
-     The sidebar shell is built for desktop (>=1024px). -->
+     The sidebar shell is built for desktop (>=1024px). Absolute
+     path so redirects from arbitrary URLs (e.g. /admin/desktop)
+     don't bounce in a loop. -->
 <script>
   (function () {
-    if (window.innerWidth < 1024) {
-      window.location.replace('./' + (window.location.hash || ''));
+    if (window.innerWidth < 1024 && window.location.pathname !== '/') {
+      window.location.replace('/' + (window.location.hash || ''));
     }
 
     /* Apply dark theme before first paint if the user's saved appearance

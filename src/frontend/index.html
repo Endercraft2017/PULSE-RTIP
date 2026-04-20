@@ -41,9 +41,11 @@
         }
 
         /* Desktop (>=1024px) users get the sidebar shell at /desktop.
-           Mobile/tablet users stay on this mobile-first index. */
-        if (window.innerWidth >= 1024) {
-          window.location.replace('./desktop' + (location.hash || ''));
+           Mobile/tablet users stay on this mobile-first index.
+           ABSOLUTE path required — a relative "./desktop" from e.g.
+           /admin/desktop would resolve to itself and infinite-loop. */
+        if (window.innerWidth >= 1024 && location.pathname !== '/desktop') {
+          window.location.replace('/desktop' + (location.hash || ''));
         }
       })();
     </script>
