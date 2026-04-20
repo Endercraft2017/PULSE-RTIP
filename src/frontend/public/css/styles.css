@@ -240,6 +240,20 @@ h4 { font-size: var(--font-size-base); }
     color: var(--color-white);
 }
 
+.header__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.header__logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
 .header__actions {
     display: flex;
     align-items: center;
@@ -660,6 +674,27 @@ h4 { font-size: var(--font-size-base); }
     color: var(--color-info);
 }
 
+.badge--in_progress {
+    background-color: #EDE9FE;
+    color: #6D28D9;
+}
+
+.badge--pending_confirmation {
+    background-color: #FEF3C7;
+    color: #B45309;
+}
+
+.badge--rejected,
+.badge--cancelled {
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-500);
+}
+
+.badge--submitted {
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-700);
+}
+
 .badge--type {
     background-color: var(--color-gray-100);
     color: var(--color-gray-600);
@@ -764,8 +799,359 @@ h4 { font-size: var(--font-size-base); }
 }
 
 /* ============================================================
-   9. Login Page
+   9. Auth Screen (Login / Login-Offline) — matches Figma reference
    ============================================================ */
+.auth-screen {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-gray-50);
+}
+
+.auth-screen__header {
+    background: linear-gradient(180deg, #16A34A 0%, #166534 100%);
+    color: var(--color-white);
+    padding: 40px 24px 24px;
+}
+
+.auth-screen__brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.auth-screen__brand-icon {
+    width: 61px;
+    height: 61px;
+    background: var(--color-white);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.auth-screen__brand-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 5px;
+}
+
+.auth-screen__brand-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+}
+
+.auth-screen__brand-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-white);
+}
+
+.auth-screen__brand-org {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-white);
+}
+
+.auth-screen__header-sub {
+    margin-top: 18px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--color-white);
+    opacity: 0.95;
+}
+
+.auth-screen__body {
+    flex: 1;
+    padding: 24px;
+    background: var(--color-white);
+}
+
+.auth-screen__body--center {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.auth-screen__form-header {
+    margin-bottom: 20px;
+}
+
+.auth-screen__form-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1F2937;
+    margin-bottom: 4px;
+}
+
+.auth-screen__form-subtitle {
+    font-size: 11px;
+    color: #4B5563;
+}
+
+.auth-screen__options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 8px 0 16px;
+}
+
+.auth-screen__remember {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: #374151;
+    cursor: pointer;
+}
+
+.auth-screen__remember input[type="checkbox"] {
+    width: 12px;
+    height: 12px;
+    accent-color: var(--color-primary);
+}
+
+.auth-screen__forgot {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.auth-screen__submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 42px;
+    font-size: 11px;
+    font-weight: 500;
+}
+.auth-screen__submit svg {
+    width: 14px; height: 14px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+.auth-screen__features {
+    background: #F0FDF4;
+    border-radius: 8px;
+    padding: 13px;
+    margin: 24px 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.auth-screen__feature {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: #166534;
+}
+
+.auth-screen__feature svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: #166534;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+}
+
+.auth-screen__signup {
+    text-align: center;
+    font-size: 10px;
+    color: #4B5563;
+    margin-top: 8px;
+}
+.auth-screen__signup a {
+    color: var(--color-primary);
+    font-weight: 500;
+    text-decoration: none;
+    margin-left: 4px;
+}
+
+.auth-screen__footer {
+    padding: 17px;
+    text-align: center;
+    font-size: 10px;
+    color: #6B7280;
+    background: var(--color-white);
+    border-top: 1px solid var(--color-gray-100);
+}
+
+/* Input with inline icon + optional toggle */
+.input-with-icon {
+    position: relative;
+}
+.input-with-icon__icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px; height: 16px;
+    fill: none; stroke: #9CA3AF;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    pointer-events: none;
+}
+.input-group__field--icon { padding-left: 38px; }
+.input-with-icon__toggle {
+    position: absolute;
+    right: 8px; top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.input-with-icon__toggle svg {
+    width: 16px; height: 16px;
+    fill: none; stroke: #9CA3AF;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    width: calc(100% - 32px);
+    max-width: 420px;
+}
+
+.toast {
+    pointer-events: auto;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: var(--color-white);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    border-left: 4px solid var(--color-info);
+    opacity: 0;
+    transform: translateY(-12px);
+    transition: opacity 0.2s, transform 0.2s;
+    cursor: pointer;
+}
+.toast--visible { opacity: 1; transform: translateY(0); }
+
+.toast--success { border-left-color: var(--color-primary); }
+.toast--error   { border-left-color: var(--color-danger); }
+.toast--info    { border-left-color: var(--color-info); }
+
+.toast__icon {
+    width: 20px; height: 20px;
+    flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center;
+}
+.toast__icon svg {
+    width: 18px; height: 18px;
+    fill: none; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round;
+}
+.toast--success .toast__icon svg { stroke: var(--color-primary); }
+.toast--error   .toast__icon svg { stroke: var(--color-danger); }
+.toast--info    .toast__icon svg { stroke: var(--color-info); }
+
+.toast__body { flex: 1; min-width: 0; }
+.toast__title {
+    font-size: 13px; font-weight: 600;
+    color: var(--color-gray-900); margin-bottom: 2px;
+}
+.toast__msg {
+    font-size: 12px; color: var(--color-gray-700); line-height: 1.4;
+}
+
+/* Offline fallback card */
+.offline-card {
+    width: 100%;
+    max-width: 328px;
+    background: var(--color-primary);
+    border-radius: 12px;
+    padding: 22px 20px;
+    color: var(--color-white);
+    text-align: center;
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.25);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.offline-card__icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 4px;
+}
+.offline-card__icon svg {
+    width: 30px; height: 30px;
+    fill: none; stroke: var(--color-white);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+.offline-card__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-white);
+}
+
+.offline-card__subtitle {
+    font-size: 11px;
+    color: rgba(255,255,255,0.9);
+    margin-bottom: 6px;
+}
+
+.offline-card__cta {
+    width: 100%;
+    background: var(--color-white);
+    color: #111827;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 17px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.offline-card__cta:hover { background: #F3F4F6; }
+
+.offline-card__retry {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.9);
+    font-size: 10px;
+    font-weight: 500;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+.offline-card__retry:disabled { opacity: 0.6; cursor: wait; }
+
+/* Legacy login-page class (keep for signup/forgot-password which still use it) */
 .login-page {
     min-height: 100dvh;
     display: flex;
@@ -781,22 +1167,18 @@ h4 { font-size: var(--font-size-base); }
 }
 
 .login-page__logo {
-    width: 72px;
-    height: 72px;
-    background-color: var(--color-primary);
-    border-radius: var(--radius-xl);
+    width: 96px;
+    height: 96px;
     display: flex;
     align-items: center;
     justify-content: center;
     margin: 0 auto 16px;
 }
 
-.login-page__logo svg {
-    width: 36px;
-    height: 36px;
-    fill: none;
-    stroke: var(--color-white);
-    stroke-width: 2;
+.login-page__logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 .login-page__app-name {
@@ -2842,6 +3224,22 @@ body.theme-dark {
 }
 .incident-card__actions .btn { flex: 1; font-size: var(--font-size-xs); padding: 8px 12px; }
 
+.incident-card__body--clickable { cursor: pointer; }
+.incident-card__body--clickable:hover .incident-card__title { color: var(--color-primary); }
+
+.incident-card--highlight {
+    animation: incidentHighlight 2.4s ease-out;
+    box-shadow: 0 0 0 2px var(--color-primary);
+}
+@keyframes incidentHighlight {
+    0%   { box-shadow: 0 0 0 0 rgba(22,163,74,0.65); background: #ECFDF5; }
+    40%  { box-shadow: 0 0 0 8px rgba(22,163,74,0.25); background: #ECFDF5; }
+    100% { box-shadow: 0 0 0 2px rgba(22,163,74,0);   background: transparent; }
+}
+
+.notification-card--clickable { cursor: pointer; transition: background 0.15s; }
+.notification-card--clickable:hover { background: var(--color-gray-50); }
+
 .btn--approve {
     background: var(--color-success-light); color: var(--color-primary-dark);
     border: 1.5px solid var(--color-primary);
@@ -2852,6 +3250,27 @@ body.theme-dark {
     border: 1.5px solid var(--color-danger);
 }
 .btn--reject:hover { background: var(--color-danger); color: white; }
+.btn--info {
+    background: var(--color-info-light); color: var(--color-info);
+    border: 1.5px solid var(--color-info);
+}
+.btn--info:hover { background: var(--color-info); color: white; }
+.btn--warning {
+    background: var(--color-warning-light); color: var(--color-warning);
+    border: 1.5px solid var(--color-warning);
+}
+.btn--warning:hover { background: var(--color-warning); color: white; }
+
+.dashboard-subtabs--scroll,
+.filter-tabs--scroll {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.dashboard-subtabs--scroll::-webkit-scrollbar,
+.filter-tabs--scroll::-webkit-scrollbar { display: none; }
+.dashboard-subtabs--scroll .dashboard-subtabs__tab,
+.filter-tabs--scroll .filter-tabs__tab { flex-shrink: 0; }
 
 /* Centered Modal (approval / terms / QR)
    NOTE: a bottom-sheet `.modal-overlay` is defined earlier with
@@ -3443,12 +3862,22 @@ body.dark-mode {
     }
 }
 
-/* --- Tablet and up (768px+) --- */
+/* ============================================================
+   TABLET LAYOUT (768px - 1023px)
+   ============================================================
+   - Widens the phone-shell to 720px
+   - Keeps bottom nav, but lists become 2-column grids
+   - Quick access becomes 4-column
+   ============================================================ */
 @media (min-width: 768px) {
     :root {
-        --max-width: 520px;
+        --max-width: 720px;
         --header-height: 62px;
         --nav-height: 68px;
+    }
+
+    body {
+        background-color: var(--color-gray-200);
     }
 
     #app {
@@ -3457,7 +3886,6 @@ body.dark-mode {
         margin-top: 16px;
         margin-bottom: 16px;
         min-height: calc(100dvh - 32px);
-        /* Allow content to grow beyond min-height; body scrolls naturally */
     }
 
     #app-header {
@@ -3470,7 +3898,43 @@ body.dark-mode {
         overflow: hidden;
     }
 
+    /* 2-column lists */
+    #hazards-list,
+    #reports-list,
+    #dashboard-incidents,
+    #news-list,
+    #notifications-list {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-md);
+        align-items: start;
+    }
+
+    /* Cards inside the grid lose their bottom margin; gap handles spacing */
+    #hazards-list > .incident-card,
+    #reports-list > .incident-card,
+    #dashboard-incidents > .incident-card,
+    #news-list > .news-card,
+    #notifications-list > .notification-card {
+        margin-bottom: 0;
+    }
+
+    /* Quick access: 4 columns on tablet */
+    .quick-access {
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--spacing-md);
+    }
+
+    /* Hazard info grid: 4 columns */
+    .hazard-info-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    /* Auth screens stay reasonable in width (not full 720) */
+    .auth-screen,
     .login-page {
+        max-width: 520px;
+        margin: 0 auto;
         padding: var(--spacing-2xl) var(--spacing-xl);
     }
 
@@ -3478,35 +3942,202 @@ body.dark-mode {
         margin-top: var(--spacing-lg);
     }
 
-    .dashboard-stats {
-        gap: var(--spacing-md);
-    }
-
-    .quick-access {
-        gap: var(--spacing-lg);
-    }
-
     .fab {
         right: calc(50% - var(--max-width) / 2 + 20px);
     }
 }
 
-/* --- Desktop and up (1024px+) --- */
+/* ============================================================
+   DESKTOP LAYOUT (1024px+)
+   ============================================================
+   - Full-width screen (no more phone-in-a-box)
+   - Left sidebar nav replaces bottom nav
+   - Top bar spans full width (offset by sidebar)
+   - Content area constrained to 1280px, centered
+   - 3-column lists where appropriate
+   ============================================================ */
 @media (min-width: 1024px) {
     :root {
-        --max-width: 560px;
+        --max-width: 1280px;
+        --sidebar-width: 240px;
+        --header-height: 64px;
+        --nav-height: 64px;
     }
 
     body {
-        background-color: var(--color-gray-200);
+        background-color: var(--color-gray-100);
     }
 
+    /* Full-width app, no card shell */
     #app {
-        margin-top: 24px;
-        margin-bottom: 24px;
-        min-height: calc(100dvh - 48px);
+        max-width: none;
+        margin: 0;
+        box-shadow: none;
+        border-radius: 0;
+        min-height: 100dvh;
+        background-color: var(--color-gray-100);
     }
 
+    /* Top bar: fixed, spans from sidebar edge to right edge */
+    #app-header {
+        left: var(--sidebar-width);
+        right: 0;
+        width: auto;
+        max-width: none;
+        transform: none;
+        border-radius: 0;
+        z-index: 90;
+    }
+
+    /* Sidebar nav replaces bottom nav */
+    #app-nav {
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: var(--sidebar-width);
+        height: 100dvh;
+        max-width: none;
+        transform: none;
+        border-radius: 0;
+        background-color: var(--color-white);
+        border-right: 1px solid var(--color-gray-200);
+        z-index: 110;
+    }
+
+    .bottom-nav {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        height: 100dvh;
+        padding: var(--spacing-xl) var(--spacing-md);
+        gap: 4px;
+        border-top: none;
+        overflow-y: auto;
+    }
+
+    /* Sidebar brand header */
+    .bottom-nav::before {
+        content: 'PULSE 911';
+        display: block;
+        font-size: var(--font-size-lg);
+        font-weight: 800;
+        color: var(--color-primary);
+        padding: 0 var(--spacing-md) var(--spacing-xl);
+        letter-spacing: 0.5px;
+    }
+
+    .bottom-nav__item {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: var(--spacing-md);
+        padding: var(--spacing-md) var(--spacing-lg);
+        border-radius: var(--radius-md);
+        font-size: var(--font-size-sm);
+        min-height: 44px;
+    }
+
+    .bottom-nav__item svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .bottom-nav__item span {
+        font-size: var(--font-size-sm);
+        font-weight: 500;
+    }
+
+    .bottom-nav__item:hover {
+        background-color: var(--color-gray-50);
+    }
+
+    .bottom-nav__item.active {
+        background-color: var(--color-success-light);
+        color: var(--color-primary);
+    }
+
+    /* Main content area: offset by sidebar, centered up to max */
+    #app-content {
+        padding-left: calc(var(--sidebar-width) + var(--spacing-2xl));
+        padding-right: var(--spacing-2xl);
+        padding-top: calc(var(--header-height) + var(--spacing-lg));
+        padding-bottom: var(--spacing-2xl);
+        min-height: 100dvh;
+    }
+
+    /* When header is hidden (auth pages), reset top padding */
+    #app-content.no-header {
+        padding-top: 0;
+    }
+
+    /* When nav is hidden (auth pages), reset left padding and hide header offset */
+    #app-content.no-nav {
+        padding-left: var(--spacing-2xl);
+        padding-right: var(--spacing-2xl);
+    }
+
+    /* Inner content wrapper for .page-padding — constrain and center */
+    .page-padding {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: 0;
+    }
+
+    /* Header content also constrained + centered within its offset area */
+    #app-header .header {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: 0 var(--spacing-2xl);
+    }
+
+    /* 3-column lists on desktop */
+    #hazards-list,
+    #dashboard-incidents,
+    #news-list {
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--spacing-lg);
+    }
+
+    #reports-list,
+    #notifications-list {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-lg);
+    }
+
+    /* Two-column "welcome + stats" on home pages */
+    .welcome-card + .section-header,
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    /* Hazard info grid: 4 columns */
+    .hazard-info-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    /* Quick access: 4 columns */
+    .quick-access {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    /* Auth screens: narrow card, centered vertically-ish */
+    .auth-screen,
+    .login-page {
+        max-width: 460px;
+        margin: 5vh auto;
+        border-radius: var(--radius-xl);
+        overflow: hidden;
+        box-shadow: var(--shadow-lg);
+        background-color: var(--color-white);
+        min-height: 0;
+    }
+
+    /* Profile pages: keep narrow, centered */
+    .profile-page {
+        max-width: 720px;
+        margin: 0 auto;
+    }
+
+    /* Larger avatar on desktop */
     .profile-header__avatar {
         width: 80px;
         height: 80px;
@@ -3521,6 +4152,50 @@ body.dark-mode {
     .stat-card__icon svg {
         width: 24px;
         height: 24px;
+    }
+
+    /* FAB: anchored to right edge of content area */
+    .fab {
+        right: calc(max(0px, (100vw - var(--sidebar-width) - var(--max-width)) / 2) + var(--spacing-2xl));
+        bottom: var(--spacing-2xl);
+    }
+
+    /* Hazard map can fill wider area */
+    .hazard-map {
+        max-width: 900px;
+    }
+
+    /* Section headers get a bit more breathing room */
+    .section-header {
+        margin-bottom: var(--spacing-xl);
+    }
+
+    /* Cap modal width — don't let it stretch to 1280px */
+    .modal {
+        max-width: 560px;
+    }
+
+    /* Detail modal / qr modal / terms modal stay centered narrow */
+    .modal-overlay--centered .modal {
+        max-width: 520px;
+    }
+}
+
+/* ============================================================
+   LARGE DESKTOP (1440px+)
+   ============================================================
+   Even more generous content width.
+   ============================================================ */
+@media (min-width: 1440px) {
+    :root {
+        --max-width: 1360px;
+        --sidebar-width: 260px;
+    }
+
+    #hazards-list,
+    #dashboard-incidents,
+    #news-list {
+        grid-template-columns: repeat(3, 1fr);
     }
 }
 
