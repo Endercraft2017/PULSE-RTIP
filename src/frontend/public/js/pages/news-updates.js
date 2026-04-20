@@ -412,25 +412,60 @@ const NewsUpdatesPage = {
      * 7. QR modal
      * -------------------------------------------------------- */
     showQRModal() {
-        document.getElementById('qr-modal-container').innerHTML = `
-            <div class="modal-overlay modal-overlay--centered" onclick="if(event.target===this) NewsUpdatesPage.closeQRModal()">
-                <div class="modal" style="max-width: 360px; text-align: center;">
-                    <div class="modal__title">Citizen Survey</div>
-                    <div class="modal__desc">Scan this QR code with your phone camera to access the Pulse 911 MDRRMO citizen survey.</div>
-                    <div style="display:flex;justify-content:center;margin:var(--spacing-lg) 0;">
-                        <img src="public/assets/news/survey-qr.png" alt="Citizen Survey QR Code" style="width:220px;height:220px;border-radius:var(--radius-md);border:1px solid var(--color-gray-200);">
-                    </div>
-                    <div style="font-size:var(--font-size-xs);color:var(--color-gray-400);word-break:break-all;margin-bottom:var(--spacing-md);">
-                        pulse911-mdrrmo.gov.ph/citizen-survey
-                    </div>
-                    <button class="btn btn--primary btn--block" onclick="NewsUpdatesPage.closeQRModal()">Close</button>
+        // Clean up any existing modal first
+        this.closeQRModal();
+
+        // Create modal directly on body (not inside a container that might
+        // be missing, nested inside iframes weirdly, or styled in
+        // unexpected ways). Matches the pattern used by hazards detail
+        // modal which is known to work.
+        const modal = document.createElement('div');
+        modal.id = 'qr-modal';
+        modal.className = 'modal-overlay modal-overlay--centered';
+        modal.onclick = (e) => {
+            if (e.target === modal) NewsUpdatesPage.closeQRModal();
+        };
+
+        modal.innerHTML = `
+            <div class="modal" style="max-width: 360px; text-align: center; padding: var(--spacing-xl);">
+                <div class="modal__title" style="margin-bottom: var(--spacing-sm);">Citizen Survey</div>
+                <div class="modal__desc" style="color: var(--color-gray-600); font-size: var(--font-size-sm); margin-bottom: var(--spacing-lg);">
+                    Scan this QR code with your phone camera to access the Pulse 911 MDRRMO citizen survey.
                 </div>
+                <div style="display:flex;justify-content:center;margin-bottom:var(--spacing-lg);">
+                    <img src="public/assets/news/survey-qr.png" alt="Citizen Survey QR Code"
+                         style="width:220px;height:220px;border-radius:var(--radius-md);border:1px solid var(--color-gray-200);background:white;"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+                    <div style="display:none;width:220px;height:220px;border-radius:var(--radius-md);border:1px solid var(--color-gray-200);background:var(--color-gray-100);display:flex;align-items:center;justify-content:center;text-align:center;padding:var(--spacing-md);color:var(--color-gray-500);font-size:var(--font-size-xs);">
+                        QR image not available yet.<br>Visit the URL below.
+                    </div>
+                </div>
+                <div style="font-size:var(--font-size-xs);color:var(--color-gray-500);word-break:break-all;margin-bottom:var(--spacing-lg);">
+                    pulse911-mdrrmo.gov.ph/citizen-survey
+                </div>
+                <button class="btn btn--primary btn--block" type="button"
+                        onclick="NewsUpdatesPage.closeQRModal()">Close</button>
             </div>
         `;
+
+        document.body.appendChild(modal);
+        document.body.style.overflow = 'hidden';
+
+        // Escape key closes
+        this._qrEscHandler = (e) => {
+            if (e.key === 'Escape') NewsUpdatesPage.closeQRModal();
+        };
+        document.addEventListener('keydown', this._qrEscHandler);
     },
 
     closeQRModal() {
-        document.getElementById('qr-modal-container').innerHTML = '';
+        const modal = document.getElementById('qr-modal');
+        if (modal) modal.remove();
+        document.body.style.overflow = '';
+        if (this._qrEscHandler) {
+            document.removeEventListener('keydown', this._qrEscHandler);
+            this._qrEscHandler = null;
+        }
     },
 
     /* --------------------------------------------------------
