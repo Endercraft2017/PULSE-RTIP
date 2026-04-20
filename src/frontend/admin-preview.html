@@ -406,7 +406,7 @@
 
   /* --- Navigation --- */
   function selectRoute(route, label) {
-    iframe.src = `index.html#/${route}`;
+    iframe.src = `index.html?embed=1#/${route}`;
     currentLabel.textContent = label;
     sidebar.querySelectorAll('.sidebar__item').forEach(b => b.classList.remove('active'));
     const active = sidebar.querySelector(`[data-route="${route}"]`);

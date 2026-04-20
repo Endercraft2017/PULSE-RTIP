@@ -4199,6 +4199,45 @@ body.dark-mode {
     }
 }
 
+/* ============================================================
+   EMBED MODE (inside admin-preview.html iframe)
+   ============================================================
+   When the app is loaded with ?embed=1, the outer preview shell
+   provides its own header and sidebar. Hide the in-app header/nav
+   and reset content padding so the page fills the iframe.
+   ============================================================ */
+html.embed-mode #app-header,
+html.embed-mode #app-nav {
+    display: none !important;
+}
+
+html.embed-mode #app-content {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: var(--spacing-lg) !important;
+    padding-right: var(--spacing-lg) !important;
+}
+
+html.embed-mode #app {
+    max-width: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+}
+
+/* Auth pages already hide header/nav — override embed content padding
+   reset for them so they keep their own full-screen layout */
+html.embed-mode #app-content.no-header {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* FAB stays accessible at bottom-right in embed mode */
+html.embed-mode .fab {
+    right: var(--spacing-xl) !important;
+    bottom: var(--spacing-xl) !important;
+}
+
 /* --- Accessibility: Reduced Motion --- */
 @media (prefers-reduced-motion: reduce) {
     *,
