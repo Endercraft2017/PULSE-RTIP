@@ -56,6 +56,8 @@ const SignupPage = {
        -------------------------------------------------------- */
     renderCreateAccount() {
         const f = this._state.form;
+        // Bind phone formatter once the DOM has the input element
+        setTimeout(() => this._bindPhoneFormatter(), 0);
         return `
             <div class="auth-screen">
                 ${this._authHeader()}
@@ -82,7 +84,8 @@ const SignupPage = {
                         <div class="input-group">
                             <label class="input-group__label" for="signup-phone">Phone number</label>
                             <input class="input-group__field" type="tel" id="signup-phone" name="phone"
-                                   placeholder="+63 912 345 6789" value="${f.phone}">
+                                   placeholder="0917-123-4567" inputmode="numeric"
+                                   value="${f.phone}">
                         </div>
 
                         <div class="input-group">
@@ -432,6 +435,13 @@ const SignupPage = {
     goToStep(step) {
         this._state.step = step;
         document.getElementById('app-content').innerHTML = this.render();
+        this._bindPhoneFormatter();
+    },
+
+    /** Attaches live PH phone formatting to the phone field if present */
+    _bindPhoneFormatter() {
+        const el = document.getElementById('signup-phone');
+        if (el && window.PhoneFormat) PhoneFormat.bind(el);
     },
 
     selectRole(role, el) {

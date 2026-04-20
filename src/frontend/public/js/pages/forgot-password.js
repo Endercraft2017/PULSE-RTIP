@@ -77,6 +77,11 @@ const ForgotPasswordPage = {
        4. Step 1: Recover Password
        -------------------------------------------------------- */
     renderRecoverPassword() {
+        // Bind conditional phone formatter once the DOM is ready
+        setTimeout(() => {
+            const el = document.getElementById('recover-id');
+            if (el && window.PhoneFormat) PhoneFormat.bindConditional(el);
+        }, 0);
         return `
             <div class="auth-screen">
                 ${this._authHeader()}

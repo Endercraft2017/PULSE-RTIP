@@ -21,6 +21,104 @@ const API_BASE = (window.Capacitor && window.Capacitor.isNativePlatform && windo
     ? 'https://pulse.afkcube.com'
     : '';
 
+/* --------------------------------------------------------
+ * PH Phone Number Formatter
+ * --------------------------------------------------------
+ * Canonical format: 09XX-XXX-XXXX (11 digits).
+ * Handles +63 / 63 prefixes and normalizes to the local
+ * 0-prefixed form. Safe to call on every keystroke.
+ * -------------------------------------------------------- */
+const PhoneFormat = {
+    /** Normalizes raw input into "09XX-XXX-XXXX". Truncates at 11 digits. */
+    format(raw) {
+        if (!raw) return '';
+        let digits = String(raw).replace(/\D/g, '');
+
+        // +63 / 63 international prefix -> 0 local prefix
+        if (digits.startsWith('63') && digits.length >= 11) {
+            digits = '0' + digits.slice(2);
+        }
+
+        // Cap at 11 digits (standard PH mobile length)
+        digits = digits.slice(0, 11);
+
+        if (digits.length <= 4) return digits;
+        if (digits.length <= 7) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+        return `${digits.slice(0, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+    },
+
+    /**
+     * Attaches live formatting to an input element. Preserves cursor
+     * position by counting digits, not characters.
+     * @param {HTMLInputElement} input
+     */
+    bind(input) {
+        if (!input || input._phoneBound) return;
+        input._phoneBound = true;
+
+        const reformat = () => {
+            const el = input;
+            const prev = el.value;
+            const cursor = el.selectionStart || 0;
+            // Count digits before cursor so we can reposition after formatting
+            const digitsBefore = prev.slice(0, cursor).replace(/\D/g, '').length;
+
+            const formatted = PhoneFormat.format(prev);
+            if (formatted === prev) return;
+
+            el.value = formatted;
+
+            // Walk formatted string, find the index where we've passed `digitsBefore` digits
+            let seen = 0;
+            let newCursor = formatted.length;
+            for (let i = 0; i < formatted.length; i++) {
+                if (/\d/.test(formatted[i])) {
+                    seen++;
+                    if (seen === digitsBefore) { newCursor = i + 1; break; }
+                }
+            }
+            try { el.setSelectionRange(newCursor, newCursor); } catch (e) {}
+        };
+
+        input.addEventListener('input', reformat);
+        // Run once on bind so pre-filled values get formatted too
+        if (input.value) reformat();
+    },
+
+    /**
+     * Variant that only activates when the input looks like a phone
+     * (starts with a digit or "+"). Used for ambiguous fields like
+     * forgot-password's "email or phone" field.
+     */
+    bindConditional(input) {
+        if (!input || input._phoneCondBound) return;
+        input._phoneCondBound = true;
+
+        input.addEventListener('input', () => {
+            const v = input.value.trim();
+            if (!v) return;
+            const first = v[0];
+            // Only format if it looks like a phone (digit or +)
+            if (first === '+' || /\d/.test(first)) {
+                const cursor = input.selectionStart || 0;
+                const digitsBefore = v.slice(0, cursor).replace(/\D/g, '').length;
+                const formatted = PhoneFormat.format(v);
+                if (formatted !== v) {
+                    input.value = formatted;
+                    let seen = 0, newCursor = formatted.length;
+                    for (let i = 0; i < formatted.length; i++) {
+                        if (/\d/.test(formatted[i])) {
+                            seen++;
+                            if (seen === digitsBefore) { newCursor = i + 1; break; }
+                        }
+                    }
+                    try { input.setSelectionRange(newCursor, newCursor); } catch (e) {}
+                }
+            }
+        });
+    }
+};
+
 /**
  * Simple reactive store for managing application state.
  * Provides get/set with subscriber notification and API integration.
