@@ -2,14 +2,17 @@
    Forgot Password Page (Multi-step flow)
    ============================================================
    Reference: reference/html-designs/login/signup/Login Page{10,11,13}
+   Uses the same .auth-screen layout as login/signup for a
+   consistent green-banner header and footer.
    Table of Contents:
    1. Internal state
    2. Main render (step router)
-   3. Step 1: Recover Password (email or phone input)
-   4. Step 2: Verify Code (6-digit OTP)
-   5. Step 3: Reset Password
-   6. Step navigation helpers
-   7. Form handlers
+   3. Shared header/footer helpers
+   4. Step 1: Recover Password (email or phone input)
+   5. Step 2: Verify Code (6-digit OTP)
+   6. Step 3: Reset Password
+   7. Step navigation helpers
+   8. Form handlers
    ============================================================ */
 
 const ForgotPasswordPage = {
@@ -41,147 +44,154 @@ const ForgotPasswordPage = {
     },
 
     /* --------------------------------------------------------
-       3. Step 1: Recover Password
+       3. Shared header/footer (matches login + signup)
+       -------------------------------------------------------- */
+    _authHeader() {
+        return `
+            <div class="auth-screen__header">
+                <div class="auth-screen__brand">
+                    <div class="auth-screen__brand-icon">
+                        <img src="public/assets/icons/logo-login.png" alt="PULSE 911">
+                    </div>
+                    <div class="auth-screen__brand-text">
+                        <div class="auth-screen__brand-name">PULSE 911</div>
+                        <div class="auth-screen__brand-org">MDRRMO</div>
+                    </div>
+                </div>
+                <div class="auth-screen__header-sub">Morong Disaster Risk Reduction and Management Office</div>
+            </div>
+        `;
+    },
+
+    _authFooter() {
+        return `
+            <div class="auth-screen__footer">
+                <span>&copy; 2025 Pulse &bull; MDRRMO Morong, Rizal</span>
+            </div>
+        `;
+    },
+
+    /* --------------------------------------------------------
+       4. Step 1: Recover Password
        -------------------------------------------------------- */
     renderRecoverPassword() {
         return `
-            <div class="login-page">
-                <div class="login-page__brand">
-                    <div class="login-page__logo">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>
-                    </div>
-                    <div class="login-page__app-name">PULSE 911</div>
-                </div>
+            <div class="auth-screen">
+                ${this._authHeader()}
 
-                <div class="login-page__form-header">
-                    <div class="login-page__form-title">Recover Password</div>
-                    <div class="login-page__form-subtitle">
-                        Enter your email or phone number to receive a verification code for password recovery.
-                    </div>
-                </div>
-
-                <form onsubmit="event.preventDefault(); ForgotPasswordPage.handleRecover(event)">
-                    <div class="input-group">
-                        <label class="input-group__label" for="recover-id">Email or Phone number</label>
-                        <input class="input-group__field" type="text" id="recover-id" name="identifier"
-                               placeholder="Email or phone number"
-                               value="${this._state.form.identifier}" required>
+                <div class="auth-screen__body">
+                    <div class="auth-screen__form-header">
+                        <div class="auth-screen__form-title">Recover Password</div>
+                        <div class="auth-screen__form-subtitle">
+                            Enter your email or phone number to receive a verification code for password recovery.
+                        </div>
                     </div>
 
-                    <button type="submit" class="btn btn--primary btn--block">Send Code</button>
-                </form>
+                    <form onsubmit="event.preventDefault(); ForgotPasswordPage.handleRecover(event)">
+                        <div class="input-group">
+                            <label class="input-group__label" for="recover-id">Email or Phone number</label>
+                            <input class="input-group__field" type="text" id="recover-id" name="identifier"
+                                   placeholder="Email or phone number"
+                                   value="${this._state.form.identifier}" required>
+                        </div>
 
-                <div class="login-page__signup">
-                    <a href="#/login">&larr; Back to login</a>
+                        <button type="submit" class="btn btn--primary btn--block">Send Code</button>
+                    </form>
+
+                    <div class="auth-screen__signup">
+                        <a href="#/login" onclick="event.preventDefault(); Router.navigate('login')">&larr; Back to login</a>
+                    </div>
                 </div>
 
-                <div class="login-page__footer">
-                    &copy; 2025 Pulse &bull; MDRRMO Morong, Rizal
-                </div>
+                ${this._authFooter()}
             </div>
         `;
     },
 
     /* --------------------------------------------------------
-       4. Step 2: Verify Code
+       5. Step 2: Verify Code
        -------------------------------------------------------- */
     renderVerifyCode() {
         return `
-            <div class="login-page">
-                <div class="login-page__brand">
-                    <div class="login-page__logo">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>
-                    </div>
-                    <div class="login-page__app-name">PULSE 911</div>
-                </div>
+            <div class="auth-screen">
+                ${this._authHeader()}
 
-                <div class="login-page__form-header">
-                    <div class="login-page__form-title">Verify Code</div>
-                    <div class="login-page__form-subtitle">
-                        Enter the verification code sent to your email or phone number to continue.
-                    </div>
-                </div>
-
-                <form onsubmit="event.preventDefault(); ForgotPasswordPage.handleVerifyCode(event)">
-                    <div class="otp-input-group" id="otp-group">
-                        ${Array.from({ length: 6 }).map((_, i) => `
-                            <input type="text" inputmode="numeric" pattern="[0-9]*"
-                                   class="otp-input" maxlength="1" data-index="${i}"
-                                   oninput="ForgotPasswordPage.handleOtpInput(event, ${i})"
-                                   onkeydown="ForgotPasswordPage.handleOtpKeydown(event, ${i})">
-                        `).join('')}
+                <div class="auth-screen__body">
+                    <div class="auth-screen__form-header">
+                        <div class="auth-screen__form-title">Verify Code</div>
+                        <div class="auth-screen__form-subtitle">
+                            Enter the verification code sent to your email or phone number to continue.
+                        </div>
                     </div>
 
-                    <button type="submit" class="btn btn--primary btn--block mt-lg">Verify</button>
-                    <button type="button" class="btn btn--outline btn--block mt-md"
-                            onclick="ForgotPasswordPage.handleResendCode()">Resend Code</button>
-                </form>
+                    <form onsubmit="event.preventDefault(); ForgotPasswordPage.handleVerifyCode(event)">
+                        <div class="otp-input-group" id="otp-group">
+                            ${Array.from({ length: 6 }).map((_, i) => `
+                                <input type="text" inputmode="numeric" pattern="[0-9]*"
+                                       class="otp-input" maxlength="1" data-index="${i}"
+                                       oninput="ForgotPasswordPage.handleOtpInput(event, ${i})"
+                                       onkeydown="ForgotPasswordPage.handleOtpKeydown(event, ${i})">
+                            `).join('')}
+                        </div>
 
-                <div class="login-page__signup">
-                    <a href="#" onclick="event.preventDefault(); ForgotPasswordPage.goToStep(1)">&larr; Back</a>
+                        <button type="submit" class="btn btn--primary btn--block mt-lg">Verify</button>
+                        <button type="button" class="btn btn--outline btn--block mt-md"
+                                onclick="ForgotPasswordPage.handleResendCode()">Resend Code</button>
+                    </form>
+
+                    <div class="auth-screen__signup">
+                        <a href="#" onclick="event.preventDefault(); ForgotPasswordPage.goToStep(1)">&larr; Back</a>
+                    </div>
                 </div>
 
-                <div class="login-page__footer">
-                    &copy; 2025 Pulse &bull; MDRRMO Morong, Rizal
-                </div>
+                ${this._authFooter()}
             </div>
         `;
     },
 
     /* --------------------------------------------------------
-       5. Step 3: Reset Password
+       6. Step 3: Reset Password
        -------------------------------------------------------- */
     renderResetPassword() {
         return `
-            <div class="login-page">
-                <div class="login-page__brand">
-                    <div class="login-page__logo">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>
+            <div class="auth-screen">
+                ${this._authHeader()}
+
+                <div class="auth-screen__body">
+                    <div class="auth-screen__form-header">
+                        <div class="auth-screen__form-title">Enter new password</div>
+                        <div class="auth-screen__form-subtitle">
+                            Enter and confirm your new password to complete the reset process.
+                        </div>
                     </div>
-                    <div class="login-page__app-name">PULSE 911</div>
+
+                    <form onsubmit="event.preventDefault(); ForgotPasswordPage.handleResetPassword(event)">
+                        <div class="input-group">
+                            <label class="input-group__label" for="new-password">New password</label>
+                            <input class="input-group__field" type="password" id="new-password" name="newPassword"
+                                   placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;"
+                                   minlength="8" required>
+                            <div class="input-group__hint">* Must be at least 8 characters</div>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-group__label" for="confirm-new-password">Confirm new password</label>
+                            <input class="input-group__field" type="password" id="confirm-new-password" name="confirmPassword"
+                                   placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;"
+                                   minlength="8" required>
+                        </div>
+
+                        <button type="submit" class="btn btn--primary btn--block">Change Password</button>
+                    </form>
                 </div>
 
-                <div class="login-page__form-header">
-                    <div class="login-page__form-title">Enter new password</div>
-                    <div class="login-page__form-subtitle">
-                        Enter and confirm your new password to complete the reset process.
-                    </div>
-                </div>
-
-                <form onsubmit="event.preventDefault(); ForgotPasswordPage.handleResetPassword(event)">
-                    <div class="input-group">
-                        <label class="input-group__label" for="new-password">New password</label>
-                        <input class="input-group__field" type="password" id="new-password" name="newPassword"
-                               placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;"
-                               minlength="8" required>
-                        <div class="input-group__hint">* Must be at least 8 characters</div>
-                    </div>
-
-                    <div class="input-group">
-                        <label class="input-group__label" for="confirm-new-password">Confirm new password</label>
-                        <input class="input-group__field" type="password" id="confirm-new-password" name="confirmPassword"
-                               placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;"
-                               minlength="8" required>
-                    </div>
-
-                    <button type="submit" class="btn btn--primary btn--block">Change Password</button>
-                </form>
-
-                <div class="login-page__footer">
-                    &copy; 2025 Pulse &bull; MDRRMO Morong, Rizal
-                </div>
+                ${this._authFooter()}
             </div>
         `;
     },
 
     /* --------------------------------------------------------
-       6. Step Navigation
+       7. Step Navigation
        -------------------------------------------------------- */
     goToStep(step) {
         this._state.step = step;
@@ -196,7 +206,7 @@ const ForgotPasswordPage = {
     },
 
     /* --------------------------------------------------------
-       7. Form Handlers
+       8. Form Handlers
        -------------------------------------------------------- */
     handleRecover(event) {
         const identifier = event.target.identifier.value.trim();
