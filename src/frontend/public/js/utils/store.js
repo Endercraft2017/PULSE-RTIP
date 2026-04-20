@@ -90,6 +90,46 @@ const Store = {
     },
 
     /**
+     * Sends a 6-digit SMS OTP to the given phone number.
+     * Used during signup for phone verification.
+     * @param {string} phone - Phone number in PH format
+     * @param {string} [purpose='signup']
+     * @returns {Promise<object>} { success, message, devCode? }
+     */
+    async sendOtp(phone, purpose = 'signup') {
+        try {
+            const res = await fetch(API_BASE + '/api/auth/send-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, purpose }),
+            });
+            return await res.json();
+        } catch (err) {
+            return { success: false, message: 'Network error. Please try again.' };
+        }
+    },
+
+    /**
+     * Verifies an OTP code submitted by the user.
+     * @param {string} phone
+     * @param {string} code - 6-digit code
+     * @param {string} [purpose='signup']
+     * @returns {Promise<object>} { success, message }
+     */
+    async verifyOtp(phone, code, purpose = 'signup') {
+        try {
+            const res = await fetch(API_BASE + '/api/auth/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, code, purpose }),
+            });
+            return await res.json();
+        } catch (err) {
+            return { success: false, message: 'Network error. Please try again.' };
+        }
+    },
+
+    /**
      * Registers a new user account via the backend API.
      * @param {object} userData - { name, email, password, phone, address }
      * @returns {Promise<object>} Result with success flag
@@ -106,6 +146,11 @@ const Store = {
 
             if (!data.success) {
                 return { success: false, message: data.message, errors: data.errors };
+            }
+
+            // Admin signup is queued for approval — no auth data returned.
+            if (data.adminRequest) {
+                return { success: true, adminRequest: data.adminRequest, message: data.message };
             }
 
             this._setAuthData(data.data);

@@ -30,6 +30,17 @@ async function findByEmail(email) {
   return rows[0] || null;
 }
 
+/**
+ * Finds a user by their phone number (exact match after caller normalization).
+ * @param {string} phone - The phone number to search for
+ * @returns {Promise<object|null>} User object or null
+ */
+async function findByPhone(phone) {
+  if (!phone) return null;
+  const rows = await db.query('SELECT * FROM users WHERE phone = ?', [phone]);
+  return rows[0] || null;
+}
+
 /* --------------------------------------------------------------------------
  * 3. findById
  * -------------------------------------------------------------------------- */
@@ -41,7 +52,7 @@ async function findByEmail(email) {
  */
 async function findById(id) {
   const rows = await db.query(
-    'SELECT id, name, email, phone, address, avatar, role, joined_date, created_at, updated_at FROM users WHERE id = ?',
+    'SELECT id, name, email, phone, address, avatar, role, admin_request_status, joined_date, created_at, updated_at FROM users WHERE id = ?',
     [id]
   );
   return rows[0] || null;
@@ -63,17 +74,42 @@ async function findById(id) {
  * @returns {Promise<object>} Created user (without password_hash)
  */
 async function create(data) {
-  const { name, email, phone, address, password_hash, role = 'citizen' } = data;
+  const { name, email, phone, address, password_hash, role = 'citizen', admin_request_status = null } = data;
   const avatar = name ? name.charAt(0).toUpperCase() : 'U';
 
   const result = await db.query(
-    `INSERT INTO users (name, email, phone, address, avatar, role, password_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [name, email, phone || null, address || null, avatar, role, password_hash]
+    `INSERT INTO users (name, email, phone, address, avatar, role, password_hash, admin_request_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, email, phone || null, address || null, avatar, role, password_hash, admin_request_status]
   );
 
   const insertId = result.insertId || result.lastInsertRowid;
   return findById(insertId);
+}
+
+/**
+ * Updates a user's admin request status (and optionally promotes/demotes role).
+ */
+async function updateAdminRequest(id, status, opts = {}) {
+  const fields = ['admin_request_status = ?'];
+  const values = [status];
+  if (opts.role) {
+    fields.push('role = ?');
+    values.push(opts.role);
+  }
+  fields.push('updated_at = CURRENT_TIMESTAMP');
+  values.push(id);
+  await db.query(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
+  return findById(id);
+}
+
+/**
+ * Lists users with a pending admin request.
+ */
+async function findPendingAdminRequests() {
+  return db.query(
+    "SELECT id, name, email, phone, avatar, joined_date, created_at FROM users WHERE admin_request_status = 'pending' ORDER BY created_at DESC"
+  );
 }
 
 /* --------------------------------------------------------------------------
@@ -146,4 +182,4 @@ async function findByRole(role) {
   return db.query('SELECT * FROM users WHERE role = ?', [role]);
 }
 
-module.exports = { findByEmail, findById, create, updateById, findCitizenPhones, findByRole };
+module.exports = { findByEmail, findByPhone, findById, create, updateById, updateAdminRequest, findPendingAdminRequests, findCitizenPhones, findByRole };

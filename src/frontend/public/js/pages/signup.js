@@ -26,6 +26,8 @@ const SignupPage = {
             password: '',
             confirmPassword: '',
             agreeTerms: false,
+            otpCode: '',
+            otpVerified: false,
             role: null, // 'citizen' or 'admin'
             idType: '',
             idNumber: '',
@@ -39,9 +41,10 @@ const SignupPage = {
     render() {
         switch (this._state.step) {
             case 1: return this.renderCreateAccount();
-            case 2: return this.renderSelectRole();
-            case 3: return this.renderIdVerification();
-            case 4: return this.renderSuccess();
+            case 2: return this.renderPhoneOtp();
+            case 3: return this.renderSelectRole();
+            case 4: return this.renderIdVerification();
+            case 5: return this.renderSuccess();
             default:
                 this._state.step = 1;
                 return this.renderCreateAccount();
@@ -54,135 +57,264 @@ const SignupPage = {
     renderCreateAccount() {
         const f = this._state.form;
         return `
-            <div class="login-page">
-                <div class="login-page__brand">
-                    <div class="login-page__logo">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>
+            <div class="auth-screen">
+                ${this._authHeader()}
+
+                <div class="auth-screen__body">
+                    <div class="auth-screen__form-header">
+                        <div class="auth-screen__form-title">Create account</div>
+                        <div class="auth-screen__form-subtitle">Sign up to get started</div>
                     </div>
-                    <div class="login-page__app-name">PULSE 911</div>
-                    <div class="login-page__org">MDRRMO</div>
+
+                    <form id="signup-form" onsubmit="event.preventDefault(); SignupPage.handleCreateAccount(event)">
+                        <div class="input-group">
+                            <label class="input-group__label" for="signup-name">Full name</label>
+                            <input class="input-group__field" type="text" id="signup-name" name="name"
+                                   placeholder="Juan Dela Cruz" value="${f.name}" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-group__label" for="signup-email">Email</label>
+                            <input class="input-group__field" type="email" id="signup-email" name="email"
+                                   placeholder="juan@example.com" value="${f.email}" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-group__label" for="signup-phone">Phone number</label>
+                            <input class="input-group__field" type="tel" id="signup-phone" name="phone"
+                                   placeholder="+63 912 345 6789" value="${f.phone}">
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-group__label" for="signup-password">Enter Password</label>
+                            <input class="input-group__field" type="password" id="signup-password" name="password"
+                                   placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;"
+                                   minlength="8" required>
+                            <div class="input-group__hint">* Must be at least 8 characters</div>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-group__label" for="signup-confirm">Confirm Password</label>
+                            <input class="input-group__field" type="password" id="signup-confirm" name="confirmPassword"
+                                   placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;"
+                                   minlength="8" required>
+                        </div>
+
+                        <label class="login-page__terms">
+                            <input type="checkbox" name="agreeTerms" ${f.agreeTerms ? 'checked' : ''} required>
+                            I agree with the <a href="#" onclick="event.preventDefault(); TermsModal.show('terms')">Terms &amp; Conditions</a>
+                        </label>
+
+                        <button type="submit" class="btn btn--primary btn--block mt-lg">Create account</button>
+                    </form>
+
+                    <div class="auth-screen__signup">
+                        Already have an account?
+                        <a href="#/login" onclick="event.preventDefault(); Router.navigate('login')">Log in</a>
+                    </div>
                 </div>
 
-                <div class="login-page__form-header">
-                    <div class="login-page__form-title">Create account</div>
-                    <div class="login-page__form-subtitle">Sign up to get started</div>
-                </div>
-
-                <form id="signup-form" onsubmit="event.preventDefault(); SignupPage.handleCreateAccount(event)">
-                    <div class="input-group">
-                        <label class="input-group__label" for="signup-name">Full name</label>
-                        <input class="input-group__field" type="text" id="signup-name" name="name"
-                               placeholder="Juan Dela Cruz" value="${f.name}" required>
-                    </div>
-
-                    <div class="input-group">
-                        <label class="input-group__label" for="signup-email">Email</label>
-                        <input class="input-group__field" type="email" id="signup-email" name="email"
-                               placeholder="juan@example.com" value="${f.email}" required>
-                    </div>
-
-                    <div class="input-group">
-                        <label class="input-group__label" for="signup-phone">Phone number</label>
-                        <input class="input-group__field" type="tel" id="signup-phone" name="phone"
-                               placeholder="+63 912 345 6789" value="${f.phone}">
-                    </div>
-
-                    <div class="input-group">
-                        <label class="input-group__label" for="signup-password">Enter Password</label>
-                        <input class="input-group__field" type="password" id="signup-password" name="password"
-                               placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;"
-                               minlength="8" required>
-                        <div class="input-group__hint">* Must be at least 8 characters</div>
-                    </div>
-
-                    <div class="input-group">
-                        <label class="input-group__label" for="signup-confirm">Confirm Password</label>
-                        <input class="input-group__field" type="password" id="signup-confirm" name="confirmPassword"
-                               placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;"
-                               minlength="8" required>
-                    </div>
-
-                    <label class="login-page__terms">
-                        <input type="checkbox" name="agreeTerms" ${f.agreeTerms ? 'checked' : ''} required>
-                        I agree with the <a href="#" onclick="event.preventDefault(); TermsModal.show('terms')">Terms &amp; Conditions</a>
-                    </label>
-
-                    <button type="submit" class="btn btn--primary btn--block mt-lg">Create account</button>
-                </form>
-
-                <div class="login-page__signup">
-                    Already have an account? <a href="#/login">Log in</a>
-                </div>
-
-                <div class="login-page__footer">
-                    &copy; 2025 Pulse &bull; MDRRMO Morong, Rizal
-                </div>
+                ${this._authFooter()}
             </div>
         `;
     },
 
     /* --------------------------------------------------------
-       4. Step 2: Select Role
+       3b. Step 2: SMS OTP verification
        -------------------------------------------------------- */
+    renderPhoneOtp() {
+        const f = this._state.form;
+        // Mask middle digits: 0917*****89
+        const masked = f.phone
+            ? f.phone.replace(/^(\+?\d{2,4})(.*)(\d{2})$/, (_, a, mid, b) => a + '*'.repeat(Math.max(0, mid.length)) + b)
+            : '';
+
+        return `
+            <div class="auth-screen">
+                ${this._authHeader()}
+
+                <div class="auth-screen__body">
+                    <div class="auth-screen__form-header">
+                        <div class="auth-screen__form-title">Verify your phone</div>
+                        <div class="auth-screen__form-subtitle">
+                            We sent a 6-digit verification code via SMS to
+                            <strong>${this.escape(masked || f.phone)}</strong>.
+                            Enter it below to continue.
+                        </div>
+                    </div>
+
+                    <form id="otp-form" onsubmit="event.preventDefault(); SignupPage.handleVerifyOtp(event)">
+                        <div class="otp-input-group" id="signup-otp-group">
+                            ${Array.from({ length: 6 }).map((_, i) => `
+                                <input type="text" inputmode="numeric" pattern="[0-9]*"
+                                       class="otp-input" maxlength="1" data-index="${i}"
+                                       oninput="SignupPage.handleOtpInput(event, ${i})"
+                                       onkeydown="SignupPage.handleOtpKeydown(event, ${i})">
+                            `).join('')}
+                        </div>
+
+                        <button type="submit" class="btn btn--primary btn--block mt-lg">Verify</button>
+
+                        <div class="auth-screen__signup mt-md" style="text-align:center;">
+                            Didn't get the code?
+                            <a href="#" onclick="event.preventDefault(); SignupPage.handleResendOtp(event)">Resend</a>
+                        </div>
+
+                        <div class="login-page__nav-buttons mt-lg">
+                            <button type="button" class="btn btn--outline" onclick="SignupPage.goToStep(1)">Back</button>
+                            <span></span>
+                        </div>
+                    </form>
+                </div>
+
+                ${this._authFooter()}
+            </div>
+        `;
+    },
+
+    handleOtpInput(event, index) {
+        const input = event.target;
+        input.value = input.value.replace(/[^0-9]/g, '');
+        if (input.value && index < 5) {
+            const next = document.querySelector(`#signup-otp-group .otp-input[data-index="${index + 1}"]`);
+            if (next) next.focus();
+        }
+    },
+
+    handleOtpKeydown(event, index) {
+        if (event.key === 'Backspace' && !event.target.value && index > 0) {
+            const prev = document.querySelector(`#signup-otp-group .otp-input[data-index="${index - 1}"]`);
+            if (prev) prev.focus();
+        }
+    },
+
+    async handleVerifyOtp(event) {
+        const inputs = document.querySelectorAll('#signup-otp-group .otp-input');
+        const code = Array.from(inputs).map(i => i.value).join('');
+
+        if (code.length !== 6) {
+            alert('Please enter the complete 6-digit code.');
+            return;
+        }
+
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying...'; }
+
+        const f = this._state.form;
+        const result = await Store.verifyOtp(f.phone, code, 'signup');
+
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Verify'; }
+
+        if (!result.success) {
+            alert(result.message || 'Invalid code. Please try again.');
+            // Clear the inputs to let them retype
+            inputs.forEach(i => { i.value = ''; });
+            inputs[0] && inputs[0].focus();
+            return;
+        }
+
+        f.otpCode = code;
+        f.otpVerified = true;
+        this.goToStep(3);
+    },
+
+    async handleResendOtp(event) {
+        const link = event.target;
+        const original = link.textContent;
+        link.textContent = 'Sending...';
+        link.style.pointerEvents = 'none';
+
+        const result = await Store.sendOtp(this._state.form.phone, 'signup');
+
+        link.textContent = original;
+        link.style.pointerEvents = '';
+
+        if (!result.success) {
+            alert(result.message || 'Unable to resend code.');
+            return;
+        }
+        alert('A new code has been sent.');
+        if (result.devCode) console.warn('[signup] dev OTP code:', result.devCode);
+    },
+
+    /* --------------------------------------------------------
+       4. Step 3: Select Role
+       -------------------------------------------------------- */
+    _authHeader() {
+        return `
+            <div class="auth-screen__header">
+                <div class="auth-screen__brand">
+                    <div class="auth-screen__brand-icon">
+                        <img src="public/assets/icons/logo-login.png" alt="PULSE 911">
+                    </div>
+                    <div class="auth-screen__brand-text">
+                        <div class="auth-screen__brand-name">PULSE 911</div>
+                        <div class="auth-screen__brand-org">MDRRMO</div>
+                    </div>
+                </div>
+                <div class="auth-screen__header-sub">Morong Disaster Risk Reduction and Management Office</div>
+            </div>
+        `;
+    },
+
+    _authFooter() {
+        return `
+            <div class="auth-screen__footer">
+                <span>&copy; 2025 Pulse &bull; MDRRMO Morong, Rizal</span>
+            </div>
+        `;
+    },
+
     renderSelectRole() {
         const role = this._state.form.role;
         return `
-            <div class="login-page">
-                <div class="login-page__brand">
-                    <div class="login-page__logo">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>
+            <div class="auth-screen">
+                ${this._authHeader()}
+
+                <div class="auth-screen__body">
+                    <div class="auth-screen__form-header">
+                        <div class="auth-screen__form-title">Select Your Role</div>
+                        <div class="auth-screen__form-subtitle">Choose your account type to continue</div>
                     </div>
-                    <div class="login-page__app-name">PULSE 911</div>
+
+                    <div class="role-cards">
+                        <button type="button" class="role-card ${role === 'citizen' ? 'role-card--active' : ''}"
+                                onclick="SignupPage.selectRole('citizen', this)">
+                            <div class="role-card__icon">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                            </div>
+                            <div class="role-card__title">Citizen of Morong</div>
+                            <div class="role-card__desc">Report incidents and access emergency services as a resident</div>
+                        </button>
+
+                        <button type="button" class="role-card ${role === 'admin' ? 'role-card--active' : ''}"
+                                onclick="SignupPage.selectRole('admin', this)">
+                            <div class="role-card__icon">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                </svg>
+                            </div>
+                            <div class="role-card__title">MDRRMO Admin</div>
+                            <div class="role-card__desc">Manage incidents and coordinate emergency response operations</div>
+                        </button>
+                    </div>
+
+                    <div class="login-page__info-box">
+                        Your role determines your access level and available features in the system.
+                    </div>
+
+                    <div class="login-page__nav-buttons">
+                        <button type="button" class="btn btn--outline" onclick="SignupPage.goToStep(1)">Back</button>
+                        <button type="button" class="btn btn--primary"
+                                ${!role ? 'disabled' : ''}
+                                onclick="SignupPage.goToStep(4)">Continue</button>
+                    </div>
                 </div>
 
-                <div class="login-page__form-header">
-                    <div class="login-page__form-title">Select Your Role</div>
-                    <div class="login-page__form-subtitle">Choose your account type to continue</div>
-                </div>
-
-                <div class="role-cards">
-                    <button type="button" class="role-card ${role === 'citizen' ? 'role-card--active' : ''}"
-                            onclick="SignupPage.selectRole('citizen', this)">
-                        <div class="role-card__icon">
-                            <svg viewBox="0 0 24 24">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </div>
-                        <div class="role-card__title">Citizen of Morong</div>
-                        <div class="role-card__desc">Report incidents and access emergency services as a resident</div>
-                    </button>
-
-                    <button type="button" class="role-card ${role === 'admin' ? 'role-card--active' : ''}"
-                            onclick="SignupPage.selectRole('admin', this)">
-                        <div class="role-card__icon">
-                            <svg viewBox="0 0 24 24">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                            </svg>
-                        </div>
-                        <div class="role-card__title">MDRRMO Admin</div>
-                        <div class="role-card__desc">Manage incidents and coordinate emergency response operations</div>
-                    </button>
-                </div>
-
-                <div class="login-page__info-box">
-                    Your role determines your access level and available features in the system.
-                </div>
-
-                <div class="login-page__nav-buttons">
-                    <button type="button" class="btn btn--outline" onclick="SignupPage.goToStep(1)">Back</button>
-                    <button type="button" class="btn btn--primary"
-                            ${!role ? 'disabled' : ''}
-                            onclick="SignupPage.goToStep(3)">Continue</button>
-                </div>
-
-                <div class="login-page__footer">
-                    &copy; 2025 Pulse &bull; MDRRMO Morong, Rizal
-                </div>
+                ${this._authFooter()}
             </div>
         `;
     },
@@ -205,65 +337,58 @@ const SignupPage = {
             : ['Philippine Passport', 'Driver\'s License', 'National ID (PhilSys)', 'UMID', 'Postal ID', 'Voter\'s ID', 'Senior Citizen ID'];
 
         return `
-            <div class="login-page">
-                <div class="login-page__brand">
-                    <div class="login-page__logo">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>
+            <div class="auth-screen">
+                ${this._authHeader()}
+
+                <div class="auth-screen__body">
+                    <div class="auth-screen__form-header">
+                        <div class="auth-screen__form-title">ID Verification</div>
+                        <div class="auth-screen__form-subtitle">${subtitle}</div>
                     </div>
-                    <div class="login-page__app-name">PULSE 911</div>
+
+                    <form id="verify-form" onsubmit="event.preventDefault(); SignupPage.handleVerifyId(event)">
+                        <div class="input-group">
+                            <label class="input-group__label" for="id-type">Select ID Type</label>
+                            <select class="input-group__field" id="id-type" name="idType" required>
+                                <option value="">Choose your ID type</option>
+                                ${idOptions.map(opt => `
+                                    <option value="${opt}" ${f.idType === opt ? 'selected' : ''}>${opt}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-group__label" for="id-number">ID Number</label>
+                            <input class="input-group__field" type="text" id="id-number" name="idNumber"
+                                   placeholder="Enter your ID number" value="${f.idNumber}" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-group__label">Upload ID</label>
+                            <label class="file-upload" for="id-file">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <span class="file-upload__text">
+                                    ${f.idFileName || 'Tap to upload photo of your ID'}
+                                </span>
+                                <input type="file" id="id-file" name="idFile" accept="image/*"
+                                       onchange="SignupPage.handleFileSelect(event)" hidden>
+                            </label>
+                        </div>
+
+                        <div class="login-page__info-box">${infoText}</div>
+
+                        <div class="login-page__nav-buttons">
+                            <button type="button" class="btn btn--outline" onclick="SignupPage.goToStep(3)">Back</button>
+                            <button type="submit" class="btn btn--primary">Verify</button>
+                        </div>
+                    </form>
                 </div>
 
-                <div class="login-page__form-header">
-                    <div class="login-page__form-title">ID Verification</div>
-                    <div class="login-page__form-subtitle">${subtitle}</div>
-                </div>
-
-                <form id="verify-form" onsubmit="event.preventDefault(); SignupPage.handleVerifyId(event)">
-                    <div class="input-group">
-                        <label class="input-group__label" for="id-type">Select ID Type</label>
-                        <select class="input-group__field" id="id-type" name="idType" required>
-                            <option value="">Choose your ID type</option>
-                            ${idOptions.map(opt => `
-                                <option value="${opt}" ${f.idType === opt ? 'selected' : ''}>${opt}</option>
-                            `).join('')}
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label class="input-group__label" for="id-number">ID Number</label>
-                        <input class="input-group__field" type="text" id="id-number" name="idNumber"
-                               placeholder="Enter your ID number" value="${f.idNumber}" required>
-                    </div>
-
-                    <div class="input-group">
-                        <label class="input-group__label">Upload ID</label>
-                        <label class="file-upload" for="id-file">
-                            <svg viewBox="0 0 24 24">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                            </svg>
-                            <span class="file-upload__text">
-                                ${f.idFileName || 'Tap to upload photo of your ID'}
-                            </span>
-                            <input type="file" id="id-file" name="idFile" accept="image/*"
-                                   onchange="SignupPage.handleFileSelect(event)" hidden>
-                        </label>
-                    </div>
-
-                    <div class="login-page__info-box">${infoText}</div>
-
-                    <div class="login-page__nav-buttons">
-                        <button type="button" class="btn btn--outline" onclick="SignupPage.goToStep(2)">Back</button>
-                        <button type="submit" class="btn btn--primary">Verify</button>
-                    </div>
-                </form>
-
-                <div class="login-page__footer">
-                    &copy; 2025 Pulse &bull; MDRRMO Morong, Rizal
-                </div>
+                ${this._authFooter()}
             </div>
         `;
     },
@@ -276,34 +401,27 @@ const SignupPage = {
         setTimeout(() => this.finalizeSignup(), 1500);
 
         return `
-            <div class="login-page">
-                <div class="login-page__brand">
-                    <div class="login-page__logo">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>
+            <div class="auth-screen">
+                ${this._authHeader()}
+
+                <div class="auth-screen__body">
+                    <div class="auth-screen__form-header">
+                        <div class="auth-screen__form-title">ID Verification</div>
+                        <div class="auth-screen__form-subtitle">Verify your identity to continue</div>
                     </div>
-                    <div class="login-page__app-name">PULSE 911</div>
-                </div>
 
-                <div class="login-page__form-header">
-                    <div class="login-page__form-title">ID Verification</div>
-                    <div class="login-page__form-subtitle">Verify your identity to continue</div>
-                </div>
-
-                <div class="success-state">
-                    <div class="success-state__icon">
-                        <svg viewBox="0 0 24 24">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
+                    <div class="success-state">
+                        <div class="success-state__icon">
+                            <svg viewBox="0 0 24 24">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                        <div class="success-state__title">Verification Successful</div>
+                        <div class="success-state__text">Your identity has been verified. Redirecting...</div>
                     </div>
-                    <div class="success-state__title">Verification Successful</div>
-                    <div class="success-state__text">Your identity has been verified. Redirecting...</div>
                 </div>
 
-                <div class="login-page__footer">
-                    &copy; 2025 Pulse &bull; MDRRMO Morong, Rizal
-                </div>
+                ${this._authFooter()}
             </div>
         `;
     },
@@ -333,7 +451,9 @@ const SignupPage = {
             form: {
                 name: '', email: '', phone: '',
                 password: '', confirmPassword: '',
-                agreeTerms: false, role: null,
+                agreeTerms: false,
+                otpCode: '', otpVerified: false,
+                role: null,
                 idType: '', idNumber: '', idFileName: ''
             }
         };
@@ -342,14 +462,14 @@ const SignupPage = {
     /* --------------------------------------------------------
        8. Form Handlers
        -------------------------------------------------------- */
-    handleCreateAccount(event) {
+    async handleCreateAccount(event) {
         const f = this._state.form;
 
         // NOTE: do NOT use `form.name` — it conflicts with HTMLFormElement.name.
         // Use getElementById / form.elements[name] for safety.
         f.name = document.getElementById('signup-name').value.trim();
         f.email = document.getElementById('signup-email').value.trim();
-        f.phone = document.getElementById('signup-phone').value.trim();
+        const newPhone = document.getElementById('signup-phone').value.trim();
         f.password = document.getElementById('signup-password').value;
         f.confirmPassword = document.getElementById('signup-confirm').value;
         const termsEl = document.querySelector('#signup-form input[name="agreeTerms"]');
@@ -357,6 +477,11 @@ const SignupPage = {
 
         if (!f.name) {
             alert('Please enter your full name.');
+            return;
+        }
+
+        if (!newPhone) {
+            alert('Please enter your phone number. SMS verification is required.');
             return;
         }
 
@@ -373,6 +498,37 @@ const SignupPage = {
         if (!f.agreeTerms) {
             alert('You must agree to the Terms & Conditions.');
             return;
+        }
+
+        // Reset OTP state if the user changed the phone number
+        if (newPhone !== f.phone) {
+            f.otpVerified = false;
+            f.otpCode = '';
+        }
+        f.phone = newPhone;
+
+        // If phone is already verified (user went back and came forward), skip OTP
+        if (f.otpVerified) {
+            this.goToStep(3);
+            return;
+        }
+
+        // Send SMS OTP and advance to verification step
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending code...'; }
+
+        const result = await Store.sendOtp(f.phone, 'signup');
+
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create account'; }
+
+        if (!result.success) {
+            alert(result.message || 'Unable to send verification code. Please try again.');
+            return;
+        }
+
+        // Dev-mode fallback: TextBee not configured, code returned in response
+        if (result.devCode) {
+            console.warn('[signup] dev OTP code:', result.devCode);
         }
 
         this.goToStep(2);
@@ -401,7 +557,7 @@ const SignupPage = {
         }
 
         // Show success state (UI mock for MVP — real verification would happen server-side)
-        this.goToStep(4);
+        this.goToStep(5);
     },
 
     async finalizeSignup() {
@@ -414,12 +570,39 @@ const SignupPage = {
             role: f.role
         });
 
-        if (result.success) {
-            this.resetState();
-            Router.navigate(f.role === 'admin' ? 'admin-home' : 'citizen-home');
-        } else {
-            alert(result.message || 'Registration failed. Please try again.');
+        if (!result.success) {
+            const detail = result.errors && result.errors.length
+                ? '\n\n' + result.errors.map(e => `• ${e.field}: ${e.message}`).join('\n')
+                : '';
+            alert((result.message || 'Registration failed. Please try again.') + detail);
             this.goToStep(1);
+            return;
         }
+
+        // Admin signups are queued — show toast, return to login.
+        if (result.adminRequest === 'pending') {
+            this.resetState();
+            Router.navigate('login');
+            setTimeout(() => {
+                Toast.show(
+                    result.message || 'Your admin request has been submitted for approval.',
+                    { type: 'success', title: 'Request submitted', duration: 4500 }
+                );
+            }, 100);
+            return;
+        }
+
+        this.resetState();
+        Router.navigate('home');
+    },
+
+    escape(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 };
