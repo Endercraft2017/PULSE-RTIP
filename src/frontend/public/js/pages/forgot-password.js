@@ -22,7 +22,9 @@ const ForgotPasswordPage = {
     _state: {
         step: 1,
         form: {
-            identifier: '',
+            identifier: '',     // what the user typed (email or phone)
+            phone: '',          // actual phone used for SMS (from backend lookup)
+            maskedPhone: '',    // masked form for UI display
             code: '',
             newPassword: '',
             confirmPassword: ''
@@ -112,6 +114,7 @@ const ForgotPasswordPage = {
        5. Step 2: Verify Code
        -------------------------------------------------------- */
     renderVerifyCode() {
+        const masked = this._state.form.maskedPhone || this._state.form.phone || 'your phone';
         return `
             <div class="auth-screen">
                 ${this._authHeader()}
@@ -120,7 +123,9 @@ const ForgotPasswordPage = {
                     <div class="auth-screen__form-header">
                         <div class="auth-screen__form-title">Verify Code</div>
                         <div class="auth-screen__form-subtitle">
-                            Enter the verification code sent to your email or phone number to continue.
+                            We sent a 6-digit verification code via SMS to
+                            <strong>${this._escape(masked)}</strong>.
+                            Enter it below to continue.
                         </div>
                     </div>
 
@@ -208,12 +213,31 @@ const ForgotPasswordPage = {
     /* --------------------------------------------------------
        8. Form Handlers
        -------------------------------------------------------- */
-    handleRecover(event) {
-        const identifier = event.target.identifier.value.trim();
+    async handleRecover(event) {
+        const form = event.target;
+        const identifier = form.identifier.value.trim();
         if (!identifier) return;
 
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending code...'; }
+
+        const result = await Store.forgotPassword(identifier);
+
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Code'; }
+
+        if (!result.success) {
+            alert(result.message || 'Unable to send verification code.');
+            return;
+        }
+
         this._state.form.identifier = identifier;
-        // Mock: in production, POST /api/auth/forgot-password would send the code
+        this._state.form.phone = result.phone || '';
+        this._state.form.maskedPhone = result.maskedPhone || '';
+
+        if (result.devCode) {
+            console.warn('[forgot-password] dev OTP code:', result.devCode);
+        }
+
         this.goToStep(2);
     },
 
@@ -235,7 +259,7 @@ const ForgotPasswordPage = {
         }
     },
 
-    handleVerifyCode(event) {
+    async handleVerifyCode(event) {
         const inputs = document.querySelectorAll('.otp-input');
         const code = Array.from(inputs).map(i => i.value).join('');
 
@@ -244,16 +268,36 @@ const ForgotPasswordPage = {
             return;
         }
 
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying...'; }
+
+        const result = await Store.verifyOtp(this._state.form.phone, code, 'reset');
+
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Verify'; }
+
+        if (!result.success) {
+            alert(result.message || 'Invalid verification code.');
+            inputs.forEach(i => { i.value = ''; });
+            inputs[0] && inputs[0].focus();
+            return;
+        }
+
         this._state.form.code = code;
-        // Mock: in production, POST /api/auth/verify-code would validate
         this.goToStep(3);
     },
 
-    handleResendCode() {
+    async handleResendCode() {
+        // Re-send by calling forgot-password again with the same identifier
+        const result = await Store.forgotPassword(this._state.form.identifier);
+        if (!result.success) {
+            alert(result.message || 'Unable to resend code.');
+            return;
+        }
+        if (result.devCode) console.warn('[forgot-password] dev OTP code:', result.devCode);
         alert('A new code has been sent.');
     },
 
-    handleResetPassword(event) {
+    async handleResetPassword(event) {
         const form = event.target;
         const newPassword = form.newPassword.value;
         const confirmPassword = form.confirmPassword.value;
@@ -268,9 +312,31 @@ const ForgotPasswordPage = {
             return;
         }
 
-        // Mock: in production, POST /api/auth/reset-password would update the password
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Updating...'; }
+
+        const result = await Store.resetPassword(this._state.form.phone, newPassword);
+
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Change Password'; }
+
+        if (!result.success) {
+            alert(result.message || 'Failed to reset password.');
+            return;
+        }
+
         alert('Password changed successfully. Please log in with your new password.');
         this.resetState();
         Router.navigate('login');
+    },
+
+    /** HTML-escape for safe interpolation into the verify-code subtitle */
+    _escape(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 };

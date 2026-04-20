@@ -8,10 +8,12 @@
  * 2. Validation Rules
  * 3. Route Definitions
  *
- * POST /api/auth/login       - Authenticate user
- * POST /api/auth/register    - Create new account (requires verified OTP)
- * POST /api/auth/send-otp    - Send a 6-digit SMS verification code
- * POST /api/auth/verify-otp  - Verify a submitted OTP
+ * POST /api/auth/login            - Authenticate user
+ * POST /api/auth/register         - Create new account (requires verified OTP)
+ * POST /api/auth/send-otp         - Send a 6-digit SMS verification code
+ * POST /api/auth/verify-otp       - Verify a submitted OTP
+ * POST /api/auth/forgot-password  - Send reset SMS OTP by email or phone
+ * POST /api/auth/reset-password   - Set a new password after OTP verification
  * =============================================================================
  */
 
@@ -51,6 +53,15 @@ const verifyOtpRules = [
   body('purpose').optional().isIn(['signup', 'login', 'reset']),
 ];
 
+const forgotPasswordRules = [
+  body('identifier').trim().notEmpty().withMessage('Email or phone number is required'),
+];
+
+const resetPasswordRules = [
+  body('phone').trim().notEmpty().withMessage('Phone number is required'),
+  body('newPassword').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+];
+
 /* --------------------------------------------------------------------------
  * 3. Route Definitions
  * -------------------------------------------------------------------------- */
@@ -59,5 +70,7 @@ router.post('/login', validate(loginRules), authController.login);
 router.post('/register', validate(registerRules), authController.register);
 router.post('/send-otp', validate(sendOtpRules), authController.sendOtp);
 router.post('/verify-otp', validate(verifyOtpRules), authController.verifyOtp);
+router.post('/forgot-password', validate(forgotPasswordRules), authController.forgotPassword);
+router.post('/reset-password', validate(resetPasswordRules), authController.resetPassword);
 
 module.exports = router;

@@ -347,4 +347,161 @@ async function verifyOtp(req, res, next) {
   }
 }
 
-module.exports = { login, register, sendOtp, verifyOtp };
+/* --------------------------------------------------------------------------
+ * 7. forgotPassword
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Masks a phone number for UI display, keeping the first 4 and last 3 digits.
+ * 09171234567 -> 0917****567
+ */
+function maskPhone(phone) {
+  if (!phone) return '';
+  const clean = String(phone).replace(/[^\d+]/g, '');
+  if (clean.length < 7) return clean;
+  const first = clean.slice(0, 4);
+  const last = clean.slice(-3);
+  return first + '*'.repeat(clean.length - 7) + last;
+}
+
+/**
+ * Initiates the password-reset flow. Accepts an email OR phone, looks up
+ * the user, and sends an SMS OTP to the user's registered phone number.
+ *
+ * @param {object} req - Express request (body: { identifier })
+ * @param {object} res - Express response
+ * @param {function} next - Express next function
+ */
+async function forgotPassword(req, res, next) {
+  try {
+    const { identifier } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ success: false, message: 'Email or phone number is required.' });
+    }
+
+    // Find user by email or phone
+    const looksLikeEmail = String(identifier).includes('@');
+    let user;
+    if (looksLikeEmail) {
+      user = await User.findByEmail(identifier.trim());
+    } else {
+      const normalized = OtpVerification.normalizePhone(identifier);
+      user = await User.findByPhone(normalized);
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found for that email or phone number.',
+      });
+    }
+
+    if (!user.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'This account has no phone number on file. Contact MDRRMO support to reset your password.',
+      });
+    }
+
+    // Rate limit: one OTP per 30 seconds per phone+purpose
+    const lastOtp = await OtpVerification.findLatest(user.phone, 'reset');
+    if (lastOtp) {
+      const age = (Date.now() - new Date(lastOtp.created_at + 'Z').getTime()) / 1000;
+      if (age < 30) {
+        return res.status(429).json({
+          success: false,
+          message: `Please wait ${Math.ceil(30 - age)}s before requesting a new code.`,
+        });
+      }
+    }
+
+    // Generate + store OTP
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    await OtpVerification.create({ phone: user.phone, code, purpose: 'reset', ttlSeconds: 600 });
+
+    const message = `PULSE 911 password reset code: ${code}\nValid for 10 minutes. Do not share this code with anyone.`;
+
+    // Dev fallback when TextBee isn't configured
+    if (!textbee.isConfigured()) {
+      console.warn('[forgotPassword] TextBee not configured, returning code in response for dev');
+      return res.json({
+        success: true,
+        phone: user.phone,
+        maskedPhone: maskPhone(user.phone),
+        devCode: code,
+        message: 'OTP generated (SMS gateway not configured — dev mode).',
+      });
+    }
+
+    try {
+      await textbee.sendSMS(user.phone, message);
+    } catch (smsErr) {
+      console.error('[forgotPassword] SMS send failed:', smsErr.message);
+      return res.status(502).json({
+        success: false,
+        message: 'Unable to deliver the SMS code right now. Please try again shortly.',
+      });
+    }
+
+    res.json({
+      success: true,
+      phone: user.phone,                 // Full — frontend uses for subsequent API calls
+      maskedPhone: maskPhone(user.phone), // For display only
+      message: 'Verification code sent via SMS.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * 8. resetPassword
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Resets a user's password. Requires a recently-verified OTP for the phone
+ * (15-minute window matching the OTP TTL + grace period).
+ *
+ * @param {object} req - Express request (body: { phone, newPassword })
+ * @param {object} res - Express response
+ * @param {function} next - Express next function
+ */
+async function resetPassword(req, res, next) {
+  try {
+    const { phone, newPassword } = req.body;
+
+    if (!phone || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Phone and new password are required.' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
+    }
+
+    const verified = await OtpVerification.hasRecentVerified(phone, 'reset', 900);
+    if (!verified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Phone has not been verified. Please request a new code.',
+      });
+    }
+
+    const normalized = OtpVerification.normalizePhone(phone);
+    const user = await User.findByPhone(normalized);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'No account found for this phone number.' });
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, 10);
+    await User.updatePassword(user.id, password_hash);
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully. Please log in with your new password.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { login, register, sendOtp, verifyOtp, forgotPassword, resetPassword };

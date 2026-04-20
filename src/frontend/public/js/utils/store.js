@@ -130,6 +130,44 @@ const Store = {
     },
 
     /**
+     * Initiates password reset — finds the user by email or phone and
+     * dispatches an SMS OTP to their registered phone number.
+     * @param {string} identifier - Email or phone
+     * @returns {Promise<object>} { success, phone, maskedPhone, message, devCode? }
+     */
+    async forgotPassword(identifier) {
+        try {
+            const res = await fetch(API_BASE + '/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identifier }),
+            });
+            return await res.json();
+        } catch (err) {
+            return { success: false, message: 'Network error. Please try again.' };
+        }
+    },
+
+    /**
+     * Sets a new password after the user has verified their phone via OTP.
+     * @param {string} phone
+     * @param {string} newPassword
+     * @returns {Promise<object>} { success, message }
+     */
+    async resetPassword(phone, newPassword) {
+        try {
+            const res = await fetch(API_BASE + '/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, newPassword }),
+            });
+            return await res.json();
+        } catch (err) {
+            return { success: false, message: 'Network error. Please try again.' };
+        }
+    },
+
+    /**
      * Registers a new user account via the backend API.
      * @param {object} userData - { name, email, password, phone, address }
      * @returns {Promise<object>} Result with success flag

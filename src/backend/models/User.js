@@ -31,13 +31,28 @@ async function findByEmail(email) {
 }
 
 /**
- * Finds a user by their phone number (exact match after caller normalization).
+ * Finds a user by their phone number. Tolerant of formatting differences —
+ * seed data uses "0917-135-0541" style while lookups typically pass
+ * "09171350541". Compares digits only.
  * @param {string} phone - The phone number to search for
  * @returns {Promise<object|null>} User object or null
  */
 async function findByPhone(phone) {
   if (!phone) return null;
-  const rows = await db.query('SELECT * FROM users WHERE phone = ?', [phone]);
+
+  // Exact match first (fastest)
+  let rows = await db.query('SELECT * FROM users WHERE phone = ?', [phone]);
+  if (rows[0]) return rows[0];
+
+  // Fallback: compare stripped-to-digits on both sides
+  const needle = String(phone).replace(/[^\d]/g, '');
+  if (!needle) return null;
+
+  rows = await db.query(
+    `SELECT * FROM users
+     WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') = ?`,
+    [needle]
+  );
   return rows[0] || null;
 }
 
@@ -182,4 +197,17 @@ async function findByRole(role) {
   return db.query('SELECT * FROM users WHERE role = ?', [role]);
 }
 
-module.exports = { findByEmail, findByPhone, findById, create, updateById, updateAdminRequest, findPendingAdminRequests, findCitizenPhones, findByRole };
+/**
+ * Updates a user's password hash. Used by the SMS-based reset flow.
+ * @param {number} id - User ID
+ * @param {string} password_hash - Pre-hashed password (bcrypt)
+ * @returns {Promise<void>}
+ */
+async function updatePassword(id, password_hash) {
+  await db.query(
+    'UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [password_hash, id]
+  );
+}
+
+module.exports = { findByEmail, findByPhone, findById, create, updateById, updatePassword, updateAdminRequest, findPendingAdminRequests, findCitizenPhones, findByRole };
