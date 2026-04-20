@@ -12,6 +12,13 @@
 
     <title>PULSE 911 - MDRRMO Morong, Rizal</title>
 
+    <!-- Favicons & app icons -->
+    <link rel="icon" type="image/x-icon" href="public/assets/icons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="public/assets/icons/favicon-16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="public/assets/icons/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="public/assets/icons/apple-touch-icon.png">
+    <link rel="manifest" href="public/manifest.webmanifest">
+
     <!-- Self-hosted Inter font preload (critical resource) -->
     <link rel="preload"
           href="public/assets/fonts/InterVariable.woff2"
@@ -19,7 +26,7 @@
           type="font/woff2"
           crossorigin="anonymous">
 
-    <link rel="stylesheet" href="public/css/styles.css">
+    <link rel="stylesheet" href="public/css/styles.css?v=20260420-responsive">
 </head>
 <body>
     <div id="app">
@@ -36,22 +43,24 @@
     <!-- Page modules -->
     <script src="public/js/utils/store.js"></script>
     <script src="public/js/utils/router.js"></script>
-    <script src="public/js/components/header.js"></script>
+    <script src="public/js/components/header.js?v=20260417c"></script>
     <script src="public/js/components/nav.js"></script>
     <script src="public/js/components/terms-modal.js"></script>
-    <script src="public/js/components/detail-modal.js"></script>
-    <script src="public/js/pages/login.js"></script>
+    <script src="public/js/components/detail-modal.js?v=20260417c"></script>
+    <script src="public/js/components/toast.js?v=20260420a"></script>
+    <script src="public/js/pages/login.js?v=20260417c"></script>
+    <script src="public/js/pages/login-offline.js?v=20260417c"></script>
     <script src="public/js/pages/signup.js"></script>
     <script src="public/js/pages/forgot-password.js"></script>
     <script src="public/js/pages/citizen-home.js"></script>
     <script src="public/js/pages/sos-offline.js"></script>
     <script src="public/js/pages/hazards.js"></script>
-    <script src="public/js/pages/my-reports.js"></script>
+    <script src="public/js/pages/my-reports.js?v=20260417c"></script>
     <script src="public/js/pages/emergency.js"></script>
     <script src="public/js/pages/citizen-profile.js"></script>
     <script src="public/js/pages/notifications.js"></script>
     <script src="public/js/pages/admin-home.js"></script>
-    <script src="public/js/pages/admin-dashboard.js"></script>
+    <script src="public/js/pages/admin-dashboard.js?v=20260417c"></script>
     <script src="public/js/pages/admin-profile.js"></script>
     <script src="public/js/pages/news-updates.js"></script>
     <script src="public/js/pages/report-incident.js"></script>
