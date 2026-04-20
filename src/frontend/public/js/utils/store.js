@@ -29,6 +29,23 @@ const API_BASE = (window.Capacitor && window.Capacitor.isNativePlatform && windo
  * 0-prefixed form. Safe to call on every keystroke.
  * -------------------------------------------------------- */
 const PhoneFormat = {
+    /**
+     * Validates that a phone number is a plausible Philippine mobile
+     * number (starts with 09, exactly 11 digits). Accepts any input
+     * format — compares digits only.
+     * @param {string} raw
+     * @returns {boolean}
+     */
+    isValid(raw) {
+        if (!raw) return false;
+        let digits = String(raw).replace(/\D/g, '');
+        // +63 / 63 prefix -> 0
+        if (digits.startsWith('63') && digits.length >= 11) {
+            digits = '0' + digits.slice(2);
+        }
+        return /^09\d{9}$/.test(digits);
+    },
+
     /** Normalizes raw input into "09XX-XXX-XXXX". Truncates at 11 digits. */
     format(raw) {
         if (!raw) return '';
@@ -223,6 +240,24 @@ const Store = {
                 body: JSON.stringify({ phone, code, purpose }),
             });
             return await res.json();
+        } catch (err) {
+            return { success: false, message: 'Network error. Please try again.' };
+        }
+    },
+
+    /**
+     * Preflight check for a new phone number — validates format and
+     * availability BEFORE an OTP is sent so we don't waste an SMS
+     * on an obviously-invalid or already-taken number.
+     * @param {string} phone
+     * @returns {Promise<object>} { success, available, reason?, message? }
+     */
+    async checkPhoneAvailable(phone) {
+        try {
+            return await this.apiFetch('/api/users/me/phone/check', {
+                method: 'POST',
+                body: JSON.stringify({ phone }),
+            });
         } catch (err) {
             return { success: false, message: 'Network error. Please try again.' };
         }

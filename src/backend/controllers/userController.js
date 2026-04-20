@@ -143,6 +143,62 @@ async function changePassword(req, res, next) {
 }
 
 /* --------------------------------------------------------------------------
+ * 5a. checkPhoneAvailable
+ * --------------------------------------------------------------------------
+ * Preflight check the client can call BEFORE sending an OTP to catch
+ * format errors, duplicate-phone, and same-as-current without spending
+ * an SMS. Authenticated.
+ * -------------------------------------------------------------------------- */
+
+async function checkPhoneAvailable(req, res, next) {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, message: 'Phone number is required.' });
+    }
+
+    const normalized = OtpVerification.normalizePhone(phone);
+
+    if (!/^09\d{9}$/.test(normalized)) {
+      return res.json({
+        success: false,
+        available: false,
+        reason: 'invalid_format',
+        message: 'Please enter a valid Philippine mobile number (e.g. 0917-123-4567).',
+      });
+    }
+
+    if (sameDigits(normalized, req.user.phone)) {
+      return res.json({
+        success: false,
+        available: false,
+        reason: 'same_as_current',
+        message: 'This is already your current phone number.',
+      });
+    }
+
+    const existing = await User.findByPhone(normalized);
+    if (existing && existing.id !== req.user.id) {
+      return res.json({
+        success: false,
+        available: false,
+        reason: 'taken',
+        message: 'This phone number is already registered to another account.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      available: true,
+      phone: normalized,
+      maskedPhone: maskPhone(normalized),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* --------------------------------------------------------------------------
  * 5. sendPhoneChangeOtp
  * -------------------------------------------------------------------------- */
 
@@ -167,8 +223,12 @@ async function sendPhoneChangeOtp(req, res, next) {
     }
 
     const normalized = OtpVerification.normalizePhone(phone);
-    if (!normalized || normalized.length < 10) {
-      return res.status(400).json({ success: false, message: 'Please enter a valid phone number.' });
+    // Strict PH mobile format: exactly 11 digits starting with "09"
+    if (!/^09\d{9}$/.test(normalized)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid Philippine mobile number (e.g. 0917-123-4567).',
+      });
     }
 
     // Reject if phone didn't actually change
@@ -305,4 +365,4 @@ async function updatePhone(req, res, next) {
   }
 }
 
-module.exports = { getMe, updateMe, changePassword, sendPhoneChangeOtp, updatePhone };
+module.exports = { getMe, updateMe, changePassword, checkPhoneAvailable, sendPhoneChangeOtp, updatePhone };

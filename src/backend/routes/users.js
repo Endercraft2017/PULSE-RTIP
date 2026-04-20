@@ -40,6 +40,10 @@ router.put('/me/password', authenticate, validate([
   body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
 ]), userController.changePassword);
 
+router.post('/me/phone/check', authenticate, validate([
+  body('phone').trim().notEmpty().withMessage('Phone number is required'),
+]), userController.checkPhoneAvailable);
+
 router.post('/me/phone/send-otp', authenticate, validate([
   body('phone').trim().notEmpty().withMessage('Phone number is required'),
 ]), userController.sendPhoneChangeOtp);

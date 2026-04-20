@@ -495,6 +495,12 @@ const SignupPage = {
             return;
         }
 
+        // Strict PH mobile format check — fail fast before server round-trip
+        if (!window.PhoneFormat || !PhoneFormat.isValid(newPhone)) {
+            alert('Please enter a valid Philippine mobile number (e.g. 0917-123-4567).');
+            return;
+        }
+
         if (f.password !== f.confirmPassword) {
             alert('Passwords do not match.');
             return;

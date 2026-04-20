@@ -224,9 +224,18 @@ async function sendOtp(req, res, next) {
       return res.status(400).json({ success: false, message: 'Phone number is required.' });
     }
 
+    const normalized = OtpVerification.normalizePhone(phone);
+
+    // Strict PH mobile format: exactly 11 digits starting with "09"
+    if (!/^09\d{9}$/.test(normalized)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid Philippine mobile number (e.g. 0917-123-4567).',
+      });
+    }
+
     // For signup: reject if the phone is already tied to an existing account
     if (purpose === 'signup') {
-      const normalized = OtpVerification.normalizePhone(phone);
       const existingUser = await User.findByPhone(normalized);
       if (existingUser) {
         return res.status(409).json({

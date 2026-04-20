@@ -190,16 +190,26 @@ const PersonalInfoPage = {
         const btn = document.getElementById('ei-submit');
         if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
 
-        // If the phone changed, save name/address first (quick win) then
-        // swap the modal into the OTP step to verify the new phone number.
+        // If the phone changed, validate format + availability FIRST
+        // (before sending an SMS) then save name/address and proceed
+        // to the OTP verification step.
         if (phoneChanged) {
-            if (digits(phone).length < 10) {
+            // Step 1: client-side format check — fail fast, no server call
+            if (!window.PhoneFormat || !PhoneFormat.isValid(phone)) {
                 if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
-                alert('Please enter a valid phone number.');
+                alert('Please enter a valid Philippine mobile number (e.g. 0917-123-4567).');
                 return;
             }
 
-            // Save name/address if they changed (don't block on failure)
+            // Step 2: server preflight check — duplicate / same-as-current
+            const avail = await Store.checkPhoneAvailable(phone);
+            if (!avail.available) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+                alert(avail.message || 'This phone number can\'t be used.');
+                return;
+            }
+
+            // Step 3: save name/address if they changed (non-blocking)
             if (name !== current.name || address !== (current.address || '')) {
                 try {
                     const res = await Store.apiFetch('/api/users/me', {
@@ -212,7 +222,7 @@ const PersonalInfoPage = {
                 } catch (e) { /* non-fatal — continue to phone flow */ }
             }
 
-            // Send the OTP
+            // Step 4: send the OTP
             const otpRes = await Store.sendPhoneChangeOtp(phone);
             if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
 
