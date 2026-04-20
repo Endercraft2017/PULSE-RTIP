@@ -19,6 +19,10 @@
         hideHeader: true,
         hideNav: true
     });
+    Router.register('login-offline', () => LoginOfflinePage.render(), {
+        hideHeader: true,
+        hideNav: true
+    });
     Router.register('signup', () => SignupPage.render(), {
         hideHeader: true,
         hideNav: true
@@ -41,6 +45,20 @@
     Router.register('admin-dashboard', () => AdminDashboardPage.render(), {});
     Router.register('admin-profile', () => AdminProfilePage.render(), {});
 
+    // Unified aliases — pick page by role at render time so the URL
+    // stays clean (#/home, #/profile, #/dashboard) for both roles.
+    Router.register('home', () => {
+        return Store.get('role') === 'admin'
+            ? AdminHomePage.render()
+            : CitizenHomePage.render();
+    }, {});
+    Router.register('profile', () => {
+        return Store.get('role') === 'admin'
+            ? AdminProfilePage.render()
+            : CitizenProfilePage.render();
+    }, {});
+    Router.register('dashboard', () => AdminDashboardPage.render(), {});
+
     // Citizen-only pages
     Router.register('report-incident', () => ReportIncidentPage.render(), {});
 
@@ -57,15 +75,31 @@
     Router.register('activities', () => ActivitiesPage.render(), {});
 
     /* --------------------------------------------------------
-       2. Auth Guard
+       2. Auth + Role Guard
        -------------------------------------------------------- */
+    const adminOnlyRoutes = ['admin-home', 'admin-dashboard', 'admin-profile', 'dashboard'];
+    const citizenOnlyRoutes = ['citizen-home', 'citizen-profile', 'report-incident', 'emergency'];
+
     const originalHandleRoute = Router.handleRoute.bind(Router);
     Router.handleRoute = function () {
         const path = this.getPath();
-        const publicRoutes = ['login', 'signup', 'forgot-password'];
+        const publicRoutes = ['login', 'login-offline', 'signup', 'forgot-password'];
 
         if (!publicRoutes.includes(path) && !Store.get('isAuthenticated')) {
             this.navigate('login');
+            return;
+        }
+
+        // Role-based access control: citizens can't hit admin-only pages
+        // even via direct URL manipulation, and admins don't need to see
+        // citizen-specific flows (emergency, report-incident, etc.)
+        const role = Store.get('role');
+        if (role === 'citizen' && adminOnlyRoutes.includes(path)) {
+            this.navigate('home');
+            return;
+        }
+        if (role === 'admin' && citizenOnlyRoutes.includes(path)) {
+            this.navigate('home');
             return;
         }
 
@@ -86,10 +120,10 @@
 
         if (restored) {
             const path = Router.getPath();
-            const authRoutes = ['login', 'signup', 'forgot-password'];
+            const authRoutes = ['login', 'login-offline', 'signup', 'forgot-password'];
             if (authRoutes.includes(path) || !path) {
                 const role = Store.get('role');
-                Router.navigate(role === 'admin' ? 'admin-home' : 'citizen-home');
+                Router.navigate('home');
                 return;
             }
         }
