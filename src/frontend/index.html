@@ -31,9 +31,21 @@
     <!-- Embed mode: when loaded in the admin-preview iframe via ?embed=1,
          hide the app's own header/nav since the preview shell provides them. -->
     <script>
-      if (new URLSearchParams(location.search).get('embed') === '1') {
-        document.documentElement.classList.add('embed-mode');
-      }
+      (function () {
+        var params = new URLSearchParams(location.search);
+        var isEmbed = params.get('embed') === '1';
+
+        if (isEmbed) {
+          document.documentElement.classList.add('embed-mode');
+          return;
+        }
+
+        /* Desktop (>=1024px) users get the sidebar shell at admin-preview.html.
+           Mobile/tablet users stay on this mobile-first index. */
+        if (window.innerWidth >= 1024) {
+          window.location.replace('./admin-preview.html' + (location.hash || ''));
+        }
+      })();
     </script>
 </head>
 <body>

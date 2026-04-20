@@ -3,7 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PULSE 911 — Admin Preview</title>
+<title>PULSE 911</title>
+
+<!-- Mobile/tablet fallback: redirect to the mobile-optimized /index.html.
+     The sidebar shell is built for desktop (>=1024px). -->
+<script>
+  (function () {
+    if (window.innerWidth < 1024) {
+      window.location.replace('./index.html' + (window.location.hash || ''));
+    }
+  })();
+</script>
+
 <link rel="preload" href="public/assets/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin="anonymous">
 <style>
   /* ============================================================
@@ -86,32 +97,6 @@
   }
   .topbar__title small {
     font-size: 12px; font-weight: 500; opacity: 0.75; margin-left: 6px;
-  }
-
-  .viewport-picker {
-    display: flex;
-    gap: 4px;
-    background: rgba(255,255,255,0.15);
-    border-radius: 8px;
-    padding: 4px;
-  }
-  .viewport-picker button {
-    border: none;
-    background: transparent;
-    color: white;
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.15s;
-    white-space: nowrap;
-  }
-  .viewport-picker button:hover { background: rgba(255,255,255,0.2); }
-  .viewport-picker button.active {
-    background: white;
-    color: var(--color-primary-dark);
   }
 
   /* ----- Layout ----- */
@@ -230,15 +215,8 @@
     display: block;
   }
 
-  /* Viewport-size constraints */
-  .frame-wrap.size-mobile  { max-width: 420px; }
-  .frame-wrap.size-tablet  { max-width: 768px; }
-  .frame-wrap.size-laptop  { max-width: 1280px; }
-  .frame-wrap.size-full    { max-width: 100%; }
-
   /* ----- Mobile overlay mode ----- */
   @media (max-width: 767px) {
-    .viewport-picker { display: none; }
     .sidebar {
       position: fixed;
       top: var(--topbar-h);
@@ -288,14 +266,8 @@
       </svg>
     </button>
     <div class="topbar__title">
-      PULSE 911 Admin Preview
+      PULSE 911
       <small id="current-label">Home</small>
-    </div>
-    <div class="viewport-picker" role="group" aria-label="Viewport size">
-      <button data-size="mobile">Mobile</button>
-      <button data-size="tablet">Tablet</button>
-      <button data-size="laptop">Laptop</button>
-      <button data-size="full" class="active">Full</button>
     </div>
   </header>
 
@@ -306,7 +278,7 @@
     </aside>
     <div class="backdrop" id="backdrop"></div>
     <main class="content">
-      <div class="frame-wrap size-full" id="frame-wrap">
+      <div class="frame-wrap" id="frame-wrap">
         <iframe id="preview-frame" title="Admin page preview" src="about:blank"></iframe>
       </div>
     </main>
@@ -432,16 +404,6 @@
   backdrop.addEventListener('click', () => {
     sidebar.classList.remove('open');
     backdrop.classList.remove('visible');
-  });
-
-  /* --- Viewport picker --- */
-  document.querySelectorAll('.viewport-picker button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.viewport-picker button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const size = btn.dataset.size;
-      frameWrap.className = 'frame-wrap size-' + size;
-    });
   });
 
   /* --- Init --- */
