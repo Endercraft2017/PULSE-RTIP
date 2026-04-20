@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PULSE 911</title>
 
-<!-- Mobile/tablet fallback: redirect to the mobile-optimized /index.html.
+<!-- Mobile/tablet fallback: redirect to the mobile-optimized root.
      The sidebar shell is built for desktop (>=1024px). -->
 <script>
   (function () {
     if (window.innerWidth < 1024) {
-      window.location.replace('./index.html' + (window.location.hash || ''));
+      window.location.replace('./' + (window.location.hash || ''));
     }
 
     /* Apply dark theme before first paint if the user's saved appearance
@@ -511,7 +511,7 @@
     } catch (e) {}
 
     // Reload the iframe to the login page
-    iframe.src = 'index.html?embed=1#/login';
+    iframe.src = './?embed=1#/login';
     currentLabel.textContent = 'Login';
     sidebar.querySelectorAll('.sidebar__item').forEach(b => b.classList.remove('active'));
 
@@ -524,7 +524,7 @@
 
   /* --- Navigation --- */
   function selectRoute(route, label) {
-    iframe.src = `index.html?embed=1#/${route}`;
+    iframe.src = `./?embed=1#/${route}`;
     currentLabel.textContent = label;
     sidebar.querySelectorAll('.sidebar__item').forEach(b => b.classList.remove('active'));
     const active = sidebar.querySelector(`[data-route="${route}"]`);
