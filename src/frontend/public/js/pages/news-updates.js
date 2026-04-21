@@ -426,24 +426,27 @@ const NewsUpdatesPage = {
             if (e.target === modal) NewsUpdatesPage.closeQRModal();
         };
 
+        const formUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSdZ0Ss4IXFssnqex5vTZEsjfSwTS7-aaI2lBPvPxD1KaHb6Ug/viewform';
+
         modal.innerHTML = `
             <div class="modal" style="max-width: 360px; text-align: center; padding: var(--spacing-xl);">
                 <div class="modal__title" style="margin-bottom: var(--spacing-sm);">Citizen Survey</div>
                 <div class="modal__desc" style="color: var(--color-gray-600); font-size: var(--font-size-sm); margin-bottom: var(--spacing-lg);">
-                    Scan this QR code with your phone camera to access the Pulse 911 MDRRMO citizen survey.
+                    Scan this QR code with your phone camera, or tap "Open survey" below, to access the Pulse 911 MDRRMO citizen survey.
                 </div>
                 <div style="display:flex;justify-content:center;margin-bottom:var(--spacing-lg);">
-                    <img src="public/assets/news/survey-qr.png" alt="Citizen Survey QR Code"
-                         style="width:220px;height:220px;border-radius:var(--radius-md);border:1px solid var(--color-gray-200);background:white;"
-                         onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
-                    <div style="display:none;width:220px;height:220px;border-radius:var(--radius-md);border:1px solid var(--color-gray-200);background:var(--color-gray-100);display:flex;align-items:center;justify-content:center;text-align:center;padding:var(--spacing-md);color:var(--color-gray-500);font-size:var(--font-size-xs);">
-                        QR image not available yet.<br>Visit the URL below.
+                    <img src="public/assets/news/survey-qr.svg" alt="Citizen Survey QR Code"
+                         style="width:220px;height:220px;border-radius:var(--radius-md);border:1px solid var(--color-gray-200);background:white;padding:8px;"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                    <div style="display:none;width:220px;height:220px;border-radius:var(--radius-md);border:1px solid var(--color-gray-200);background:var(--color-gray-100);align-items:center;justify-content:center;text-align:center;padding:var(--spacing-md);color:var(--color-gray-500);font-size:var(--font-size-xs);">
+                        QR image not available.<br>Use the "Open survey" button below.
                     </div>
                 </div>
-                <div style="font-size:var(--font-size-xs);color:var(--color-gray-500);word-break:break-all;margin-bottom:var(--spacing-lg);">
-                    pulse911-mdrrmo.gov.ph/citizen-survey
-                </div>
-                <button class="btn btn--primary btn--block" type="button"
+                <a href="${formUrl}" target="_blank" rel="noopener noreferrer"
+                   class="btn btn--primary btn--block" style="margin-bottom: var(--spacing-sm);">
+                    Open survey
+                </a>
+                <button class="btn btn--outline btn--block" type="button"
                         onclick="NewsUpdatesPage.closeQRModal()">Close</button>
             </div>
         `;
