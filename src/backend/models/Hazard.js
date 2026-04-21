@@ -46,11 +46,11 @@ async function findAll() {
  * @returns {Promise<object>} Created hazard alert
  */
 async function create(data) {
-  const { title, severity, location, description, latitude, longitude, created_by } = data;
+  const { title, severity, location, description, latitude, longitude, resolved_address, created_by } = data;
   const result = await db.query(
     `INSERT INTO hazard_alerts
-       (title, severity, location, description, latitude, longitude, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (title, severity, location, description, latitude, longitude, resolved_address, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       title,
       severity,
@@ -58,6 +58,7 @@ async function create(data) {
       description || null,
       latitude != null ? Number(latitude) : null,
       longitude != null ? Number(longitude) : null,
+      resolved_address || null,
       created_by,
     ]
   );

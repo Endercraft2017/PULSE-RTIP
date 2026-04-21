@@ -207,9 +207,34 @@ const AdminHomePage = {
         btn.innerHTML = 'Locating...';
 
         navigator.geolocation.getCurrentPosition(
-            (pos) => {
+            async (pos) => {
                 document.getElementById('ch-lat').value = pos.coords.latitude.toFixed(6);
                 document.getElementById('ch-lng').value = pos.coords.longitude.toFixed(6);
+
+                // Best-effort: auto-fill the Location text field from a
+                // public Nominatim reverse-geocode call (client-side).
+                // Skip silently if anything fails — admin can still type.
+                const locEl = document.getElementById('ch-location');
+                if (locEl && !locEl.value.trim()) {
+                    try {
+                        const url = 'https://nominatim.openstreetmap.org/reverse'
+                            + `?format=jsonv2&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`
+                            + '&zoom=17&addressdetails=1&accept-language=en';
+                        const res = await fetch(url, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            const a = data.address || {};
+                            const barangay = a.suburb || a.neighbourhood || a.village || a.hamlet || a.quarter;
+                            const city = a.town || a.city || a.municipality || a.county;
+                            const state = a.state || a.region;
+                            const parts = [barangay, city, state].filter(Boolean);
+                            if (parts.length) locEl.value = parts.join(', ');
+                        }
+                    } catch (_) { /* best-effort */ }
+                }
+
                 btn.disabled = false;
                 btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> Use my current location';
             },

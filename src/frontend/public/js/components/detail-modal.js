@@ -127,8 +127,13 @@ const DetailModal = {
                 const lng = Number(data.longitude).toFixed(5);
                 return `
                     <div class="detail-modal__section">
-                        <div class="detail-modal__section-title">GPS Coordinates</div>
-                        <div class="detail-modal__section-text" style="font-family: ui-monospace, monospace;">
+                        <div class="detail-modal__section-title">GPS Location</div>
+                        ${data.resolved_address ? `
+                            <div class="detail-modal__section-text" style="margin-bottom: 6px;">
+                                ${this._esc(data.resolved_address)}
+                            </div>
+                        ` : ''}
+                        <div class="detail-modal__section-text" style="font-family: ui-monospace, monospace; font-size: var(--font-size-xs); color: var(--color-gray-500);">
                             ${lat}, ${lng}
                         </div>
                         <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" rel="noopener"
@@ -139,6 +144,9 @@ const DetailModal = {
                             </svg>
                             Open in Google Maps
                         </a>
+                        <div style="font-size: var(--font-size-xs); color: var(--color-gray-400); margin-top: 8px;">
+                            Area resolved via OpenStreetMap.
+                        </div>
                     </div>
                 `;
             })() : ''}

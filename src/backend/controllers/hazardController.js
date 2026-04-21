@@ -17,6 +17,7 @@ const Hazard = require('../models/Hazard');
 const User = require('../models/User');
 const textbee = require('../services/sms/textbee');
 const { getTipsFor } = require('../services/hazard/tips');
+const { reverseGeocode } = require('../services/geocode/nominatim');
 
 /* --------------------------------------------------------------------------
  * 2. getHazards
@@ -56,6 +57,14 @@ function buildAlertMessage(hazard) {
   if (hazard.latitude != null && hazard.longitude != null) {
     const lat = Number(hazard.latitude).toFixed(5);
     const lng = Number(hazard.longitude).toFixed(5);
+
+    // Show the reverse-geocoded area name when it adds info the admin's
+    // Location text didn't already convey.
+    if (hazard.resolved_address &&
+        (!hazard.location || !hazard.location.toLowerCase().includes(hazard.resolved_address.toLowerCase().split(',')[0]))) {
+      lines.push(`Area: ${hazard.resolved_address}`);
+    }
+
     lines.push(`GPS: ${lat}, ${lng}`);
     lines.push(`Map: https://maps.google.com/?q=${lat},${lng}`);
   }
@@ -97,6 +106,16 @@ async function createHazard(req, res, next) {
   try {
     const { title, severity, location, description, latitude, longitude } = req.body;
 
+    // Best-effort reverse-geocode so the SMS and detail view include the
+    // resolved barangay/municipality. Never blocks creation if the
+    // geocoder is down or times out — reverseGeocode resolves null.
+    let resolved_address = null;
+    if (latitude != null && longitude != null) {
+      try {
+        resolved_address = await reverseGeocode(latitude, longitude);
+      } catch (_) { /* best-effort only */ }
+    }
+
     const hazard = await Hazard.create({
       title,
       severity,
@@ -104,6 +123,7 @@ async function createHazard(req, res, next) {
       description,
       latitude,
       longitude,
+      resolved_address,
       created_by: req.user.id,
     });
 
