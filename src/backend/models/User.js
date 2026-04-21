@@ -189,6 +189,19 @@ async function findCitizenPhones() {
 }
 
 /**
+ * Returns every non-null phone number in the system (citizens AND admins).
+ * Used for confirmed-hazard emergency SMS broadcasts where we want
+ * everyone — including responders — to get the alert.
+ * @returns {Promise<string[]>}
+ */
+async function findAllPhones() {
+  const rows = await db.query(
+    "SELECT phone FROM users WHERE phone IS NOT NULL AND phone != ''"
+  );
+  return rows.map(r => r.phone);
+}
+
+/**
  * Finds all users with a given role.
  * @param {string} role - 'admin' or 'citizen'
  * @returns {Promise<Array>} Array of user objects
@@ -210,4 +223,4 @@ async function updatePassword(id, password_hash) {
   );
 }
 
-module.exports = { findByEmail, findByPhone, findById, create, updateById, updatePassword, updateAdminRequest, findPendingAdminRequests, findCitizenPhones, findByRole };
+module.exports = { findByEmail, findByPhone, findById, create, updateById, updatePassword, updateAdminRequest, findPendingAdminRequests, findCitizenPhones, findAllPhones, findByRole };

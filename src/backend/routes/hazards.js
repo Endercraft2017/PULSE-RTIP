@@ -28,8 +28,12 @@ const router = Router();
 const createRules = [
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('severity').isIn(['high', 'medium', 'low']).withMessage('Severity must be high, medium, or low'),
-  body('location').optional().trim(),
-  body('description').optional().trim(),
+  body('location').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('description').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('latitude').optional({ nullable: true, checkFalsy: true })
+    .isFloat({ min: -90, max: 90 }).withMessage('Latitude must be between -90 and 90'),
+  body('longitude').optional({ nullable: true, checkFalsy: true })
+    .isFloat({ min: -180, max: 180 }).withMessage('Longitude must be between -180 and 180'),
 ];
 
 /* --------------------------------------------------------------------------

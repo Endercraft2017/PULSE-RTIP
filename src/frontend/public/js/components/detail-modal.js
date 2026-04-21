@@ -122,6 +122,27 @@ const DetailModal = {
                 </div>
             </div>
 
+            ${data.latitude != null && data.longitude != null ? (() => {
+                const lat = Number(data.latitude).toFixed(5);
+                const lng = Number(data.longitude).toFixed(5);
+                return `
+                    <div class="detail-modal__section">
+                        <div class="detail-modal__section-title">GPS Coordinates</div>
+                        <div class="detail-modal__section-text" style="font-family: ui-monospace, monospace;">
+                            ${lat}, ${lng}
+                        </div>
+                        <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" rel="noopener"
+                           class="btn btn--outline btn--sm mt-sm" style="display:inline-flex;align-items:center;gap:6px;">
+                            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            Open in Google Maps
+                        </a>
+                    </div>
+                `;
+            })() : ''}
+
             ${data.affected_barangays ? `
                 <div class="detail-modal__section">
                     <div class="detail-modal__section-title">Affected Areas</div>
@@ -130,12 +151,68 @@ const DetailModal = {
             ` : ''}
 
             <div class="detail-modal__section">
-                <div class="detail-modal__section-title">Safety Advisory</div>
-                <div class="detail-modal__section-text">
-                    Stay informed about active hazards in your area. Follow official safety instructions and be prepared to evacuate if necessary.
-                </div>
+                <div class="detail-modal__section-title">Safety Tips</div>
+                <ul class="detail-modal__tips">
+                    ${this._getTipsFor(data.title).map(t => `<li>${this._esc(t)}</li>`).join('')}
+                </ul>
             </div>
         `);
+    },
+
+    /**
+     * Shared safety-tip lookup used by the hazard detail modal. Mirrors
+     * the backend services/hazard/tips.js list so the SMS body and the
+     * in-app detail view show identical guidance.
+     */
+    _getTipsFor(hazardTitle) {
+        const t = (hazardTitle || '').toLowerCase();
+        if (t.includes('flood')) return [
+            'Move to higher ground immediately if water rises.',
+            'Avoid walking or driving through flood waters.',
+            'Disconnect electrical appliances if safe to do so.',
+            'Listen to MDRRMO Morong announcements.',
+        ];
+        if (t.includes('fire')) return [
+            'Evacuate the area immediately if instructed.',
+            'Stay low to avoid smoke inhalation.',
+            'Do not use elevators during a fire emergency.',
+            'Call BFP Morong or 911.',
+        ];
+        if (t.includes('landslide')) return [
+            'Move away from steep slopes immediately.',
+            'Watch for cracks in the ground or tilting trees.',
+            'Listen for rumbling sounds.',
+            'Have an evacuation plan ready.',
+        ];
+        if (t.includes('typhoon') || t.includes('bagyo') || t.includes('storm')) return [
+            'Stay indoors and away from windows.',
+            'Prepare emergency supplies (water, food, flashlight).',
+            'Charge mobile devices and have backup power ready.',
+            'Follow PAGASA advisories and MDRRMO instructions.',
+        ];
+        if (t.includes('earthquake') || t.includes('lindol')) return [
+            'Drop, Cover, and Hold On during shaking.',
+            'Stay away from windows and heavy furniture.',
+            'After shaking, check for injuries and damage.',
+            'Be prepared for aftershocks.',
+        ];
+        if (t.includes('tsunami')) return [
+            'Move to high ground or inland immediately.',
+            'Do not wait for an official warning if you feel strong shaking near the coast.',
+            'Stay away from the coast until authorities declare it safe.',
+        ];
+        if (t.includes('volcan') || t.includes('ash')) return [
+            'Evacuate if in the danger zone.',
+            'Wear a dust mask or cover mouth with damp cloth.',
+            'Stay indoors with windows closed if ashfall is likely.',
+            'Protect eyes with goggles if outside.',
+        ];
+        return [
+            'Follow official MDRRMO instructions and advisories.',
+            'Keep emergency contacts handy.',
+            'Stay informed through trusted local sources.',
+            'Have an emergency kit ready.',
+        ];
     },
 
     /* --------------------------------------------------------

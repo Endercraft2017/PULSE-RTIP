@@ -38,17 +38,28 @@ async function findAll() {
  * @param {object} data - Hazard data
  * @param {string} data.title - Alert title
  * @param {string} data.severity - Severity level (high, medium, low)
- * @param {string} data.location - Affected location
+ * @param {string} data.location - Affected location (free text)
  * @param {string} data.description - Alert description
+ * @param {number} [data.latitude] - Optional GPS latitude (-90 to 90)
+ * @param {number} [data.longitude] - Optional GPS longitude (-180 to 180)
  * @param {number} data.created_by - Admin user ID
  * @returns {Promise<object>} Created hazard alert
  */
 async function create(data) {
-  const { title, severity, location, description, created_by } = data;
+  const { title, severity, location, description, latitude, longitude, created_by } = data;
   const result = await db.query(
-    `INSERT INTO hazard_alerts (title, severity, location, description, created_by)
-     VALUES (?, ?, ?, ?, ?)`,
-    [title, severity, location || null, description || null, created_by]
+    `INSERT INTO hazard_alerts
+       (title, severity, location, description, latitude, longitude, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      title,
+      severity,
+      location || null,
+      description || null,
+      latitude != null ? Number(latitude) : null,
+      longitude != null ? Number(longitude) : null,
+      created_by,
+    ]
   );
 
   const insertId = result.insertId || result.lastInsertRowid;
