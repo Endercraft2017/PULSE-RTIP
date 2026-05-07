@@ -78,7 +78,12 @@ app.use(morgan('dev'));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  // 1000 / 15 min = ~67/min average. The SPA fires 6-10 calls per page
+  // load (users/me + hazards + reports + posts + notifications +
+  // news + dashboard/stats), so the previous 100/15min cap was tripping
+  // after ~10-15 page loads from a single IP. 1000 leaves comfortable
+  // headroom for normal use while still catching runaway loops.
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
@@ -94,6 +99,14 @@ app.use('/api', limiter);
 
 app.use('/api', routes);
 
+// Anything still on /api/* after the route table fell through is unknown.
+// Terminate with a JSON 404 immediately — without this the SPA fallback
+// below caught these requests, never sent a response, and the connection
+// dangled until nginx timed out at 30s.
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, message: 'Not found' });
+});
+
 /* --------------------------------------------------------------------------
  * 7. Static File Serving
  * -------------------------------------------------------------------------- */
@@ -106,9 +119,7 @@ app.use('/uploads', express.static(config.upload.dir));
 app.use(express.static(config.frontendPath));
 
 app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(config.frontendPath, 'index.html'));
-  }
+  res.sendFile(path.join(config.frontendPath, 'index.html'));
 });
 
 /* --------------------------------------------------------------------------
