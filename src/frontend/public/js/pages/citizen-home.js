@@ -32,7 +32,7 @@ const CitizenHomePage = {
 
                 ${this.renderAppDownload ? this.renderAppDownload() : ''}
 
-                <!-- Offline SOS Button (hidden when online) -->
+                <!-- Offline SOS + Report Buttons (hidden when online) -->
                 <div class="sos-btn-container" id="sos-btn-container" style="display:none;">
                     <button class="btn btn--danger btn--block sos-btn" onclick="SosOffline.show()">
                         <svg viewBox="0 0 24 24">
@@ -42,6 +42,16 @@ const CitizenHomePage = {
                         </svg>
                         <span>SOS Emergency Report</span>
                         <small>Send via SMS (works offline)</small>
+                    </button>
+                    <button class="btn btn--primary btn--block sos-btn" onclick="ReportOffline.show()" style="margin-top: var(--spacing-sm, 8px);">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="12" y1="18" x2="12" y2="12"></line>
+                            <line x1="9" y1="15" x2="15" y2="15"></line>
+                        </svg>
+                        <span>Report Incident (offline)</span>
+                        <small>Non-emergency report via SMS</small>
                     </button>
                 </div>
 
@@ -188,21 +198,24 @@ const CitizenHomePage = {
                     <div class="loading-state">Loading alerts...</div>
                 </div>
 
-                <div class="stats-grid mt-lg">
-                    <div class="stat-card">
-                        <div class="stat-card__icon stat-card__icon--pending">
-                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        </div>
-                        <div class="stat-card__number" id="stat-pending">--</div>
-                        <div class="stat-card__label">Pending</div>
+                <!-- Community newsfeed (U-4): 3 latest posts. Clicking a card
+                     navigates to News & Updates; the full detail modal lives
+                     there. -->
+                <div class="section-header mt-lg newsfeed-section">
+                    <div class="section-header__title">
+                        <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        Community
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-card__icon stat-card__icon--resolved">
-                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        </div>
-                        <div class="stat-card__number" id="stat-resolved">--</div>
-                        <div class="stat-card__label">Resolved</div>
-                    </div>
+                    <a href="#/news-updates" class="text-sm" style="color:var(--color-primary);font-weight:600;"
+                       onclick="event.preventDefault(); Router.navigate('news-updates')">See all</a>
+                </div>
+                <div id="home-newsfeed">
+                    <div class="loading-state">Loading posts...</div>
                 </div>
             </div>
         `;
@@ -268,31 +281,123 @@ const CitizenHomePage = {
         window.addEventListener('online', () => this._updateOfflineUI());
         window.addEventListener('offline', () => this._updateOfflineUI());
 
+        // Hazards get cache-fallback so the alert list still appears offline
+        const hazardsResult = await HazardCache.fetch();
+        this.renderHazards(hazardsResult.data, hazardsResult.fromCache, hazardsResult.cachedAt);
+
+        // Cache the gateway phone number while we have internet
         try {
-            const [hazardsRes, reportsRes] = await Promise.all([
-                Store.apiFetch('/api/hazards'),
-                Store.apiFetch('/api/reports'),
-            ]);
-
-            if (hazardsRes.success) {
-                this.renderHazards(hazardsRes.data);
-            }
-
-            if (reportsRes.success) {
-                const reports = reportsRes.data;
-                const pending = reports.filter(r => r.status === 'pending' || r.status === 'submitted').length;
-                const resolved = reports.filter(r => r.status === 'resolved').length;
-                const pendingEl = document.getElementById('stat-pending');
-                const resolvedEl = document.getElementById('stat-resolved');
-                if (pendingEl) pendingEl.textContent = pending;
-                if (resolvedEl) resolvedEl.textContent = resolved;
-            }
-
-            // Cache the gateway phone number while we have internet
             this._cacheGatewayPhone();
         } catch (err) {
-            console.error('Failed to load home data:', err);
+            console.error('Failed to cache gateway phone:', err);
         }
+
+        // Community newsfeed (U-4) — load independently so a posts outage
+        // doesn't block the rest of the dashboard.
+        this._loadNewsfeed();
+    },
+
+    async _loadNewsfeed() {
+        const container = document.getElementById('home-newsfeed');
+        if (!container) return;
+        try {
+            const res = await Store.apiFetch('/api/posts?limit=3');
+            if (!res.success || !Array.isArray(res.data) || res.data.length === 0) {
+                container.innerHTML = '<div class="empty-state">No community posts yet.</div>';
+                return;
+            }
+            container.innerHTML = res.data.slice(0, 3).map(p => this.renderNewsfeedCard(p)).join('');
+        } catch (err) {
+            container.innerHTML = '<div class="empty-state">Unable to load posts.</div>';
+        }
+    },
+
+    renderNewsfeedCard(post) {
+        const authorName = post.author_name || 'Citizen';
+        const initial = (post.author_avatar || authorName.charAt(0) || 'U').toString().charAt(0);
+        const when = post.created_at ? this._formatManilaDateTime(post.created_at) : '';
+        const currentUser = (typeof Store !== 'undefined' && Store.get) ? Store.get('user') : null;
+        const isOwner = !!(currentUser && post.user_id && currentUser.id === post.user_id);
+
+        const imgUrl = Store.mediaUrl(post.image_path);
+        const videoUrl = Store.mediaUrl(post.video_path);
+
+        const title = this._esc(post.title || '');
+        const content = this._esc(post.content || '');
+        const loc = post.location ? this._esc(post.location) : '';
+
+        // Provenance badges — promoted-from-report or reposted-from-X
+        let provenance = '';
+        if (post.promoted_from_report_id) {
+            provenance = `<div class="newsfeed-card__provenance">📋 Promoted from incident report #${post.promoted_from_report_id}</div>`;
+        } else if (post.reposted_from_post_id && post.reposted_from_author_name) {
+            provenance = `<div class="newsfeed-card__provenance">🔁 Reposted from <strong>${this._esc(post.reposted_from_author_name)}</strong></div>`;
+        }
+
+        // Card opens the full post detail in the News & Updates modal.
+        return `
+            <div class="newsfeed-card newsfeed-card--full newsfeed-card--clickable"
+                 onclick="CitizenHomePage.openPostDetail(${post.id})"
+                 role="button" tabindex="0">
+                <div class="newsfeed-card__header">
+                    <div class="newsfeed-card__avatar">${this._esc(initial)}</div>
+                    <div class="newsfeed-card__meta">
+                        <div class="newsfeed-card__author">${this._esc(authorName)}</div>
+                        <div class="newsfeed-card__time">${this._esc(when)}${loc ? ' · 📍 ' + loc : ''}</div>
+                    </div>
+                </div>
+                ${provenance}
+                ${title ? `<div class="newsfeed-card__title">${title}</div>` : ''}
+                ${content ? `<div class="newsfeed-card__content">${content}</div>` : ''}
+                ${videoUrl ? `<div class="newsfeed-card__media"><video controls preload="metadata" src="${videoUrl}" onclick="event.stopPropagation()"></video></div>`
+                  : imgUrl ? `<div class="newsfeed-card__media"><img src="${imgUrl}" alt="" loading="lazy" onerror="this.style.opacity='0.4';this.alt='Image unavailable';this.onerror=null;"></div>` : ''}
+                ${isOwner ? `
+                    <div class="newsfeed-card__actions" onclick="event.stopPropagation()">
+                        <button type="button" class="newsfeed-card__action-btn"
+                                onclick="event.stopPropagation(); CitizenHomePage.openPostEdit(${post.id})"
+                                title="Edit post">
+                            <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            Edit
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    },
+
+    openPostDetail(postId) {
+        // Navigate to /#/news-updates and ask it to open the modal once loaded.
+        sessionStorage.setItem('news_open_post', String(postId));
+        Router.navigate('news-updates');
+    },
+
+    openPostEdit(postId) {
+        // News-updates page owns the edit modal — route through it so the
+        // post is loaded into NewsUpdatesPage.posts before the modal opens.
+        sessionStorage.setItem('news_open_edit', String(postId));
+        Router.navigate('news-updates');
+    },
+
+    _formatManilaDateTime(dateStr) {
+        try {
+            const d = new Date(dateStr);
+            return d.toLocaleString('en-US', {
+                timeZone: 'Asia/Manila',
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+            });
+        } catch (_) {
+            return '';
+        }
+    },
+
+    _esc(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     },
 
     _updateOfflineUI() {
@@ -311,16 +416,31 @@ const CitizenHomePage = {
         }
     },
 
-    renderHazards(hazards) {
+    renderHazards(hazards, fromCache = false, cachedAt = null) {
         const container = document.getElementById('hazard-alerts-list');
         if (!container) return;
 
+        const banner = fromCache
+            ? `<div class="offline-note" role="status">
+                 <svg viewBox="0 0 24 24" aria-hidden="true">
+                     <path d="M1 1l22 22"></path>
+                     <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+                     <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+                     <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+                     <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+                     <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                     <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                 </svg>
+                 <span>Offline — showing saved hazards from ${HazardCache.formatAge(cachedAt)}.</span>
+               </div>`
+            : '';
+
         if (hazards.length === 0) {
-            container.innerHTML = '<div class="empty-state">No active hazard alerts.</div>';
+            container.innerHTML = banner + '<div class="empty-state">No active hazard alerts.</div>';
             return;
         }
 
-        container.innerHTML = hazards.map(h => this.renderAlertCard(h)).join('');
+        container.innerHTML = banner + hazards.map(h => this.renderAlertCard(h)).join('');
     },
 
     renderAlertCard(hazard) {
@@ -329,6 +449,15 @@ const CitizenHomePage = {
             medium: '<span class="badge badge--warning">Medium</span>',
             low: '<span class="badge badge--info">Low</span>',
         };
+        const isAdmin = (typeof Store !== 'undefined') && Store.get('role') === 'admin';
+        const editBtn = isAdmin && (typeof AdminHomePage !== 'undefined')
+            ? `<button type="button" class="alert-card__edit-btn"
+                    onclick="AdminHomePage.openEditHazardModal(${hazard.id})"
+                    aria-label="Edit hazard">
+                  <svg viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                  <span>Edit</span>
+              </button>`
+            : '';
 
         return `
             <div class="alert-card">
@@ -336,7 +465,10 @@ const CitizenHomePage = {
                 <div class="alert-card__content">
                     <div class="alert-card__header">
                         <span class="alert-card__title">${hazard.title}</span>
-                        ${severityBadge[hazard.severity] || ''}
+                        <div class="alert-card__header-right">
+                            ${severityBadge[hazard.severity] || ''}
+                            ${editBtn}
+                        </div>
                     </div>
                     <div class="alert-card__location">${hazard.location || ''}</div>
                     <div class="alert-card__description">${hazard.description || ''}</div>

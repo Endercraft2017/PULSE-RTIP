@@ -19,6 +19,8 @@ const ReportIncidentPage = {
     images: [],
     video: null,
     coords: null,
+    detectedAddress: null,
+    _geocoding: false,
 
     reset() {
         this.currentStep = 1;
@@ -26,6 +28,8 @@ const ReportIncidentPage = {
         this.images = [];
         this.video = null;
         this.coords = null;
+        this.detectedAddress = null;
+        this._geocoding = false;
     },
 
     /* --------------------------------------------------------
@@ -120,10 +124,15 @@ const ReportIncidentPage = {
                             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4m0 12v4M2 12h4m12 0h4"></path></svg>
                         </button>
                     </div>
+                    <button type="button" class="btn btn--outline" id="ri-use-location-btn" onclick="ReportIncidentPage.captureGPS()" style="margin-top:8px;width:100%;font-size:0.85rem;">
+                        <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                        Use my current location
+                    </button>
                     <div class="location-coords" id="gps-coords" style="display:none;">
                         <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         <span id="gps-text"></span>
                     </div>
+                    <div id="gps-detected" style="display:none;font-size:0.75rem;color:var(--color-gray-500);margin-top:4px;"></div>
                 </div>
                 <div class="form-divider"></div>
                 <div class="form-group">
@@ -278,17 +287,37 @@ const ReportIncidentPage = {
         const files = Array.from(input.files).slice(0, remaining);
         files.forEach(file => {
             if (file.size > 5 * 1024 * 1024) { alert(file.name + ' exceeds 5MB limit.'); return; }
+            // U-2: capture idx synchronously when we push; otherwise async
+            // FileReader callbacks all see the post-push length and stamp the
+            // same id on every preview, leaving later thumbs as gray boxes.
+            const idx = this.images.length;
             this.images.push(file);
             const reader = new FileReader();
             reader.onload = (e) => {
                 const container = document.getElementById('ri-image-previews');
-                const idx = this.images.length - 1;
+                if (!container) return;
                 const div = document.createElement('div');
                 div.className = 'upload-preview';
                 div.id = 'img-preview-' + idx;
-                div.innerHTML = '<img src="' + e.target.result + '"><button class="upload-preview__remove" onclick="ReportIncidentPage.removeImage(' + idx + ')">x</button><div class="upload-preview__label">' + (file.size / 1024 / 1024).toFixed(1) + ' MB</div>';
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.alt = file.name || 'Selected image';
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'upload-preview__remove';
+                removeBtn.type = 'button';
+                removeBtn.textContent = 'x';
+                removeBtn.onclick = () => ReportIncidentPage.removeImage(idx);
+                const label = document.createElement('div');
+                label.className = 'upload-preview__label';
+                label.textContent = (file.size / 1024 / 1024).toFixed(1) + ' MB';
+                div.appendChild(img);
+                div.appendChild(removeBtn);
+                div.appendChild(label);
                 container.appendChild(div);
                 this.updateImageCount();
+            };
+            reader.onerror = () => {
+                alert('Could not read ' + (file.name || 'image') + '. Please try again.');
             };
             reader.readAsDataURL(file);
         });
@@ -340,20 +369,102 @@ const ReportIncidentPage = {
 
     /* --------------------------------------------------------
      * 7. GPS Location
+     * --------------------------------------------------------
+     * U-6 fix: previously this hardcoded "Morong, Rizal" into the
+     * location field regardless of the user's actual position. We
+     * now keep the precise lat/lng (5-decimal precision so audience
+     * analytics still resolve to a barangay) and call the backend's
+     * reverse-geocode endpoint to produce a human-readable address.
      * -------------------------------------------------------- */
     captureGPS() {
-        if (!navigator.geolocation) { alert('GPS not supported on this device.'); return; }
+        const toast = (msg, type = 'error') => {
+            if (window.Toast) Toast.show(msg, { type });
+            else alert(msg);
+        };
+
+        if (!navigator.geolocation) {
+            toast('GPS not supported on this device. Please enter the location manually.');
+            return;
+        }
+
+        // 1-request guard: Nominatim is rate-limited (1 req/sec) and getting
+        // a fix can take a few seconds. Don't let users spam the button.
+        if (this._geocoding) return;
+        this._geocoding = true;
+
+        const locInput = document.getElementById('report-location');
+        const coordsBox = document.getElementById('gps-coords');
+        const coordsText = document.getElementById('gps-text');
+        const detectedBox = document.getElementById('gps-detected');
+        const useBtn = document.getElementById('ri-use-location-btn');
+
+        const useBtnOriginal = useBtn ? useBtn.innerHTML : null;
+        if (useBtn) {
+            useBtn.disabled = true;
+            useBtn.innerHTML = 'Locating...';
+        }
+
+        // Visual feedback while we wait — Nominatim can take ~1-3s
+        if (coordsBox) coordsBox.style.display = 'flex';
+        if (coordsText) coordsText.textContent = 'Detecting location...';
+        if (detectedBox) detectedBox.style.display = 'none';
+
+        const restoreBtn = () => {
+            this._geocoding = false;
+            if (useBtn) {
+                useBtn.disabled = false;
+                if (useBtnOriginal) useBtn.innerHTML = useBtnOriginal;
+            }
+        };
 
         navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                this.coords = { lat: pos.coords.latitude.toFixed(4), lng: pos.coords.longitude.toFixed(4) };
-                document.getElementById('gps-coords').style.display = 'flex';
-                document.getElementById('gps-text').textContent = this.coords.lat + ', ' + this.coords.lng;
-                if (!document.getElementById('report-location').value) {
-                    document.getElementById('report-location').value = 'Morong, Rizal';
+            async (pos) => {
+                // Keep 5-decimal precision (~1m) for backend audience scoping.
+                // The earlier 4-decimal truncation was lossy enough to push
+                // points across barangay boundaries.
+                const lat = pos.coords.latitude.toFixed(5);
+                const lng = pos.coords.longitude.toFixed(5);
+                this.coords = { lat, lng };
+                if (coordsText) coordsText.textContent = lat + ', ' + lng;
+
+                // Reverse-geocode via backend so the Nominatim rate limit
+                // is shared/cached and the User-Agent policy is honored.
+                try {
+                    const res = await Store.apiFetch(
+                        '/api/geocode/reverse?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng)
+                    );
+                    const address = res && res.success && res.data ? res.data.address : null;
+                    if (address) {
+                        this.detectedAddress = address;
+                        if (locInput) locInput.value = address;
+                        if (detectedBox) {
+                            detectedBox.textContent = '📍 Detected: ' + address;
+                            detectedBox.style.display = 'block';
+                        }
+                    } else if (detectedBox) {
+                        detectedBox.textContent = '📍 Coordinates captured (address unavailable)';
+                        detectedBox.style.display = 'block';
+                    }
+                } catch (_) {
+                    // Geocode failed — leave the location field for manual entry.
+                    // The lat/lng are still attached to the report, so audience
+                    // analytics keep working even without a resolved address.
+                    if (detectedBox) {
+                        detectedBox.textContent = '📍 Coordinates captured (address lookup failed)';
+                        detectedBox.style.display = 'block';
+                    }
                 }
+                restoreBtn();
             },
-            () => { alert('Unable to get GPS location. Please enter manually.'); }
+            (err) => {
+                if (coordsBox) coordsBox.style.display = 'none';
+                const msg = err && err.code === err.PERMISSION_DENIED
+                    ? 'Location permission denied. Please enter the location manually.'
+                    : 'Unable to get GPS location. Please enter the location manually.';
+                toast(msg);
+                restoreBtn();
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
         );
     },
 
@@ -411,6 +522,7 @@ const ReportIncidentPage = {
                 formData.append('longitude', this.coords.lng);
             }
             this.images.filter(Boolean).forEach(img => formData.append('images', img));
+            if (this.video) formData.append('video', this.video);
 
             const res = await Store.apiFetch('/api/reports', {
                 method: 'POST',

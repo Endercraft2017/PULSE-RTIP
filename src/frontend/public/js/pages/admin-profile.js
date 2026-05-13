@@ -8,6 +8,27 @@
    ============================================================ */
 
 const AdminProfilePage = {
+    showAboutUs() {
+        if (typeof TeamModal !== 'undefined') {
+            TeamModal.show();
+        } else {
+            alert('PULSE 911 - MDRRMO Morong, Rizal');
+        }
+    },
+
+    // U-7 recovery path — see citizen-profile.js for context.
+    clearAppData() {
+        const ok = confirm('This will sign you out and clear cached app data. You will need to log in again. Continue?');
+        if (!ok) return;
+        if (typeof window.PulseAppReset === 'function') {
+            window.PulseAppReset();
+        } else {
+            try { localStorage.clear(); } catch (_) {}
+            try { sessionStorage.clear(); } catch (_) {}
+            window.location.reload();
+        }
+    },
+
     render() {
         const user = Store.get('user') || {};
 
@@ -105,6 +126,25 @@ const AdminProfilePage = {
                             <polyline points="9 18 15 12 9 6"></polyline>
                         </svg>
                     </div>
+                    <div class="profile-menu-item" onclick="Router.navigate('appearance')">
+                        <div class="profile-menu-item__left">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                            </svg>
+                            <span class="profile-menu-item__text">Appearance</span>
+                        </div>
+                        <svg class="profile-menu-item__arrow" viewBox="0 0 24 24">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
                     <div class="profile-menu-item" onclick="Router.navigate('preferences')">
                         <div class="profile-menu-item__left">
                             <svg viewBox="0 0 24 24">
@@ -123,6 +163,33 @@ const AdminProfilePage = {
                                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                             </svg>
                             <span class="profile-menu-item__text">Activities</span>
+                        </div>
+                        <svg class="profile-menu-item__arrow" viewBox="0 0 24 24">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                    <div class="profile-menu-item" onclick="AdminProfilePage.showAboutUs()">
+                        <div class="profile-menu-item__left">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                            <span class="profile-menu-item__text">About Us</span>
+                        </div>
+                        <svg class="profile-menu-item__arrow" viewBox="0 0 24 24">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                    <div class="profile-menu-item" onclick="AdminProfilePage.clearAppData()">
+                        <div class="profile-menu-item__left">
+                            <svg viewBox="0 0 24 24">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+                                <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+                            </svg>
+                            <span class="profile-menu-item__text">Clear App Data</span>
                         </div>
                         <svg class="profile-menu-item__arrow" viewBox="0 0 24 24">
                             <polyline points="9 18 15 12 9 6"></polyline>

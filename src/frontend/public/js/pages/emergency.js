@@ -130,6 +130,9 @@ const EmergencyPage = {
      * 2. Render
      * -------------------------------------------------------- */
     render() {
+        // Wire up slide-to-call once the HTML is attached. setTimeout
+        // defers until after Router inserts the returned string.
+        setTimeout(() => this.initSlideToCall(), 0);
         return `
             <div class="page-padding emergency-page">
                 <div class="search-bar">
@@ -158,17 +161,94 @@ const EmergencyPage = {
                             <line x1="12" y1="9" x2="12" y2="13"></line>
                             <line x1="12" y1="17" x2="12.01" y2="17"></line>
                         </svg>
-                        For Emergencies, Call MDRRMO 0917-135-0541
+                        For Emergencies, Call 911
                     </div>
-                    <a class="emergency-banner__action" href="tel:09171350541">
-                        <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>
-                        Slide to Call
-                    </a>
+                    <div class="slide-to-call" id="slide-to-call" data-tel="911">
+                        <div class="slide-to-call__track">
+                            <div class="slide-to-call__label">Slide to Call</div>
+                            <div class="slide-to-call__handle" id="slide-to-call-handle">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <a class="slide-to-call__fallback" href="tel:911">Call 911</a>
+                    </div>
                 </div>
             </div>
         `;
+    },
+
+    /* --------------------------------------------------------
+     * Slide-to-Call interaction — 80% drag threshold dials MDRRMO.
+     * Falls back gracefully on desktops (mouse events supported).
+     * -------------------------------------------------------- */
+    initSlideToCall() {
+        const root = document.getElementById('slide-to-call');
+        const handle = document.getElementById('slide-to-call-handle');
+        if (!root || !handle) return;
+
+        const tel = root.getAttribute('data-tel') || '09171350541';
+        let startX = 0;
+        let dragging = false;
+        let currentX = 0;
+
+        const maxTravel = () => {
+            const trackW = root.clientWidth;
+            const handleW = handle.offsetWidth;
+            // 4px padding either side matches the CSS top/left offset
+            return Math.max(0, trackW - handleW - 8);
+        };
+
+        const onStart = (e) => {
+            dragging = true;
+            startX = (e.touches ? e.touches[0].clientX : e.clientX);
+            handle.style.transition = 'none';
+        };
+
+        const onMove = (e) => {
+            if (!dragging) return;
+            const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
+            const delta = clientX - startX;
+            currentX = Math.max(0, Math.min(maxTravel(), delta));
+            handle.style.transform = `translateX(${currentX}px)`;
+            if (e.cancelable) e.preventDefault();
+        };
+
+        const onEnd = () => {
+            if (!dragging) return;
+            dragging = false;
+            handle.style.transition = 'transform 0.25s ease';
+            const threshold = maxTravel() * 0.8;
+            if (currentX >= threshold) {
+                // Snap to end then dial
+                handle.style.transform = `translateX(${maxTravel()}px)`;
+                window.location.href = 'tel:' + tel;
+                // Reset shortly after in case the user cancels the dialer
+                setTimeout(() => {
+                    handle.style.transform = 'translateX(0)';
+                    currentX = 0;
+                }, 1500);
+            } else {
+                handle.style.transform = 'translateX(0)';
+                currentX = 0;
+            }
+        };
+
+        handle.addEventListener('touchstart', onStart, { passive: true });
+        handle.addEventListener('touchmove', onMove, { passive: false });
+        handle.addEventListener('touchend', onEnd);
+        handle.addEventListener('touchcancel', onEnd);
+
+        handle.addEventListener('mousedown', (e) => {
+            onStart(e);
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', function up() {
+                onEnd();
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', up);
+            });
+        });
     },
 
     /* --------------------------------------------------------
@@ -185,6 +265,7 @@ const EmergencyPage = {
                             <span class="hotline-item__label">${h.label}:</span>
                             <a href="tel:${this.cleanPhone(h.number)}" class="hotline-item__number">
                                 ${h.number}
+                                ${this.carrierBadge(h.number)}
                                 <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-left:4px;vertical-align:middle;">
                                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
                                 </svg>
@@ -262,6 +343,7 @@ const EmergencyPage = {
                                 <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                                 ${n.label ? `<span class="contact-number__tag">${n.label}:</span>` : ''}
                                 <span class="contact-number__value">${n.number}</span>
+                                ${this.carrierBadge(n.number)}
                             </a>
                         `).join('')}
                     </div>
@@ -295,5 +377,18 @@ const EmergencyPage = {
     cleanPhone(num) {
         if (!num) return '';
         return String(num).replace(/[^\d+]/g, '');
+    },
+
+    /**
+     * Render a carrier badge pill (Globe / Smart / DITO / Landline)
+     * next to a phone number. Returns empty string if CarrierLookup
+     * is unavailable or the number can't be classified.
+     */
+    carrierBadge(num) {
+        if (typeof CarrierLookup === 'undefined') return '';
+        const carrier = CarrierLookup.lookup(num);
+        if (!carrier) return '';
+        const key = carrier.toLowerCase();
+        return `<span class="carrier-badge carrier-badge--${key}">${carrier}</span>`;
     },
 };

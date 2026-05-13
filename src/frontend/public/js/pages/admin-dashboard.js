@@ -30,6 +30,8 @@ const AdminDashboardPage = {
     activeFilter: 'all',
     incidents: [],
     hazards: [],
+    binReports: [],
+    binHazards: [],
 
     /* --------------------------------------------------------
      * 2. Render
@@ -40,7 +42,8 @@ const AdminDashboardPage = {
         return `
             <div class="page-padding">
                 <div class="dashboard-stats">
-                    <div class="dashboard-stat">
+                    <div class="dashboard-stat dashboard-stat--clickable" onclick="AdminDashboardPage.setFilter('pending')" role="button" tabindex="0">
+                        <span class="stat-card__notif-badge" id="dash-pending-badge" hidden>0</span>
                         <div class="dashboard-stat__label">Pending</div>
                         <div class="dashboard-stat__value" id="dash-pending" style="color: var(--color-warning);">--</div>
                     </div>
@@ -89,6 +92,11 @@ const AdminDashboardPage = {
                         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                         SMS
                     </button>
+                    <button type="button" class="dash-main-tab ${this.activeMainTab === 'bin' ? 'active' : ''}"
+                            onclick="AdminDashboardPage.setMainTab('bin')">
+                        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>
+                        Bin
+                    </button>
                 </div>
 
                 <!-- Content area -->
@@ -96,9 +104,20 @@ const AdminDashboardPage = {
                     <div class="loading-state">Loading...</div>
                 </div>
             </div>
-
-            <div id="rejection-modal"></div>
         `;
+    },
+
+    _ensureRejectionContainer() {
+        // Body-mount so the modal is never clipped by a parent transform/
+        // overflow on app-content (same fix as the post-detail modal).
+        let container = document.getElementById('rejection-modal');
+        if (!container || container.parentElement !== document.body) {
+            if (container) container.remove();
+            container = document.createElement('div');
+            container.id = 'rejection-modal';
+            document.body.appendChild(container);
+        }
+        return container;
     },
 
     /* --------------------------------------------------------
@@ -115,38 +134,62 @@ const AdminDashboardPage = {
             if (statsRes.success) {
                 const s = statsRes.data;
                 const el = (id) => document.getElementById(id);
-                if (el('dash-pending')) el('dash-pending').textContent = s.pendingCount;
+                const pendingCount = Number(s.pendingCount) || 0;
+                if (el('dash-pending')) el('dash-pending').textContent = pendingCount;
                 if (el('dash-investigating')) el('dash-investigating').textContent = s.investigatingCount;
                 if (el('dash-resolved')) el('dash-resolved').textContent = s.resolvedCount;
                 if (el('dash-hazards')) el('dash-hazards').textContent = s.hazardsCount;
+                const badge = el('dash-pending-badge');
+                if (badge) {
+                    if (pendingCount > 0) {
+                        badge.textContent = pendingCount > 99 ? '99+' : pendingCount;
+                        badge.hidden = false;
+                    } else {
+                        badge.hidden = true;
+                    }
+                }
             }
 
             if (reportsRes.success) this.incidents = reportsRes.data;
             if (hazardsRes.success) this.hazards = hazardsRes.data;
 
-            // If we were navigated here with #/dashboard?focus=<id>, switch to
-            // the matching tab + filter so the card is rendered, then scroll & highlight.
-            const focusId = this._readFocusParam();
-            if (focusId) {
+            // Honor #/dashboard?filter=<name> and ?focus=<id>
+            const params = this._readQueryParams();
+            const focusId = parseInt(params.get('focus'), 10);
+            const filter = params.get('filter');
+            if (focusId || filter) {
                 this.activeMainTab = 'incidents';
-                this.activeFilter = 'all';
+                if (filter) {
+                    this.activeFilter = filter;
+                } else if (focusId) {
+                    this.activeFilter = 'all';
+                }
             }
 
             this.renderContent();
 
-            if (focusId) setTimeout(() => this._focusCard(focusId), 60);
+            if (Number.isFinite(focusId)) setTimeout(() => this._focusCard(focusId), 60);
+            if (filter) this._clearQueryParams();
         } catch (err) {
             console.error('Failed to load dashboard data:', err);
         }
     },
 
     _readFocusParam() {
+        const v = parseInt(this._readQueryParams().get('focus'), 10);
+        return Number.isFinite(v) ? v : null;
+    },
+
+    _readQueryParams() {
         const hash = window.location.hash || '';
         const qIdx = hash.indexOf('?');
-        if (qIdx === -1) return null;
-        const params = new URLSearchParams(hash.slice(qIdx + 1));
-        const v = parseInt(params.get('focus'), 10);
-        return Number.isFinite(v) ? v : null;
+        return new URLSearchParams(qIdx === -1 ? '' : hash.slice(qIdx + 1));
+    },
+
+    _clearQueryParams() {
+        const hash = window.location.hash || '';
+        const cleaned = hash.split('?')[0];
+        if (cleaned !== hash) history.replaceState(null, '', cleaned);
     },
 
     _focusCard(id) {
@@ -166,10 +209,14 @@ const AdminDashboardPage = {
     /* --------------------------------------------------------
      * 4. Main Tab Rendering
      * -------------------------------------------------------- */
-    setMainTab(tab) {
+    setMainTab(tab, ev) {
         this.activeMainTab = tab;
         document.querySelectorAll('.dash-main-tab').forEach(t => t.classList.remove('active'));
-        event.currentTarget.classList.add('active');
+        // Prefer the explicitly-passed event; fall back to global; final
+        // fallback is the matching button in the DOM.
+        const e = ev || (typeof event !== 'undefined' ? event : null);
+        const btn = (e && e.currentTarget) || document.querySelector(`.dash-main-tab[data-tab="${tab}"]`);
+        if (btn) btn.classList.add('active');
         this.renderContent();
     },
 
@@ -191,6 +238,10 @@ const AdminDashboardPage = {
                 container.innerHTML = '<div class="loading-state">Loading SMS reports...</div>';
                 this.loadSmsReports();
                 break;
+            case 'bin':
+                container.innerHTML = '<div class="loading-state">Loading bin...</div>';
+                this.loadBin();
+                break;
         }
     },
 
@@ -198,6 +249,9 @@ const AdminDashboardPage = {
      * 5. Incidents View (with sub-filter tabs)
      * -------------------------------------------------------- */
     renderIncidentsView(searchTerm) {
+        const submittedLikeAll = ['submitted', 'pending'];
+        const pendingCount = this.incidents.filter(i => submittedLikeAll.includes(i.status)).length;
+        const pendingConfCount = this.incidents.filter(i => i.status === 'pending_confirmation').length;
         const filterRow = `
             <div class="section-header">
                 <div class="section-header__title">Incidents</div>
@@ -206,11 +260,13 @@ const AdminDashboardPage = {
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'all' ? 'active' : ''}"
                         onclick="AdminDashboardPage.setFilter('all')">All</button>
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'pending' ? 'active' : ''}"
-                        onclick="AdminDashboardPage.setFilter('pending')">Pending</button>
+                        onclick="AdminDashboardPage.setFilter('pending')">Pending${pendingCount > 0 ? ` <span class="dashboard-subtabs__count">${pendingCount}</span>` : ''}</button>
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'investigating' ? 'active' : ''}"
                         onclick="AdminDashboardPage.setFilter('investigating')">Investigating</button>
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'in_progress' ? 'active' : ''}"
                         onclick="AdminDashboardPage.setFilter('in_progress')">In Progress</button>
+                <button class="dashboard-subtabs__tab ${this.activeFilter === 'pending_confirmation' ? 'active' : ''}"
+                        onclick="AdminDashboardPage.setFilter('pending_confirmation')">Pending Confirmation</button>
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'resolved' ? 'active' : ''}"
                         onclick="AdminDashboardPage.setFilter('resolved')">Resolved</button>
                 <button class="dashboard-subtabs__tab ${this.activeFilter === 'rejected' ? 'active' : ''}"
@@ -221,14 +277,20 @@ const AdminDashboardPage = {
         `;
 
         const submittedLike = ['submitted', 'pending'];
-        const inProgressLike = ['in_progress', 'pending_confirmation'];
+        // The "Investigating" tab mirrors the dashboard's Investigating stat
+        // tile, which sums the whole active-work band (investigating +
+        // in_progress + pending_confirmation) — see Report.getStats. Without
+        // this, admins saw e.g. "Investigating: 3" on the tile but an empty
+        // tab when all three were actually in_progress. The dedicated
+        // In Progress / Pending Confirmation tabs still drill down strictly.
+        const investigatingBand = ['investigating', 'in_progress', 'pending_confirmation'];
         let filtered;
         if (this.activeFilter === 'all') {
             filtered = this.incidents;
         } else if (this.activeFilter === 'pending') {
             filtered = this.incidents.filter(i => submittedLike.includes(i.status));
-        } else if (this.activeFilter === 'in_progress') {
-            filtered = this.incidents.filter(i => inProgressLike.includes(i.status));
+        } else if (this.activeFilter === 'investigating') {
+            filtered = this.incidents.filter(i => investigatingBand.includes(i.status));
         } else {
             filtered = this.incidents.filter(i => i.status === this.activeFilter);
         }
@@ -252,9 +314,14 @@ const AdminDashboardPage = {
     renderIncidentCard(incident) {
         const terminal = ['resolved', 'rejected', 'cancelled'];
         const showActions = !terminal.includes(incident.status);
+        const isTerminal = terminal.includes(incident.status);
+        // A-6: serialise once and reuse for both the card-level click and the
+        // inline "Details" button — keeps payloads in sync.
+        const incidentAttr = this._escAttr(JSON.stringify(incident));
 
         return `
-            <div class="incident-card" id="incident-${incident.id}">
+            <div class="incident-card incident-card--clickable" id="incident-${incident.id}"
+                 onclick="DetailModal.showIncident(${incidentAttr})">
                 <div class="incident-card__header">
                     <span class="incident-card__title">${incident.title}</span>
                     <span class="badge badge--${incident.status}">${this.statusLabel(incident.status)}</span>
@@ -285,15 +352,22 @@ const AdminDashboardPage = {
                     </div>
                 </div>
 
-                <div class="incident-card__footer">
-                    <span></span>
-                    <button type="button" class="incident-card__details-link" onclick="DetailModal.showIncident(${this._escAttr(JSON.stringify(incident))})">
+                <div class="incident-card__footer" onclick="event.stopPropagation()">
+                    <button type="button" class="btn btn--outline btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.promoteToPost(${incident.id})">
+                        Promote to Post
+                    </button>
+                    <button type="button" class="incident-card__details-link" onclick="event.stopPropagation(); DetailModal.showIncident(${incidentAttr})">
                         Details
                         <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
                 </div>
 
                 ${showActions ? this._renderStatusActions(incident) : ''}
+                ${isTerminal ? `
+                <div class="incident-card__actions" onclick="event.stopPropagation()">
+                    <button type="button" class="btn btn--reject btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteIncident(${incident.id})">Delete</button>
+                </div>
+                ` : ''}
             </div>
         `;
     },
@@ -319,12 +393,14 @@ const AdminDashboardPage = {
         const buttons = options.map(opt => {
             const m = meta[opt];
             if (opt === 'rejected') {
-                return `<button type="button" class="btn ${m.cls}" onclick="AdminDashboardPage.showRejectModal(${incident.id})">${m.label}</button>`;
+                return `<button type="button" class="btn ${m.cls}" onclick="event.stopPropagation(); AdminDashboardPage.showRejectModal(${incident.id})">${m.label}</button>`;
             }
-            return `<button type="button" class="btn ${m.cls}" onclick="AdminDashboardPage.changeStatus(${incident.id}, '${opt}')">${m.label}</button>`;
+            return `<button type="button" class="btn ${m.cls}" onclick="event.stopPropagation(); AdminDashboardPage.requestStatusChange(${incident.id}, '${opt}')">${m.label}</button>`;
         }).join('');
 
-        return `<div class="incident-card__actions">${buttons}</div>`;
+        // A-6: actions row swallows clicks so card-level click handler
+        // doesn't re-open the detail modal when an admin taps an action.
+        return `<div class="incident-card__actions" onclick="event.stopPropagation()">${buttons}</div>`;
     },
 
     /* --------------------------------------------------------
@@ -347,23 +423,28 @@ const AdminDashboardPage = {
             low: '<span class="badge badge--info">Low</span>',
         };
 
-        const cards = this.hazards.map(h => `
-            <div class="incident-card">
+        const cards = this.hazards.map(h => {
+            const hAttr = this._escAttr(JSON.stringify(h));
+            return `
+            <div class="incident-card incident-card--clickable" onclick="DetailModal.showHazard(${hAttr})">
                 <div class="incident-card__header">
                     <span class="incident-card__title">${h.title}</span>
                     ${severityBadge[h.severity] || ''}
                 </div>
                 <div class="incident-card__location">${h.location || ''}</div>
                 <div class="incident-card__description">${h.description || ''}</div>
-                <div class="incident-card__footer">
+                <div class="incident-card__footer" onclick="event.stopPropagation()">
                     <span>Updated ${this.formatDate(h.updated_at)}</span>
-                    <button type="button" class="incident-card__details-link" onclick="DetailModal.showHazard(${this._escAttr(JSON.stringify(h))})">
-                        Details
-                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </button>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button type="button" class="btn btn--reject btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteHazard(${h.id})">Delete</button>
+                        <button type="button" class="incident-card__details-link" onclick="event.stopPropagation(); DetailModal.showHazard(${hAttr})">
+                            Details
+                            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
-        `).join('');
+        `;}).join('');
 
         return header + cards;
     },
@@ -384,8 +465,10 @@ const AdminDashboardPage = {
 
         const sorted = [...this.incidents].sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
-        const cards = sorted.map(r => `
-            <div class="incident-card">
+        const cards = sorted.map(r => {
+            const rAttr = this._escAttr(JSON.stringify(r));
+            return `
+            <div class="incident-card incident-card--clickable" onclick="DetailModal.showIncident(${rAttr})">
                 <div class="incident-card__header">
                     <span class="incident-card__title">${r.title}</span>
                     <span class="badge badge--${r.status}">${this.statusLabel(r.status)}</span>
@@ -405,15 +488,17 @@ const AdminDashboardPage = {
                         ${this.timeAgo(r.created_at)}
                     </div>
                 </div>
-                <div class="incident-card__footer">
-                    <span></span>
-                    <button type="button" class="incident-card__details-link" onclick="DetailModal.showIncident(${this._escAttr(JSON.stringify(r))})">
+                <div class="incident-card__footer" onclick="event.stopPropagation()">
+                    <button type="button" class="btn btn--outline btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.promoteToPost(${r.id})">
+                        Promote to Post
+                    </button>
+                    <button type="button" class="incident-card__details-link" onclick="event.stopPropagation(); DetailModal.showIncident(${rAttr})">
                         Details
                         <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
                 </div>
             </div>
-        `).join('');
+        `;}).join('');
 
         return header + cards;
     },
@@ -423,8 +508,9 @@ const AdminDashboardPage = {
      * -------------------------------------------------------- */
     setFilter(filter) {
         this.activeFilter = filter;
-        document.querySelectorAll('.dashboard-subtabs__tab').forEach(tab => tab.classList.remove('active'));
-        event.target.classList.add('active');
+        // The active class is rebuilt on the next renderContent() pass via
+        // the template literal's `${this.activeFilter === '...' ? 'active' : ''}`
+        // checks — no need to read from a global event here.
         this.renderContent();
     },
 
@@ -436,7 +522,62 @@ const AdminDashboardPage = {
     /* --------------------------------------------------------
      * 9. Approve / Reject Actions
      * -------------------------------------------------------- */
-    async changeStatus(id, status) {
+
+    /**
+     * Entry point used by the per-card buttons. For non-trivial
+     * transitions (especially `resolved`) we open the note modal so the
+     * admin can record who responded and how it was handled — that note
+     * becomes part of the report_event row the citizen sees in their
+     * Processing History. Pass-through transitions (investigating,
+     * in_progress, pending_confirmation) still allow an optional note.
+     */
+    requestStatusChange(id, status) {
+        const promptMap = {
+            investigating: { title: 'Mark as Investigating', placeholder: 'Optional: who is responding, ETA, etc.', required: false },
+            in_progress: { title: 'Mark as In Progress', placeholder: 'Optional: team dispatched, actions in motion.', required: false },
+            pending_confirmation: { title: 'Await Citizen Confirmation', placeholder: 'Optional: what was done, what to confirm.', required: false },
+            resolved: { title: 'Resolve Report', placeholder: 'Required: who responded and how it was resolved (this is shown to the citizen).', required: true },
+        };
+        const cfg = promptMap[status];
+        if (!cfg) {
+            return this.changeStatus(id, status, '');
+        }
+        this.showStatusNoteModal(id, status, cfg);
+    },
+
+    showStatusNoteModal(id, status, cfg) {
+        const incident = this.incidents.find(i => i.id === id);
+        const title = incident ? incident.title : 'Report #' + id;
+        this._ensureRejectionContainer().innerHTML = `
+            <div class="modal-overlay modal-overlay--centered" onclick="if(event.target===this) AdminDashboardPage.closeRejectModal()">
+                <div class="modal">
+                    <div class="modal__title">${cfg.title}</div>
+                    <div class="modal__desc">"${title}"</div>
+                    <div class="form-group">
+                        <div class="form-group__label">Resolution Note ${cfg.required ? '<span class="form-group__required">*</span>' : '<span style="color:var(--color-gray-400);font-weight:400;">(optional)</span>'}</div>
+                        <textarea class="form-input" id="status-note" placeholder="${cfg.placeholder}" style="min-height:90px;"></textarea>
+                    </div>
+                    <div class="modal__actions">
+                        <button type="button" class="btn btn--outline" onclick="AdminDashboardPage.closeRejectModal()">Cancel</button>
+                        <button type="button" class="btn btn--primary" onclick="AdminDashboardPage.submitStatusNote(${id}, '${status}', ${cfg.required ? 'true' : 'false'})">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => { const t = document.getElementById('status-note'); if (t) t.focus(); }, 50);
+    },
+
+    async submitStatusNote(id, status, required) {
+        const note = (document.getElementById('status-note') || {}).value || '';
+        if (required && !note.trim()) {
+            alert('A note is required when resolving a report.');
+            return;
+        }
+        this.closeRejectModal();
+        await this.changeStatus(id, status, note.trim());
+    },
+
+    async changeStatus(id, status, note = '') {
         const card = document.getElementById('incident-' + id);
         const btns = card ? card.querySelectorAll('.incident-card__actions .btn') : [];
         btns.forEach(b => { b.disabled = true; });
@@ -444,7 +585,7 @@ const AdminDashboardPage = {
         try {
             const res = await Store.apiFetch('/api/reports/' + id + '/status', {
                 method: 'PUT',
-                body: JSON.stringify({ status }),
+                body: JSON.stringify({ status, note: note || undefined }),
             });
 
             if (res.success) {
@@ -459,12 +600,47 @@ const AdminDashboardPage = {
         }
     },
 
+    /* --------------------------------------------------------
+     * 9b. Delete (terminal-status incidents and hazards)
+     * -------------------------------------------------------- */
+    async confirmDeleteIncident(id) {
+        if (!confirm('Delete this report? This cannot be undone.')) return;
+        try {
+            const res = await Store.apiFetch('/api/reports/' + id, { method: 'DELETE' });
+            if (res.success) {
+                if (window.Toast) Toast.show('Report deleted.', { type: 'success', duration: 2500 });
+                this.loadData();
+            } else {
+                alert(res.message || 'Failed to delete report.');
+            }
+        } catch (err) {
+            alert('Network error. Please try again.');
+        }
+    },
+
+    async confirmDeleteHazard(id) {
+        if (!confirm('Delete this hazard? This cannot be undone.')) return;
+        try {
+            const res = await Store.apiFetch('/api/hazards/' + id, { method: 'DELETE' });
+            if (res.success) {
+                if (window.Toast) Toast.show('Hazard deleted.', { type: 'success', duration: 2500 });
+                this.loadData();
+            } else {
+                alert(res.message || 'Failed to delete hazard.');
+            }
+        } catch (err) {
+            alert('Network error. Please try again.');
+        }
+    },
+
     async rejectReport(id) {
         const reason = document.getElementById('reject-reason').value.trim();
         if (!reason) { alert('Please provide a reason for rejection.'); return; }
 
+        // Pass the rejection reason through as the report_event note so
+        // the citizen sees it in Processing History.
         this.closeRejectModal();
-        await this.changeStatus(id, 'rejected');
+        await this.changeStatus(id, 'rejected', reason);
     },
 
     /* --------------------------------------------------------
@@ -474,7 +650,7 @@ const AdminDashboardPage = {
         const incident = this.incidents.find(i => i.id === id);
         const title = incident ? incident.title : 'Report #' + id;
 
-        document.getElementById('rejection-modal').innerHTML = `
+        this._ensureRejectionContainer().innerHTML = `
             <div class="modal-overlay modal-overlay--centered" onclick="if(event.target===this) AdminDashboardPage.closeRejectModal()">
                 <div class="modal">
                     <div class="modal__title">Reject Report</div>
@@ -493,7 +669,7 @@ const AdminDashboardPage = {
     },
 
     closeRejectModal() {
-        document.getElementById('rejection-modal').innerHTML = '';
+        this._ensureRejectionContainer().innerHTML = '';
     },
 
     /* --------------------------------------------------------
@@ -544,6 +720,15 @@ const AdminDashboardPage = {
         return str.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
     },
 
+    escape(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    },
+
     /* --------------------------------------------------------
      * SMS Reports View
      * -------------------------------------------------------- */
@@ -591,12 +776,17 @@ const AdminDashboardPage = {
                 </div>
             ` : `<span class="badge badge--${r.status === 'converted' ? 'success' : 'default'}">${r.status}</span>`;
 
+            const sourceBadge = r.source_type === 'report'
+                ? '<span class="badge badge--info">Report</span>'
+                : '<span class="badge badge--high">SOS</span>';
+
             return `
                 <div class="incident-card">
                     <div class="incident-card__header">
                         <span class="incident-card__title">${this.escape(r.type || 'Emergency')}</span>
                         <span class="badge badge--${badge}">${r.severity || 'medium'}</span>
                         <span class="badge badge--sms">SMS</span>
+                        ${sourceBadge}
                     </div>
                     <div class="incident-card__submitter">
                         <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -651,6 +841,236 @@ const AdminDashboardPage = {
             }
         } catch (err) {
             alert('Failed to dismiss report.');
+        }
+    },
+
+    /* --------------------------------------------------------
+     * Promote to Community Post (A-14)
+     * -------------------------------------------------------- */
+    async promoteToPost(id) {
+        try {
+            const res = await Store.apiFetch('/api/reports/' + id + '/promote-to-post', { method: 'POST' });
+            if (res.success) {
+                this._toast('Promoted to community post.');
+                return;
+            }
+            // The server returns 409 + success:false when already promoted.
+            if (res.message && res.message.toLowerCase().includes('already')) {
+                this._toast('Already posted — view in News Updates.');
+                return;
+            }
+            this._toast(res.message || 'Failed to promote report.');
+        } catch (err) {
+            this._toast('Network error. Please try again.');
+        }
+    },
+
+    _toast(message) {
+        let host = document.getElementById('admin-toast-host');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'admin-toast-host';
+            host.style.position = 'fixed';
+            host.style.bottom = '24px';
+            host.style.left = '50%';
+            host.style.transform = 'translateX(-50%)';
+            host.style.zIndex = '9999';
+            document.body.appendChild(host);
+        }
+        const el = document.createElement('div');
+        el.className = 'admin-toast';
+        el.textContent = message;
+        host.appendChild(el);
+        setTimeout(() => { el.classList.add('admin-toast--leaving'); }, 2400);
+        setTimeout(() => { el.remove(); }, 2800);
+    },
+
+    /* --------------------------------------------------------
+     * 12. Recycle Bin (soft-deleted reports + hazards)
+     * -------------------------------------------------------- */
+
+    /**
+     * Fetches both bin endpoints in parallel and renders the combined view.
+     */
+    async loadBin() {
+        try {
+            const [reportsRes, hazardsRes] = await Promise.all([
+                Store.apiFetch('/api/reports/bin'),
+                Store.apiFetch('/api/hazards/bin'),
+            ]);
+            this.binReports = (reportsRes && reportsRes.success) ? reportsRes.data : [];
+            this.binHazards = (hazardsRes && hazardsRes.success) ? hazardsRes.data : [];
+            this.renderBinView();
+        } catch (err) {
+            const container = document.getElementById('dashboard-content');
+            if (container) container.innerHTML = '<div class="empty-state">Failed to load bin.</div>';
+        }
+    },
+
+    renderBinView() {
+        const container = document.getElementById('dashboard-content');
+        if (!container) return;
+
+        const totalCount = this.binReports.length + this.binHazards.length;
+        if (totalCount === 0) {
+            container.innerHTML = `
+                <div class="section-header">
+                    <div class="section-header__title">Recycle Bin</div>
+                </div>
+                <div class="empty-state">The bin is empty.</div>
+            `;
+            return;
+        }
+
+        // Reports section
+        const reportsSection = `
+            <div class="section-header">
+                <div class="section-header__title">Deleted Reports</div>
+                <span class="badge badge--default">${this.binReports.length}</span>
+            </div>
+            ${this.binReports.length === 0
+                ? '<div class="empty-state">No deleted reports.</div>'
+                : this.binReports.map(r => this._renderBinReportCard(r)).join('')}
+        `;
+
+        // Hazards section
+        const hazardsSection = `
+            <div class="section-header" style="margin-top: var(--spacing-lg)">
+                <div class="section-header__title">Deleted Hazards</div>
+                <span class="badge badge--default">${this.binHazards.length}</span>
+            </div>
+            ${this.binHazards.length === 0
+                ? '<div class="empty-state">No deleted hazards.</div>'
+                : this.binHazards.map(h => this._renderBinHazardCard(h)).join('')}
+        `;
+
+        container.innerHTML = `
+            <div class="section-header">
+                <div class="section-header__title">Recycle Bin</div>
+            </div>
+            <div class="incident-card__description" style="margin-bottom: var(--spacing-md)">
+                Items here are hidden from citizens and dashboards. Restore them to put them back, or permanently delete to free space.
+            </div>
+            ${reportsSection}
+            ${hazardsSection}
+        `;
+    },
+
+    _renderBinReportCard(r) {
+        return `
+            <div class="incident-card" id="bin-report-${r.id}">
+                <div class="incident-card__header">
+                    <span class="incident-card__title">${this.escape(r.title)}</span>
+                    <span class="badge badge--${r.status}">${this.statusLabel(r.status)}</span>
+                </div>
+                <span class="badge badge--type" style="margin-bottom: 6px; display: inline-flex;">${this.escape(r.type || '')}</span>
+                ${r.description ? `<div class="incident-card__description">${this.escape(r.description)}</div>` : ''}
+                <div class="incident-card__submitter">
+                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    Reported by ${this.escape(r.submitted_by_name || 'Unknown')}
+                </div>
+                <div class="card__meta">
+                    <div class="card__meta-item">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Deleted ${this.formatDate(r.deleted_at)}
+                    </div>
+                </div>
+                <div class="incident-card__actions">
+                    <button type="button" class="btn btn--outline btn--sm" onclick="AdminDashboardPage.restoreBinReport(${r.id})">Restore</button>
+                    <button type="button" class="btn btn--reject btn--sm" onclick="AdminDashboardPage.permanentDeleteBinReport(${r.id})">Delete Permanently</button>
+                </div>
+            </div>
+        `;
+    },
+
+    _renderBinHazardCard(h) {
+        const severityBadge = {
+            high: '<span class="badge badge--high">High</span>',
+            medium: '<span class="badge badge--warning">Medium</span>',
+            low: '<span class="badge badge--info">Low</span>',
+        };
+        return `
+            <div class="incident-card" id="bin-hazard-${h.id}">
+                <div class="incident-card__header">
+                    <span class="incident-card__title">${this.escape(h.title)}</span>
+                    ${severityBadge[h.severity] || ''}
+                </div>
+                ${h.location ? `<div class="incident-card__location">${this.escape(h.location)}</div>` : ''}
+                ${h.description ? `<div class="incident-card__description">${this.escape(h.description)}</div>` : ''}
+                <div class="card__meta">
+                    <div class="card__meta-item">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Deleted ${this.formatDate(h.deleted_at)}
+                    </div>
+                </div>
+                <div class="incident-card__actions">
+                    <button type="button" class="btn btn--outline btn--sm" onclick="AdminDashboardPage.restoreBinHazard(${h.id})">Restore</button>
+                    <button type="button" class="btn btn--reject btn--sm" onclick="AdminDashboardPage.permanentDeleteBinHazard(${h.id})">Delete Permanently</button>
+                </div>
+            </div>
+        `;
+    },
+
+    async restoreBinReport(id) {
+        try {
+            const res = await Store.apiFetch('/api/reports/' + id + '/restore', { method: 'PUT' });
+            if (res && res.success) {
+                if (window.Toast) Toast.show('Report restored.', { type: 'success', duration: 2500 });
+                // Refresh main lists + bin so the restored item reappears.
+                this.loadData();
+                this.loadBin();
+            } else {
+                alert((res && res.message) || 'Failed to restore report.');
+            }
+        } catch (err) {
+            alert('Network error. Please try again.');
+        }
+    },
+
+    async permanentDeleteBinReport(id) {
+        if (!confirm('Permanently delete this report? This cannot be undone.')) return;
+        try {
+            const res = await Store.apiFetch('/api/reports/' + id + '/permanent', { method: 'DELETE' });
+            if (res && res.success) {
+                if (window.Toast) Toast.show('Report permanently deleted.', { type: 'success', duration: 2500 });
+                this.binReports = this.binReports.filter(r => r.id !== id);
+                this.renderBinView();
+            } else {
+                alert((res && res.message) || 'Failed to permanently delete report.');
+            }
+        } catch (err) {
+            alert('Network error. Please try again.');
+        }
+    },
+
+    async restoreBinHazard(id) {
+        try {
+            const res = await Store.apiFetch('/api/hazards/' + id + '/restore', { method: 'PUT' });
+            if (res && res.success) {
+                if (window.Toast) Toast.show('Hazard restored.', { type: 'success', duration: 2500 });
+                this.loadData();
+                this.loadBin();
+            } else {
+                alert((res && res.message) || 'Failed to restore hazard.');
+            }
+        } catch (err) {
+            alert('Network error. Please try again.');
+        }
+    },
+
+    async permanentDeleteBinHazard(id) {
+        if (!confirm('Permanently delete this hazard? This cannot be undone.')) return;
+        try {
+            const res = await Store.apiFetch('/api/hazards/' + id + '/permanent', { method: 'DELETE' });
+            if (res && res.success) {
+                if (window.Toast) Toast.show('Hazard permanently deleted.', { type: 'success', duration: 2500 });
+                this.binHazards = this.binHazards.filter(h => h.id !== id);
+                this.renderBinView();
+            } else {
+                alert((res && res.message) || 'Failed to permanently delete hazard.');
+            }
+        } catch (err) {
+            alert('Network error. Please try again.');
         }
     }
 };

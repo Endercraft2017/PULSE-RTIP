@@ -45,10 +45,21 @@ const NotificationsPage = {
      * 2. Data Loading
      * -------------------------------------------------------- */
     _seenAdminRequestIds: new Set(),
+    _pendingById: {}, // actor_user_id -> { id_type, id_number, id_document_path, ... }
 
     async loadData() {
         try {
-            const res = await Store.apiFetch('/api/notifications');
+            const isAdmin = Store.get('role') === 'admin';
+            // Admins need ID details to render approval cards — load them in
+            // parallel with the notification feed so the UI paints once.
+            const [res, pendingRes] = await Promise.all([
+                Store.apiFetch('/api/notifications'),
+                isAdmin ? Store.apiFetch('/api/admin-requests').catch(() => null) : Promise.resolve(null),
+            ]);
+            if (pendingRes && pendingRes.success && Array.isArray(pendingRes.data)) {
+                this._pendingById = {};
+                for (const u of pendingRes.data) this._pendingById[u.id] = u;
+            }
             if (res.success) {
                 this.renderNotifications(res.data.notifications);
                 Store.set('notificationCount', res.data.unreadCount);
@@ -113,26 +124,44 @@ const NotificationsPage = {
         container.innerHTML = notifications.map(n => {
             if (n.type === 'admin_request') return this._renderAdminRequestCard(n);
             const isUnread = !n.is_read;
+            // Prefer the live report status (joined from reports table) over
+            // the snapshot stored on the notification — the snapshot goes
+            // stale the moment the report moves through workflow.
+            const liveStatus = n.report_current_status || n.status;
             const clickable = isAdmin && n.report_id;
             const cardAttrs = clickable
                 ? `class="notification-card notification-card--clickable ${isUnread ? 'notification-card--unread' : ''}" onclick="NotificationsPage.openReport(${n.report_id})"`
                 : `class="notification-card ${isUnread ? 'notification-card--unread' : ''}"`;
             return `
                 <div ${cardAttrs}>
-                    <div class="notification-card__icon notification-card__icon--${n.status || 'pending'}">
-                        ${this.getStatusIcon(n.status)}
+                    <div class="notification-card__icon notification-card__icon--${liveStatus || 'pending'}">
+                        ${this.getStatusIcon(liveStatus)}
                     </div>
                     <div class="notification-card__content">
                         <div class="notification-card__title">${n.title || 'Notification'}</div>
                         <div class="notification-card__text">${n.text || ''}</div>
                         <div class="notification-card__meta">
                             <span class="notification-card__time">${this.timeAgo(n.created_at)}</span>
-                            ${n.status ? `<span class="badge badge--${n.status}">${this.capitalizeStatus(n.status)}</span>` : ''}
+                            ${liveStatus ? `<span class="badge badge--${liveStatus}">${this.statusLabel(liveStatus)}</span>` : ''}
                         </div>
                     </div>
                 </div>
             `;
         }).join('');
+    },
+
+    statusLabel(status) {
+        const map = {
+            submitted: 'Submitted',
+            pending: 'Pending',
+            investigating: 'Investigating',
+            in_progress: 'In Progress',
+            pending_confirmation: 'Pending Confirmation',
+            resolved: 'Resolved',
+            rejected: 'Rejected',
+            cancelled: 'Cancelled',
+        };
+        return map[status] || (status ? status.charAt(0).toUpperCase() + status.slice(1) : '');
     },
 
     openReport(reportId) {
@@ -141,17 +170,50 @@ const NotificationsPage = {
 
     _renderAdminRequestCard(n) {
         const isUnread = !n.is_read;
+        // Discriminate citizen signup from admin-role upgrade. Title is set
+        // server-side; we colour the badge differently for each kind.
+        const isAdminUpgrade = /admin/i.test(n.title || '') && !/citizen/i.test(n.title || '');
+        const badgeText = isAdminUpgrade ? 'Admin Request' : 'Citizen Signup';
+        const badgeClass = isAdminUpgrade ? 'badge--rejected' : 'badge--investigating';
+
+        // ID block — enriched from the parallel /api/admin-requests fetch.
+        // If the pending row is missing (race — just approved by another tab)
+        // we render the basic card so the admin can still reject.
+        const pending = this._pendingById[n.actor_user_id];
+        const idType = pending && pending.id_type ? pending.id_type : '';
+        const idNumber = pending && pending.id_number ? pending.id_number : '';
+        const idDocPath = pending && pending.id_document_path ? pending.id_document_path : '';
+        const idImgUrl = idDocPath ? (Store.mediaUrl(idDocPath) || '') : '';
+
+        const idBlock = (idType || idNumber || idImgUrl) ? `
+            <div class="id-verification-block" style="margin-top:10px;padding:10px;border:1px solid var(--color-border, #e5e7eb);border-radius:8px;background:var(--color-surface, #fafafa);">
+                <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--color-text-muted, #6b7280);">ID VERIFICATION</div>
+                ${idType ? `<div style="font-size:13px;"><strong>Type:</strong> ${this._esc(idType)}</div>` : ''}
+                ${idNumber ? `<div style="font-size:13px;"><strong>Number:</strong> ${this._esc(idNumber)}</div>` : ''}
+                ${idImgUrl ? `
+                    <div style="margin-top:8px;">
+                        <img src="${this._esc(idImgUrl)}" alt="ID document"
+                             style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--color-border, #e5e7eb);cursor:pointer;object-fit:cover;"
+                             onclick="NotificationsPage.showIdImageModal('${this._esc(idImgUrl)}')">
+                        <div style="font-size:11px;color:var(--color-text-muted, #6b7280);margin-top:4px;">Tap image to view full size</div>
+                    </div>
+                ` : '<div style="font-size:12px;color:var(--color-text-muted,#6b7280);margin-top:6px;">No ID image uploaded.</div>'}
+            </div>
+        ` : '';
+
         return `
             <div class="notification-card notification-card--admin-request ${isUnread ? 'notification-card--unread' : ''}" id="admin-req-${n.id}">
                 <div class="notification-card__icon notification-card__icon--investigating">
                     <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 </div>
                 <div class="notification-card__content">
-                    <div class="notification-card__title">${n.title || 'Admin request'}</div>
+                    <div class="notification-card__title">${n.title || 'Account review'}</div>
                     <div class="notification-card__text">${n.text || ''}</div>
                     <div class="notification-card__meta">
                         <span class="notification-card__time">${this.timeAgo(n.created_at)}</span>
+                        <span class="badge ${badgeClass}">${badgeText}</span>
                     </div>
+                    ${idBlock}
                     <div class="notification-card__actions">
                         <button type="button" class="btn btn--approve btn--sm" onclick="NotificationsPage.handleAdminRequest(${n.actor_user_id}, ${n.id}, 'approve')">Approve</button>
                         <button type="button" class="btn btn--reject btn--sm" onclick="NotificationsPage.handleAdminRequest(${n.actor_user_id}, ${n.id}, 'reject')">Reject</button>
@@ -159,6 +221,31 @@ const NotificationsPage = {
                 </div>
             </div>
         `;
+    },
+
+    /** Opens the uploaded ID image in a simple full-screen modal. */
+    showIdImageModal(url) {
+        const existing = document.getElementById('id-image-modal');
+        if (existing) existing.remove();
+        const modal = document.createElement('div');
+        modal.id = 'id-image-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;cursor:pointer;';
+        modal.onclick = () => modal.remove();
+        modal.innerHTML = `
+            <img src="${this._esc(url)}" alt="ID document"
+                 style="max-width:100%;max-height:100%;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+            <button type="button"
+                    style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:22px;cursor:pointer;"
+                    aria-label="Close">&times;</button>
+        `;
+        document.body.appendChild(modal);
+    },
+
+    _esc(s) {
+        if (s == null) return '';
+        return String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     },
 
     async handleAdminRequest(actorId, notifId, action) {
@@ -170,14 +257,15 @@ const NotificationsPage = {
             const res = await Store.apiFetch(`/api/admin-requests/${actorId}/${action}`, { method: 'PUT' });
             if (res.success) {
                 if (typeof Toast !== 'undefined') {
-                    Toast.show(
-                        action === 'approve' ? 'User promoted to admin.' : 'Admin request rejected.',
-                        { type: action === 'approve' ? 'success' : 'info', duration: 3000 }
-                    );
+                    const wasAdminReq = res.kind === 'admin_request';
+                    const msg = action === 'approve'
+                        ? (wasAdminReq ? 'User promoted to admin.' : 'Citizen account approved.')
+                        : (wasAdminReq ? 'Admin request rejected.' : 'Citizen signup rejected.');
+                    Toast.show(msg, { type: action === 'approve' ? 'success' : 'info', duration: 3000 });
                 }
                 this.loadData();
             } else {
-                alert(res.message || 'Failed to update request.');
+                alert(res.message || 'Failed to update review.');
                 btns.forEach(b => { b.disabled = false; });
             }
         } catch (err) {

@@ -21,6 +21,8 @@ const HazardsPage = {
        -------------------------------------------------------- */
     _hazards: [],
     _view: 'list', // 'list' | 'map'
+    _fromCache: false,
+    _cachedAt: null,
 
     // Approximate (x%, y%) positions of known Morong barangays on
     // morong-map.png (a static satellite crop of the municipality).
@@ -89,15 +91,11 @@ const HazardsPage = {
        3. Data Loading
        -------------------------------------------------------- */
     async loadData() {
-        try {
-            const res = await Store.apiFetch('/api/hazards');
-            if (res.success) {
-                this._hazards = res.data;
-                this.renderCurrentView();
-            }
-        } catch (err) {
-            console.error('Failed to load hazards:', err);
-        }
+        const { data, fromCache, cachedAt } = await HazardCache.fetch();
+        this._hazards = data || [];
+        this._fromCache = fromCache;
+        this._cachedAt = cachedAt;
+        this.renderCurrentView();
     },
 
     renderCurrentView() {
@@ -108,6 +106,30 @@ const HazardsPage = {
         }
     },
 
+    /**
+     * Builds the "Showing saved hazards (cached X ago)" banner shown
+     * when the API is unreachable and we're serving a localStorage
+     * copy instead of fresh data.
+     */
+    _cacheBanner() {
+        if (!this._fromCache) return '';
+        const age = HazardCache.formatAge(this._cachedAt);
+        return `
+            <div class="offline-note" role="status">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M1 1l22 22"></path>
+                    <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+                    <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+                    <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+                    <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                    <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                </svg>
+                <span>Offline — showing saved hazards from ${age}.</span>
+            </div>
+        `;
+    },
+
     /* --------------------------------------------------------
        4. List View Rendering
        -------------------------------------------------------- */
@@ -115,15 +137,17 @@ const HazardsPage = {
         const container = document.getElementById('hazards-list');
         if (!container) return;
 
+        const banner = this._cacheBanner();
+
         if (hazards.length === 0) {
-            container.innerHTML = '<div class="empty-state">No active hazard zones.</div>';
+            container.innerHTML = banner + '<div class="empty-state">No active hazard zones.</div>';
             return;
         }
 
         const badgeMap = { high: 'high', medium: 'warning', low: 'info' };
         const labelMap = { high: 'High', medium: 'Medium', low: 'Low' };
 
-        container.innerHTML = hazards.map(h => `
+        container.innerHTML = banner + hazards.map(h => `
             <div class="incident-card">
                 <div class="incident-card__header">
                     <span class="incident-card__title">${this.escape(h.title)}</span>
@@ -178,6 +202,7 @@ const HazardsPage = {
         const unplaced = hazards.filter(h => !this.lookupPosition(h.location));
 
         container.innerHTML = `
+            ${this._cacheBanner()}
             <div class="hazard-map">
                 <div class="hazard-map__image">
                     <img src="public/assets/images/morong-map.png" alt="Morong, Rizal satellite map">
@@ -294,11 +319,12 @@ const HazardsPage = {
     formatDate(dateStr) {
         if (!dateStr) return '';
         const date = new Date(dateStr);
-        return date.toLocaleDateString('en-US', {
+        return date.toLocaleDateString('en-PH', {
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
+            timeZone: 'Asia/Manila',
         });
     },
 

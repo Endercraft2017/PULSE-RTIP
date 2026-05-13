@@ -74,6 +74,47 @@ const ForgotPasswordPage = {
     },
 
     /* --------------------------------------------------------
+       SMS gateway hint — surfaces the gateway phone number so
+       offline users know where to text from. Reads cached value
+       from localStorage and fetches if missing.
+       -------------------------------------------------------- */
+    _renderSmsHint() {
+        const cached = localStorage.getItem('pulse_gateway_phone') || '';
+        const display = cached ? this._escape(cached) : 'Loading...';
+        const href = cached ? `tel:${cached}` : '#';
+        // Trigger a fetch if we don't have the number cached yet
+        if (!cached && window.Store && typeof Store.apiFetch === 'function') {
+            setTimeout(() => {
+                Store.apiFetch('/api/sms/gateway-phone').then(res => {
+                    if (res && res.success && res.data && res.data.phone) {
+                        localStorage.setItem('pulse_gateway_phone', res.data.phone);
+                        const span = document.getElementById('auth-sms-phone-fp');
+                        if (span) {
+                            span.textContent = res.data.phone;
+                            const link = span.closest('a');
+                            if (link) link.setAttribute('href', `tel:${res.data.phone}`);
+                        }
+                    }
+                }).catch(() => { /* offline / non-critical */ });
+            }, 0);
+        }
+        return `
+            <div class="login-page__info-box mt-md" style="display:flex;align-items:flex-start;gap:8px;">
+                <svg viewBox="0 0 24 24" aria-hidden="true"
+                     style="width:18px;height:18px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-top:2px;">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                <div>
+                    <strong>Need help signing up offline?</strong>
+                    Text our SMS gateway at
+                    <a href="${href}"><strong><span id="auth-sms-phone-fp">${display}</span></strong></a>.
+                    We'll guide you through it.
+                </div>
+            </div>
+        `;
+    },
+
+    /* --------------------------------------------------------
        4. Step 1: Recover Password
        -------------------------------------------------------- */
     renderRecoverPassword() {
@@ -104,6 +145,8 @@ const ForgotPasswordPage = {
 
                         <button type="submit" class="btn btn--primary btn--block">Send Code</button>
                     </form>
+
+                    ${this._renderSmsHint()}
 
                     <div class="auth-screen__signup">
                         <a href="#/login" onclick="event.preventDefault(); Router.navigate('login')">&larr; Back to login</a>

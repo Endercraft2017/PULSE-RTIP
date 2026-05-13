@@ -129,7 +129,11 @@ const LoginPage = {
         try {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 4000);
-            const res = await fetch('/api/health', { signal: controller.signal });
+            // Use API_BASE so the APK probes pulse.afkcube.com — a bare
+            // /api/health resolves to https://localhost/<...> on Capacitor
+            // and never reaches the real server, leaving the user stuck on
+            // the plain login screen offline.
+            const res = await fetch(API_BASE + '/api/health', { signal: controller.signal });
             clearTimeout(timeout);
             if (!res.ok) throw new Error('server not ok');
         } catch (err) {
@@ -156,8 +160,22 @@ const LoginPage = {
                 submitBtn.disabled = false;
                 if (label) label.textContent = 'Log in';
                 const msg = result.message || 'Incorrect email or password. Check for typos, or tap "Forgot password?" to reset.';
-                if (window.Toast) Toast.show(msg, { type: 'error', duration: 6000 });
-                else alert(msg);
+                // Status-specific errors (pending review, rejected, deleted)
+                // use an "info" toast with a title instead of a red error —
+                // the user did nothing wrong, they're just waiting on review.
+                const statusCodes = {
+                    ACCOUNT_PENDING:  { type: 'info',  title: 'Account pending review' },
+                    ACCOUNT_REJECTED: { type: 'error', title: 'Account not approved' },
+                    ACCOUNT_DELETED:  { type: 'error', title: 'Account deleted' },
+                };
+                const meta = statusCodes[result.code];
+                if (window.Toast) {
+                    Toast.show(msg, meta
+                        ? { type: meta.type, title: meta.title, duration: 7000 }
+                        : { type: 'error', duration: 6000 });
+                } else {
+                    alert(msg);
+                }
                 return;
             }
 

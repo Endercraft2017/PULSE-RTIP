@@ -106,6 +106,7 @@ const AppearancePage = {
     setTheme(value) {
         this.prefs.theme = value;
         this.applyTheme(value);
+        this._persist();
         document.getElementById('app-content').innerHTML = this.render();
     },
 
@@ -127,6 +128,7 @@ const AppearancePage = {
     setTextSize(value) {
         this.prefs.textSize = value;
         this.applyTextSize(value);
+        this._persist();
         document.getElementById('app-content').innerHTML = this.render();
     },
 
@@ -137,9 +139,17 @@ const AppearancePage = {
     },
 
     save() {
-        localStorage.setItem('pulse_appearance', JSON.stringify(this.prefs));
+        // Theme/textSize already persisted on each tap (see _persist below);
+        // the Save button now just confirms and exits.
+        this._persist();
         alert('Appearance saved!');
         history.back();
+    },
+
+    _persist() {
+        try {
+            localStorage.setItem('pulse_appearance', JSON.stringify(this.prefs));
+        } catch (e) { /* quota / private mode — non-fatal */ }
     },
 
     /* --------------------------------------------------------

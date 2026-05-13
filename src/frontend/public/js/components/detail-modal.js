@@ -26,6 +26,40 @@ const DetailModal = {
         };
         const st = statusMap[data.status] || statusMap.pending;
 
+        // A-1: report photos uploaded by the citizen. ReportImage rows
+        // sometimes carry the full "/uploads/..." path (newer rows) and
+        // sometimes a bare filename (legacy / migrated SMS imports).
+        // Store.mediaUrl handles both shapes and prefixes the remote API
+        // origin when running natively (so /uploads/... doesn't 404 against
+        // the Capacitor https://localhost shell).
+        const images = Array.isArray(data.images) ? data.images : [];
+        const mediaHtml = images.length ? `
+            <div class="detail-modal__media-grid">
+                ${images.map(img => {
+                    const url = Store.mediaUrl(img.file_path || img.url || img);
+                    if (!url) return '';
+                    return `<a href="${url}" target="_blank" rel="noopener" class="detail-modal__media-item">
+                        <img src="${url}" alt="Report photo" loading="lazy"
+                             onerror="this.parentElement.style.display='none'">
+                    </a>`;
+                }).join('')}
+            </div>
+        ` : '';
+
+        // A-2: when admin marks the report resolved, surface the latest
+        // resolution note prominently at the top so the citizen sees who
+        // responded and how it was handled without scrolling the timeline.
+        // Slot stays empty until _loadHistory fills it in from the events
+        // feed (or stays hidden if the event has no note).
+        const resolutionBanner = (data.status === 'resolved')
+            ? `<div id="detail-modal-resolution-slot">
+                   ${data.resolution_note ? `<div class="detail-modal__resolution">
+                       <div class="detail-modal__resolution-label">Resolved by MDRRMO</div>
+                       <div class="detail-modal__resolution-note">${this._esc(data.resolution_note)}</div>
+                   </div>` : ''}
+               </div>`
+            : '';
+
         this._open(`
             <div class="detail-modal__badge-row">
                 <span class="badge badge--type">${this._esc(data.type)}</span>
@@ -34,7 +68,11 @@ const DetailModal = {
 
             <h2 class="detail-modal__title">${this._esc(data.title)}</h2>
 
+            ${resolutionBanner}
+
             ${data.description ? '<p class="detail-modal__desc">' + this._esc(data.description) + '</p>' : ''}
+
+            ${mediaHtml}
 
             <div class="detail-modal__meta-grid">
                 <div class="detail-modal__meta-item">
@@ -73,7 +111,79 @@ const DetailModal = {
                     GPS: ${data.latitude}, ${data.longitude}
                 </div>
             ` : ''}
+
+            <div class="detail-modal__section" id="detail-modal-history">
+                <div class="detail-modal__section-title">Processing History</div>
+                <div class="detail-modal__section-text" id="detail-modal-history-body"
+                     style="font-size: var(--font-size-sm); color: var(--color-gray-600);">
+                    Loading history…
+                </div>
+            </div>
         `);
+
+        // Fetch events lazily so we don't block the modal's first paint.
+        if (data && data.id) this._loadHistory(data.id);
+    },
+
+    /**
+     * Pulls /api/reports/:id/events and renders a chronological list. If
+     * the current user can't view the report's history (403) the section
+     * is hidden rather than shown empty.
+     */
+    async _loadHistory(reportId) {
+        const body = document.getElementById('detail-modal-history-body');
+        if (!body) return;
+        try {
+            const res = await Store.apiFetch(`/api/reports/${reportId}/events`);
+            if (!res || !res.success) {
+                const section = document.getElementById('detail-modal-history');
+                if (section) section.style.display = 'none';
+                return;
+            }
+            const events = Array.isArray(res.data) ? res.data : [];
+            if (events.length === 0) {
+                body.innerHTML = '<em style="color: var(--color-gray-500);">No status changes yet.</em>';
+                return;
+            }
+            body.innerHTML = events.map(ev => this._renderEvent(ev)).join('');
+
+            // A-2: hoist the most recent resolution note (if any) into
+            // the placeholder slot above the description so citizens see
+            // it first. The banner stays empty unless an actual note exists.
+            const slot = document.getElementById('detail-modal-resolution-slot');
+            if (slot && !slot.innerHTML.trim()) {
+                const lastResolved = [...events].reverse().find(e =>
+                    e.to_status === 'resolved' && e.note && e.note.trim()
+                );
+                if (lastResolved) {
+                    const actor = this._esc(lastResolved.actor_name || 'MDRRMO');
+                    slot.innerHTML = `
+                        <div class="detail-modal__resolution">
+                            <div class="detail-modal__resolution-label">Resolved by ${actor}</div>
+                            <div class="detail-modal__resolution-note">${this._esc(lastResolved.note)}</div>
+                        </div>
+                    `;
+                }
+            }
+        } catch (_) {
+            const section = document.getElementById('detail-modal-history');
+            if (section) section.style.display = 'none';
+        }
+    },
+
+    _renderEvent(ev) {
+        const actor = this._esc(ev.actor_name || 'Someone');
+        const from = this._esc((ev.from_status || '').replace(/_/g, ' ') || '—');
+        const to   = this._esc((ev.to_status   || '').replace(/_/g, ' ') || '—');
+        const when = this._formatDate(ev.created_at);
+        const note = ev.note ? `<div style="margin-top:2px; color: var(--color-gray-500);"><em>${this._esc(ev.note)}</em></div>` : '';
+        return `
+            <div style="padding: 6px 0; border-bottom: 1px solid var(--color-gray-100);">
+                <strong>${actor}</strong> changed status from <strong>${from}</strong> &rarr; <strong>${to}</strong>
+                <div style="font-size: var(--font-size-xs); color: var(--color-gray-400);">${when}</div>
+                ${note}
+            </div>
+        `;
     },
 
     /* --------------------------------------------------------
@@ -269,9 +379,12 @@ const DetailModal = {
     _formatDate(dateStr) {
         if (!dateStr) return 'N/A';
         const d = new Date(dateStr);
-        return d.toLocaleDateString('en-US', {
+        // Backend timestamps are UTC — pin to Asia/Manila so users in
+        // other timezones (or on devices with wrong clocks) still see PH time.
+        return d.toLocaleDateString('en-PH', {
             month: 'short', day: 'numeric', year: 'numeric',
             hour: '2-digit', minute: '2-digit',
+            timeZone: 'Asia/Manila',
         });
     },
 };

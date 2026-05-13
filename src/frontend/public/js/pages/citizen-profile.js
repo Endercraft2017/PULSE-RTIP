@@ -85,6 +85,11 @@ const CitizenProfilePage = {
                         label: 'About Us',
                         onclick: "CitizenProfilePage.showAboutUs()"
                     })}
+                    ${this.renderMenuItem({
+                        icon: 'refresh',
+                        label: 'Clear App Data',
+                        onclick: "CitizenProfilePage.clearAppData()"
+                    })}
                 </div>
 
                 <button class="btn btn--danger btn--block profile-page__logout"
@@ -108,8 +113,9 @@ const CitizenProfilePage = {
         const name = user.name || 'User';
         const barangay = user.address || '';
         const joinedDate = user.joined_date
-            ? new Date(user.joined_date).toLocaleDateString('en-US', {
-                month: 'long', day: 'numeric', year: 'numeric'
+            ? new Date(user.joined_date).toLocaleDateString('en-PH', {
+                month: 'long', day: 'numeric', year: 'numeric',
+                timeZone: 'Asia/Manila',
             })
             : '';
 
@@ -176,16 +182,42 @@ const CitizenProfilePage = {
             shield: '<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>',
             facebook: '<svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>',
             youtube: '<svg viewBox="0 0 24 24"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>',
-            twitter: '<svg viewBox="0 0 24 24"><path d="M4 4l11.5 16h4.5L8.5 4z"></path><path d="M4 20l7-8"></path><path d="M13 12l7-8"></path></svg>'
+            twitter: '<svg viewBox="0 0 24 24"><path d="M4 4l11.5 16h4.5L8.5 4z"></path><path d="M4 20l7-8"></path><path d="M13 12l7-8"></path></svg>',
+            refresh: '<svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path></svg>'
         };
         return icons[name] || icons.info;
+    },
+
+    /* --------------------------------------------------------
+       Clear App Data — U-7 recovery path
+       --------------------------------------------------------
+       Wipes localStorage, sessionStorage, and any cached responses
+       so a user stuck on a white screen on next launch can recover
+       without uninstalling. Wired to window.PulseAppReset (defined
+       in app.js) so the same logic is shared with the bootstrap
+       recovery UI.
+       -------------------------------------------------------- */
+    clearAppData() {
+        const ok = confirm('This will sign you out and clear cached app data. You will need to log in again. Continue?');
+        if (!ok) return;
+        if (typeof window.PulseAppReset === 'function') {
+            window.PulseAppReset();
+        } else {
+            try { localStorage.clear(); } catch (_) {}
+            try { sessionStorage.clear(); } catch (_) {}
+            window.location.reload();
+        }
     },
 
     /* --------------------------------------------------------
        3. Action Handlers
        -------------------------------------------------------- */
     showAboutUs() {
-        alert('PULSE 911 - MDRRMO Morong, Rizal\n\nReal-time incident reporting platform for the Municipal Disaster Risk Reduction and Management Office of Morong, Rizal.\n\nVersion 0.1.0');
+        if (typeof TeamModal !== 'undefined') {
+            TeamModal.show();
+        } else {
+            alert('PULSE 911 - MDRRMO Morong, Rizal');
+        }
     },
 
     reportBug() {

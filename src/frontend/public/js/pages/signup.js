@@ -5,12 +5,15 @@
    Table of Contents:
    1. Internal state
    2. Main render (step router)
-   3. Step 1: Create Account (name, email, phone, passwords, terms)
-   4. Step 2: Select Role (citizen | admin)
-   5. Step 3: ID Verification (citizen flow / admin flow)
+   3. Step 1: Create Account (name, email, phone, barangay, passwords, terms)
+   4. Step 2: Phone OTP verification
+   5. Step 3: ID Verification
    6. Step 4: Verification Success
    7. Step navigation helpers
    8. Form handlers
+
+   Role selection was removed (U-10): every new signup is a citizen.
+   Admin accounts are provisioned exclusively via the server-side CLI.
    ============================================================ */
 
 const SignupPage = {
@@ -23,15 +26,16 @@ const SignupPage = {
             name: '',
             email: '',
             phone: '',
+            barangay: '',
             password: '',
             confirmPassword: '',
             agreeTerms: false,
             otpCode: '',
             otpVerified: false,
-            role: null, // 'citizen' or 'admin'
             idType: '',
             idNumber: '',
-            idFileName: ''
+            idFileName: '',
+            idFile: null // File object — attached to FormData at register time
         }
     },
 
@@ -42,9 +46,8 @@ const SignupPage = {
         switch (this._state.step) {
             case 1: return this.renderCreateAccount();
             case 2: return this.renderPhoneOtp();
-            case 3: return this.renderSelectRole();
-            case 4: return this.renderIdVerification();
-            case 5: return this.renderSuccess();
+            case 3: return this.renderIdVerification();
+            case 4: return this.renderSuccess();
             default:
                 this._state.step = 1;
                 return this.renderCreateAccount();
@@ -58,6 +61,12 @@ const SignupPage = {
         const f = this._state.form;
         // Bind phone formatter once the DOM has the input element
         setTimeout(() => this._bindPhoneFormatter(), 0);
+
+        const barangays = (window.MorongBarangays || []);
+        const barangayOptions = barangays.map(b => `
+            <option value="${b}" ${f.barangay === b ? 'selected' : ''}>${b}</option>
+        `).join('');
+
         return `
             <div class="auth-screen">
                 ${this._authHeader()}
@@ -65,7 +74,7 @@ const SignupPage = {
                 <div class="auth-screen__body">
                     <div class="auth-screen__form-header">
                         <div class="auth-screen__form-title">Create account</div>
-                        <div class="auth-screen__form-subtitle">Sign up to get started</div>
+                        <div class="auth-screen__form-subtitle">Step 1 of 4 &bull; Sign up to get started</div>
                     </div>
 
                     <form id="signup-form" onsubmit="event.preventDefault(); SignupPage.handleCreateAccount(event)">
@@ -86,6 +95,14 @@ const SignupPage = {
                             <input class="input-group__field" type="tel" id="signup-phone" name="phone"
                                    placeholder="0917-123-4567" inputmode="numeric"
                                    value="${f.phone}">
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-group__label" for="signup-barangay">Barangay</label>
+                            <select class="input-group__field" id="signup-barangay" name="barangay" required>
+                                <option value="">Select your barangay</option>
+                                ${barangayOptions}
+                            </select>
                         </div>
 
                         <div class="input-group">
@@ -111,6 +128,8 @@ const SignupPage = {
                         <button type="submit" class="btn btn--primary btn--block mt-lg">Create account</button>
                     </form>
 
+                    ${this._renderSmsHint()}
+
                     <div class="auth-screen__signup">
                         Already have an account?
                         <a href="#/login" onclick="event.preventDefault(); Router.navigate('login')">Log in</a>
@@ -123,7 +142,7 @@ const SignupPage = {
     },
 
     /* --------------------------------------------------------
-       3b. Step 2: SMS OTP verification
+       4. Step 2: SMS OTP verification
        -------------------------------------------------------- */
     renderPhoneOtp() {
         const f = this._state.form;
@@ -140,7 +159,7 @@ const SignupPage = {
                     <div class="auth-screen__form-header">
                         <div class="auth-screen__form-title">Verify your phone</div>
                         <div class="auth-screen__form-subtitle">
-                            We sent a 6-digit verification code via SMS to
+                            Step 2 of 4 &bull; We sent a 6-digit verification code via SMS to
                             <strong>${this.escape(masked || f.phone)}</strong>.
                             Enter it below to continue.
                         </div>
@@ -218,6 +237,7 @@ const SignupPage = {
 
         f.otpCode = code;
         f.otpVerified = true;
+        // Skip the old "Select Role" step — jump straight to ID verification.
         this.goToStep(3);
     },
 
@@ -241,7 +261,7 @@ const SignupPage = {
     },
 
     /* --------------------------------------------------------
-       4. Step 3: Select Role
+       Header / footer partials
        -------------------------------------------------------- */
     _authHeader() {
         return `
@@ -268,56 +288,42 @@ const SignupPage = {
         `;
     },
 
-    renderSelectRole() {
-        const role = this._state.form.role;
+    /* --------------------------------------------------------
+       SMS gateway hint — surfaces the gateway phone number so
+       offline users know where to text from. Reads cached value
+       from localStorage and fetches if missing.
+       -------------------------------------------------------- */
+    _renderSmsHint() {
+        const cached = localStorage.getItem('pulse_gateway_phone') || '';
+        const display = cached ? this.escape(cached) : 'Loading...';
+        const href = cached ? `tel:${cached}` : '#';
+        if (!cached && window.Store && typeof Store.apiFetch === 'function') {
+            setTimeout(() => {
+                Store.apiFetch('/api/sms/gateway-phone').then(res => {
+                    if (res && res.success && res.data && res.data.phone) {
+                        localStorage.setItem('pulse_gateway_phone', res.data.phone);
+                        const span = document.getElementById('auth-sms-phone-su');
+                        if (span) {
+                            span.textContent = res.data.phone;
+                            const link = span.closest('a');
+                            if (link) link.setAttribute('href', `tel:${res.data.phone}`);
+                        }
+                    }
+                }).catch(() => { /* offline / non-critical */ });
+            }, 0);
+        }
         return `
-            <div class="auth-screen">
-                ${this._authHeader()}
-
-                <div class="auth-screen__body">
-                    <div class="auth-screen__form-header">
-                        <div class="auth-screen__form-title">Select Your Role</div>
-                        <div class="auth-screen__form-subtitle">Choose your account type to continue</div>
-                    </div>
-
-                    <div class="role-cards">
-                        <button type="button" class="role-card ${role === 'citizen' ? 'role-card--active' : ''}"
-                                onclick="SignupPage.selectRole('citizen', this)">
-                            <div class="role-card__icon">
-                                <svg viewBox="0 0 24 24">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="12" cy="7" r="4"></circle>
-                                </svg>
-                            </div>
-                            <div class="role-card__title">Citizen of Morong</div>
-                            <div class="role-card__desc">Report incidents and access emergency services as a resident</div>
-                        </button>
-
-                        <button type="button" class="role-card ${role === 'admin' ? 'role-card--active' : ''}"
-                                onclick="SignupPage.selectRole('admin', this)">
-                            <div class="role-card__icon">
-                                <svg viewBox="0 0 24 24">
-                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                                </svg>
-                            </div>
-                            <div class="role-card__title">MDRRMO Admin</div>
-                            <div class="role-card__desc">Manage incidents and coordinate emergency response operations</div>
-                        </button>
-                    </div>
-
-                    <div class="login-page__info-box">
-                        Your role determines your access level and available features in the system.
-                    </div>
-
-                    <div class="login-page__nav-buttons">
-                        <button type="button" class="btn btn--outline" onclick="SignupPage.goToStep(1)">Back</button>
-                        <button type="button" class="btn btn--primary"
-                                ${!role ? 'disabled' : ''}
-                                onclick="SignupPage.goToStep(4)">Continue</button>
-                    </div>
+            <div class="login-page__info-box mt-md" style="display:flex;align-items:flex-start;gap:8px;">
+                <svg viewBox="0 0 24 24" aria-hidden="true"
+                     style="width:18px;height:18px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-top:2px;">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                <div>
+                    <strong>Need help signing up offline?</strong>
+                    Text our SMS gateway at
+                    <a href="${href}"><strong><span id="auth-sms-phone-su">${display}</span></strong></a>.
+                    We'll guide you through it.
                 </div>
-
-                ${this._authFooter()}
             </div>
         `;
     },
@@ -327,17 +333,12 @@ const SignupPage = {
        -------------------------------------------------------- */
     renderIdVerification() {
         const f = this._state.form;
-        const isAdmin = f.role === 'admin';
-        const subtitle = isAdmin
-            ? 'Verify your MDRRMO credentials'
-            : 'Verify your identity to continue';
-        const infoText = isAdmin
-            ? 'Official IDs: Government-issued IDs for MDRRMO personnel. Your credentials will be verified by the system.'
-            : 'Accepted IDs: Government-issued IDs for Morong, Rizal residents. Your information is encrypted and secure.';
+        // Citizen-only signup flow: the old admin-branch copy was removed
+        // along with the role-select step.
+        const subtitle = 'Step 3 of 4 • Verify your identity to continue';
+        const infoText = 'Accepted IDs: Government-issued IDs for Morong, Rizal residents. Your information is encrypted and secure.';
 
-        const idOptions = isAdmin
-            ? ['MDRRMO Employee ID', 'Government Service Card', 'PRC ID', 'Other Government ID']
-            : ['Philippine Passport', 'Driver\'s License', 'National ID (PhilSys)', 'UMID', 'Postal ID', 'Voter\'s ID', 'Senior Citizen ID'];
+        const idOptions = ['Philippine Passport', 'Driver\'s License', 'National ID (PhilSys)', 'UMID', 'Postal ID', 'Voter\'s ID', 'Senior Citizen ID'];
 
         return `
             <div class="auth-screen">
@@ -385,7 +386,7 @@ const SignupPage = {
                         <div class="login-page__info-box">${infoText}</div>
 
                         <div class="login-page__nav-buttons">
-                            <button type="button" class="btn btn--outline" onclick="SignupPage.goToStep(3)">Back</button>
+                            <button type="button" class="btn btn--outline" onclick="SignupPage.goToStep(2)">Back</button>
                             <button type="submit" class="btn btn--primary">Verify</button>
                         </div>
                     </form>
@@ -400,8 +401,9 @@ const SignupPage = {
        6. Step 4: Verification Success
        -------------------------------------------------------- */
     renderSuccess() {
-        // Auto-redirect after rendering
-        setTimeout(() => this.finalizeSignup(), 1500);
+        // Auto-run registration after rendering; the finalize step will
+        // swap this screen for the "pending review" screen on success.
+        setTimeout(() => this.finalizeSignup(), 1200);
 
         return `
             <div class="auth-screen">
@@ -410,7 +412,7 @@ const SignupPage = {
                 <div class="auth-screen__body">
                     <div class="auth-screen__form-header">
                         <div class="auth-screen__form-title">ID Verification</div>
-                        <div class="auth-screen__form-subtitle">Verify your identity to continue</div>
+                        <div class="auth-screen__form-subtitle">Step 4 of 4 &bull; Submitting your application</div>
                     </div>
 
                     <div class="success-state">
@@ -420,8 +422,47 @@ const SignupPage = {
                             </svg>
                         </div>
                         <div class="success-state__title">Verification Successful</div>
-                        <div class="success-state__text">Your identity has been verified. Redirecting...</div>
+                        <div class="success-state__text">Submitting your account for review...</div>
                     </div>
+                </div>
+
+                ${this._authFooter()}
+            </div>
+        `;
+    },
+
+    renderPendingReview(message) {
+        const body = message || 'Thanks! Your account is pending MDRRMO admin review. You\'ll be notified by SMS and email when reviewed.';
+        return `
+            <div class="auth-screen">
+                ${this._authHeader()}
+
+                <div class="auth-screen__body">
+                    <div class="auth-screen__form-header">
+                        <div class="auth-screen__form-title">Account pending review</div>
+                        <div class="auth-screen__form-subtitle">Almost there!</div>
+                    </div>
+
+                    <div class="success-state">
+                        <div class="success-state__icon">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                        <div class="success-state__title">Submitted for approval</div>
+                        <div class="success-state__text">${this.escape(body)}</div>
+                    </div>
+
+                    <div class="login-page__info-box">
+                        An MDRRMO admin will review your application. You will receive an SMS
+                        and email at the address you signed up with once a decision is made.
+                    </div>
+
+                    <button type="button" class="btn btn--primary btn--block mt-lg"
+                            onclick="SignupPage.resetState(); Router.navigate('login')">
+                        Back to log in
+                    </button>
                 </div>
 
                 ${this._authFooter()}
@@ -444,27 +485,15 @@ const SignupPage = {
         if (el && window.PhoneFormat) PhoneFormat.bind(el);
     },
 
-    selectRole(role, el) {
-        this._state.form.role = role;
-        document.querySelectorAll('.role-card').forEach(card => {
-            card.classList.remove('role-card--active');
-        });
-        if (el) el.classList.add('role-card--active');
-        // Enable continue button
-        const continueBtn = document.querySelector('.login-page__nav-buttons .btn--primary');
-        if (continueBtn) continueBtn.disabled = false;
-    },
-
     resetState() {
         this._state = {
             step: 1,
             form: {
-                name: '', email: '', phone: '',
+                name: '', email: '', phone: '', barangay: '',
                 password: '', confirmPassword: '',
                 agreeTerms: false,
                 otpCode: '', otpVerified: false,
-                role: null,
-                idType: '', idNumber: '', idFileName: ''
+                idType: '', idNumber: '', idFileName: '', idFile: null
             }
         };
     },
@@ -480,6 +509,8 @@ const SignupPage = {
         f.name = document.getElementById('signup-name').value.trim();
         f.email = document.getElementById('signup-email').value.trim();
         const newPhone = document.getElementById('signup-phone').value.trim();
+        const barangayEl = document.getElementById('signup-barangay');
+        f.barangay = barangayEl ? barangayEl.value : '';
         f.password = document.getElementById('signup-password').value;
         f.confirmPassword = document.getElementById('signup-confirm').value;
         const termsEl = document.querySelector('#signup-form input[name="agreeTerms"]');
@@ -506,6 +537,12 @@ const SignupPage = {
         if (!window.PhoneFormat || !PhoneFormat.isValid(newPhone)) {
             toast('That doesn\'t look like a valid Philippine mobile number. Expected format: 0917-123-4567 (11 digits starting with 09).');
             document.getElementById('signup-phone').focus();
+            return;
+        }
+
+        if (!f.barangay) {
+            toast('Please select your barangay so MDRRMO can route alerts that apply to your area.');
+            if (barangayEl) barangayEl.focus();
             return;
         }
 
@@ -563,6 +600,18 @@ const SignupPage = {
     handleFileSelect(event) {
         const file = event.target.files[0];
         if (file) {
+            // 5MB cap mirrors server-side config.upload.maxFileSize
+            if (file.size > 5 * 1024 * 1024) {
+                alert('ID image is too large. Maximum size is 5MB.');
+                event.target.value = '';
+                return;
+            }
+            if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) {
+                alert('ID image must be a PNG, JPG, or WEBP file.');
+                event.target.value = '';
+                return;
+            }
+            this._state.form.idFile = file;
             this._state.form.idFileName = file.name;
             const textEl = document.querySelector('.file-upload__text');
             if (textEl) textEl.textContent = file.name;
@@ -582,8 +631,12 @@ const SignupPage = {
             return;
         }
 
-        // Show success state (UI mock for MVP — real verification would happen server-side)
-        this.goToStep(5);
+        if (!f.idFile) {
+            alert('Please upload a photo of your ID.');
+            return;
+        }
+
+        this.goToStep(4);
     },
 
     async finalizeSignup() {
@@ -593,7 +646,14 @@ const SignupPage = {
             email: f.email,
             password: f.password,
             phone: f.phone || undefined,
-            role: f.role
+            barangay: f.barangay || undefined,
+            // Explicitly pin role — server forces 'citizen' anyway, but being
+            // explicit makes the client intent obvious and prevents a stray
+            // admin-role request from ever leaving this form.
+            role: 'citizen',
+            idType: f.idType,
+            idNumber: f.idNumber,
+            idFile: f.idFile || undefined
         });
 
         if (!result.success) {
@@ -601,25 +661,26 @@ const SignupPage = {
                 ? '\n\n' + result.errors.map(e => `• ${e.field}: ${e.message}`).join('\n')
                 : '';
             alert((result.message || 'Registration failed. Please try again.') + detail);
-            this.goToStep(1);
+            // Bounce back to the ID step if the failure is about the ID —
+            // users shouldn't have to re-enter everything from step 1.
+            const isIdError = result.message && /\bID\b/.test(result.message);
+            this.goToStep(isIdError ? 3 : 1);
             return;
         }
 
-        // Admin signups are queued — show toast, return to login.
-        if (result.adminRequest === 'pending') {
-            this.resetState();
-            Router.navigate('login');
-            setTimeout(() => {
-                Toast.show(
-                    result.message || 'Your admin request has been submitted for approval.',
-                    { type: 'success', title: 'Request submitted', duration: 4500 }
-                );
-            }, 100);
-            return;
+        // Every signup — citizen or admin — is now pending review.
+        // Show the pending-review screen; the user taps "Back to log in"
+        // when they're ready and cannot sign in until an admin approves.
+        const appContent = document.getElementById('app-content');
+        if (appContent) {
+            appContent.innerHTML = this.renderPendingReview(result.message);
         }
-
-        this.resetState();
-        Router.navigate('home');
+        if (typeof Toast !== 'undefined') {
+            Toast.show(
+                result.message || 'Your account is pending MDRRMO admin review.',
+                { type: 'success', title: 'Submitted for approval', duration: 5000 }
+            );
+        }
     },
 
     escape(str) {

@@ -229,7 +229,7 @@ const Store = {
             const data = await res.json();
 
             if (!data.success) {
-                return { success: false, message: data.message };
+                return { success: false, code: data.code, message: data.message };
             }
 
             this._setAuthData(data.data);
@@ -390,29 +390,74 @@ const Store = {
 
     /**
      * Registers a new user account via the backend API.
-     * @param {object} userData - { name, email, password, phone, address }
+     * @param {object} userData - { name, email, password, phone, address, idType, idNumber, idFile? }
      * @returns {Promise<object>} Result with success flag
+     *
+     * If `userData.idFile` is a File/Blob, we send multipart/form-data so the
+     * server can persist the uploaded ID image. Otherwise JSON.
      */
     async register(userData) {
         try {
-            const res = await fetch(API_BASE + '/api/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(userData),
-            });
+            const hasFile = userData && userData.idFile &&
+                (typeof File !== 'undefined' && userData.idFile instanceof File ||
+                 typeof Blob !== 'undefined' && userData.idFile instanceof Blob);
 
-            const data = await res.json();
+            let fetchOpts;
+            if (hasFile) {
+                const fd = new FormData();
+                Object.keys(userData).forEach(k => {
+                    if (k === 'idFile') return;
+                    if (userData[k] === undefined || userData[k] === null) return;
+                    fd.append(k, userData[k]);
+                });
+                fd.append('idFile', userData.idFile);
+                // No Content-Type header — the browser sets the multipart boundary
+                fetchOpts = { method: 'POST', body: fd };
+            } else {
+                fetchOpts = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData),
+                };
+            }
+
+            const res = await fetch(API_BASE + '/api/auth/register', fetchOpts);
+
+            // Try to parse the body as JSON; if the server crashed and
+            // returned HTML (e.g. uncaught error -> Express default 500),
+            // res.json() throws and we'd previously surface that as a
+            // generic "Network error". Fall back to text + status so the
+            // user sees something actionable.
+            let data;
+            try {
+                data = await res.json();
+            } catch (_) {
+                let bodyText = '';
+                try { bodyText = await res.text(); } catch (__) {}
+                const snippet = bodyText && !/^\s*</.test(bodyText)
+                    ? ` (${bodyText.slice(0, 120)})`
+                    : '';
+                return {
+                    success: false,
+                    message: `Server error ${res.status}${snippet}. Please try again or contact MDRRMO admin.`,
+                };
+            }
 
             if (!data.success) {
                 return { success: false, message: data.message, errors: data.errors };
             }
 
-            // Admin signup is queued for approval — no auth data returned.
-            if (data.adminRequest) {
-                return { success: true, adminRequest: data.adminRequest, message: data.message };
+            // Every signup now returns `pending: true` — the user cannot
+            // log in until an admin approves, so no auth state is stored.
+            if (data.pending) {
+                return { success: true, pending: true, kind: data.kind, message: data.message };
             }
 
-            this._setAuthData(data.data);
+            // Legacy path kept for backward-compat with older server builds
+            // that still auto-login citizen signups.
+            if (data.data) {
+                this._setAuthData(data.data);
+            }
             return { success: true };
         } catch (err) {
             return { success: false, message: 'Network error. Please try again.' };
@@ -444,25 +489,52 @@ const Store = {
 
     /**
      * Restores session from stored JWT token on page load.
+     *
+     * U-7 fix: previously a 401 inside apiFetch called Store.logout()
+     * AND Router.navigate('login') BEFORE Router.init() had wired up
+     * the hashchange listener — leaving the app stuck on a blank
+     * white screen on the second cold open. We now do a token-only
+     * fetch here (no auto-redirect on 401), swallow every failure,
+     * and let app.js's init() decide where to send the user.
      * @returns {Promise<boolean>} Whether session was restored
      */
     async restoreSession() {
-        const token = localStorage.getItem('pulse_token');
+        let token = null;
+        try { token = localStorage.getItem('pulse_token'); } catch (_) { /* storage corrupted */ }
         if (!token) return false;
 
         try {
-            const res = await this.apiFetch('/api/users/me');
-            if (res.success) {
-                this.set('user', res.data);
-                this.set('role', res.data.role);
+            const headers = {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json',
+            };
+            const res = await fetch(API_BASE + '/api/users/me', { headers });
+
+            // 401 / 403 -> token expired or invalid; clear and bail without
+            // touching Router (which may not be ready yet on a cold open).
+            if (res.status === 401 || res.status === 403) {
+                try { localStorage.removeItem('pulse_token'); } catch (_) {}
+                return false;
+            }
+
+            // Any other non-2xx -> network/server hiccup. DO NOT clear the
+            // token — a transient blip shouldn't log the user out. Just
+            // fall through to login this once.
+            if (!res.ok) return false;
+
+            const data = await res.json();
+            if (data && data.success && data.data) {
+                this.set('user', data.data);
+                this.set('role', data.data.role);
                 this.set('isAuthenticated', true);
                 return true;
             }
         } catch (err) {
-            // Token expired or invalid
+            // Network unreachable, JSON parse error, etc. Keep the token
+            // (it may still be valid once we're back online) and just
+            // proceed to login — never let restoreSession throw.
         }
 
-        localStorage.removeItem('pulse_token');
         return false;
     },
 
@@ -511,6 +583,25 @@ const Store = {
      */
     getToken() {
         return localStorage.getItem('pulse_token');
+    },
+
+    /* --------------------------------------------------------
+     * 6. Media URL Resolver
+     * -------------------------------------------------------- */
+
+    /**
+     * Resolves a backend-supplied media path (image/video) into a URL the
+     * WebView can load. On native (Capacitor) the page origin is
+     * https://localhost, so a bare /uploads/... would 404 — we prefix the
+     * remote API origin in that case. Bare filenames are routed through the
+     * legacy /uploads/ mount.
+     */
+    mediaUrl(raw) {
+        if (!raw) return null;
+        const s = String(raw);
+        if (s.startsWith('http://') || s.startsWith('https://')) return s;
+        const path = s.startsWith('/') ? s : '/uploads/' + s;
+        return API_BASE + path;
     }
 };
 

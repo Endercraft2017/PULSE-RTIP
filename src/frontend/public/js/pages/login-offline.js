@@ -13,7 +13,13 @@ const LoginOfflinePage = {
             setTimeout(() => Router.navigate('login'), 0);
             return '';
         }
-        setTimeout(() => LoginOfflinePage._recheck(), 0);
+        setTimeout(() => {
+            LoginOfflinePage._recheck();
+            // Disaster-response UX: jump straight to the SMS reporting form on
+            // offline cold-start. The "Uh oh!" card stays rendered behind the
+            // modal so closing it exposes the Retry connection button.
+            LoginOfflinePage.continueOffline();
+        }, 0);
 
         return `
             <div class="auth-screen">
@@ -66,7 +72,10 @@ const LoginOfflinePage = {
     },
 
     async _recheck() {
-        // Quietly try again every 10s; if server comes back, return to login
+        // Quietly try again every 10s; if server comes back, reload so the
+        // normal boot flow runs (restoreSession → home if JWT cached, else
+        // login). Just navigating to 'login' here would dump a logged-in
+        // user onto a login form they don't need to fill out again.
         if (this._timer) return;
         this._timer = setInterval(async () => {
             if (Router.currentRoute !== 'login-offline') {
@@ -77,12 +86,15 @@ const LoginOfflinePage = {
             try {
                 const c = new AbortController();
                 const t = setTimeout(() => c.abort(), 3000);
-                const r = await fetch('/api/health', { signal: c.signal });
+                const r = await fetch(API_BASE + '/api/health', { signal: c.signal });
                 clearTimeout(t);
                 if (r.ok) {
+                    // Don't yank the user out mid-SMS — wait for them to close
+                    // the form. The next tick (10s later) will pick it up.
+                    if (document.getElementById('sos-offline-modal')) return;
                     clearInterval(this._timer);
                     this._timer = null;
-                    Router.navigate('login');
+                    window.location.reload();
                 }
             } catch (_) { /* still offline */ }
         }, 10000);
@@ -95,9 +107,12 @@ const LoginOfflinePage = {
         try {
             const c = new AbortController();
             const t = setTimeout(() => c.abort(), 4000);
-            const r = await fetch('/api/health', { signal: c.signal });
+            const r = await fetch(API_BASE + '/api/health', { signal: c.signal });
             clearTimeout(t);
-            if (r.ok) { Router.navigate('login'); return; }
+            // Same reason as _recheck: reload so the boot flow runs the
+            // session restore path. A user with a cached JWT lands on home;
+            // a user without one lands on the standard login form.
+            if (r.ok) { window.location.reload(); return; }
         } catch (_) {}
         btn.disabled = false;
         btn.textContent = 'Retry connection';
@@ -105,8 +120,8 @@ const LoginOfflinePage = {
     },
 
     continueOffline() {
-        if (typeof SosOffline !== 'undefined' && SosOffline.open) {
-            SosOffline.open();
+        if (typeof SosOffline !== 'undefined' && typeof SosOffline.show === 'function') {
+            SosOffline.show();
         } else {
             alert('Offline mode: emergency SMS is the only available feature when disconnected.');
         }
