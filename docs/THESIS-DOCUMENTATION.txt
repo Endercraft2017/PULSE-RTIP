@@ -1,0 +1,1432 @@
+================================================================================
+PULSE-RTIP — THESIS DOCUMENTATION REFERENCE
+Real-Time Incident Reporting Platform for MDRRMO Morong, Rizal
+================================================================================
+Generated: 2026-04-14
+Repository: https://github.com/Endercraft2017/PULSE-RTIP
+Production: https://pulse.afkcube.com
+Bundle ID:  com.mdrrmo.pulse911  (App Name: PULSE 911)
+================================================================================
+
+
+1. PROJECT OVERVIEW
+--------------------------------------------------------------------------------
+PULSE-RTIP (Real-Time Incident Reporting Platform) is a disaster response and
+emergency reporting system developed for the Municipal Disaster Risk Reduction
+and Management Office (MDRRMO) of Morong, Rizal, Philippines. It enables
+citizens to report incidents using text, images, and GPS coordinates, while
+providing MDRRMO personnel with a centralized dashboard for validation,
+response coordination, and mass-alert broadcasting.
+
+Target Users:
+  - Citizens of Morong, Rizal — report incidents, receive alerts
+  - MDRRMO Administrators — validate reports, broadcast hazards, manage SMS
+
+Deployment Forms:
+  - Android mobile app (Capacitor, APK)
+  - Web app (https://pulse.afkcube.com)
+  - Optional Electron desktop build
+
+Core Problem Addressed:
+  Disaster response in Morong suffers from delayed and unverified reports, and
+  from communication gaps when citizens have no internet access. PULSE-RTIP
+  solves both through online incident reporting with media/GPS and an offline
+  SMS channel (PULSE911 format) relayed through a TextBee Android gateway.
+
+
+2. SYSTEM ARCHITECTURE
+--------------------------------------------------------------------------------
+Three-tier architecture:
+
+  [ Mobile / Web Client ]  ->  [ Node.js + Express API ]  ->  [ MySQL DB ]
+        (Capacitor)                    (Kali Server)             (Production)
+                                           |
+                                           +-- SQLite (Offline mode)
+                                           +-- TextBee SMS Gateway (Infinix X687)
+                                           +-- GDACS RSS Feed
+                                           +-- NewsAPI
+
+- Frontend: Vanilla HTML/CSS/JS SPA wrapped with Capacitor for Android
+- Backend:  Node.js + Express REST API on Kali Linux server
+- Database: MySQL (production) / SQLite (offline development)
+- Reverse proxy: Nginx with Let's Encrypt SSL on pulse.afkcube.com
+- SMS relay: TextBee gateway on an Android device for offline emergencies
+
+
+3. TECHNOLOGY STACK
+--------------------------------------------------------------------------------
+BACKEND
+  Runtime            : Node.js 18+
+  Framework          : Express.js 4.21.1
+  Database (prod)    : MySQL via mysql2 3.11.5
+  Database (offline) : SQLite via better-sqlite3 11.7.0
+  Authentication     : JSON Web Tokens (jsonwebtoken 9.0.2)
+  Password hashing   : bcryptjs 2.4.3 (10 salt rounds)
+  File uploads       : multer 1.4.5-lts.1
+  Security headers   : helmet 8.0.0
+  CORS               : cors 2.8.5
+  Rate limiting      : express-rate-limit 7.4.1 (100 req / 15 min on /api)
+  Validation         : express-validator 7.2.1
+  HTTP client        : axios 1.15.0
+  Logging            : morgan 1.10.0
+  Env management     : dotenv 16.4.7
+
+FRONTEND
+  Markup/styling     : HTML5, CSS3 (custom, no UI framework)
+  Scripting          : Vanilla JavaScript (ES modules)
+  Routing            : Custom hash-based client-side router
+  State              : localStorage-backed Store module
+  Font               : Inter (bundled InterVariable.woff2)
+
+MOBILE
+  Wrapper            : Capacitor 8.3.0 (@capacitor/core, cli, android)
+  Platform           : Android (min SDK per android/variables.gradle)
+  Permissions        : INTERNET, ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION
+
+INFRASTRUCTURE
+  Host               : Kali Linux VPS, 76.13.215.54
+  Web server         : Nginx (reverse proxy, static file serving)
+  SSL                : Let's Encrypt (certbot, auto-renew)
+  Process manager    : PM2 (recommended for Node backend)
+  Domain             : pulse.afkcube.com
+
+
+4. EXTERNAL SERVICES & APIs
+--------------------------------------------------------------------------------
+4.1 TextBee SMS Gateway
+    Purpose   : Send/receive SMS through an Android phone acting as a gateway
+    Device    : Infinix X687 (registered to project owner)
+    Base URL  : https://api.textbee.dev/api/v1
+    Env vars  : TEXTBEE_API_KEY, TEXTBEE_DEVICE_ID, TEXTBEE_GATEWAY_PHONE
+    Features  : Single-recipient send, bulk send (batches of 50), inbox polling
+                at 60-second interval, device status check
+    Used for  : Hazard alert broadcasts, offline PULSE911 SOS ingestion,
+                administrative test messaging
+
+4.2 NewsAPI
+    Purpose   : Philippines news headlines and Morong/Rizal search
+    Base URL  : https://newsapi.org/v2
+    Free tier : 100 requests/day, 15-minute result delay, localhost origin only
+    Cache     : 30-minute TTL (in-process), graceful fallback on rate-limit
+    Endpoints : /top-headlines (country=ph), /everything (q="Morong"/"Rizal")
+
+4.3 GDACS (Global Disaster Alert and Coordination System)
+    Purpose   : Global disaster awareness feed, no API key required
+    Source    : https://www.gdacs.org/xml/rss.xml
+    Filtering : Philippines + 800km proximity to Morong (14.5131°N, 121.2365°E)
+    Mapped    : EQ, TC, FL, DR, WF, VO, TS with Red/Orange/Green alert levels
+
+4.4 Capacitor Geolocation
+    Purpose   : GPS capture for incident reports and SOS
+    Precision : ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION fallback
+
+4.5 Device SMS (native intent)
+    Purpose   : Offline SOS — opens native SMS composer pre-filled with
+                PULSE911 format payload, sent to the TextBee gateway phone
+                number fetched from /api/sms/gateway-phone
+
+
+5. BACKEND API — ENDPOINT REFERENCE
+--------------------------------------------------------------------------------
+Base URL: http://localhost:3000/api  |  https://pulse.afkcube.com/api
+All endpoints except /auth/* and /sms/gateway-phone require:
+    Authorization: Bearer <JWT>
+
+5.1 Authentication  (routes/auth.js)
+    POST  /auth/login         Email+password login; returns JWT + profile
+    POST  /auth/register      New citizen signup; auto-logs in
+
+5.2 Users  (routes/users.js)
+    GET   /users/me           Current user profile
+    PUT   /users/me           Update name/phone/address
+
+5.3 Incident Reports  (routes/reports.js)
+    GET   /reports            List (citizens see own, admins see all)
+    POST  /reports            Create report, multipart, up to 5 images
+    GET   /reports/:id        Get single report with images
+    PUT   /reports/:id/status Admin-only status update; notifies reporter
+    Statuses: submitted -> pending -> under-review -> investigating -> resolved
+    Types   : Flood, Fire, Infrastructure Damage, Earthquake, Landslide,
+              Typhoon, Others
+
+5.4 Hazard Alerts  (routes/hazards.js)
+    GET   /hazards            List active hazards
+    POST  /hazards            Admin-only; triggers TextBee SMS broadcast to
+                              all citizens with a registered phone number
+    Severity: high | medium | low
+
+5.5 Notifications  (routes/notifications.js)
+    GET   /notifications      User's notification feed
+    PUT   /notifications/read Mark all as read
+
+5.6 Dashboard  (routes/dashboard.js)
+    GET   /dashboard/stats    Admin-only counts: pending, investigating,
+                              resolved, hazardsCount
+
+5.7 Media  (routes/media.js)
+    POST  /media/upload       Multer upload, 5 files max, 5MB each,
+                              types JPEG/PNG/GIF/MP4
+
+5.8 Emergency Hotlines  (routes/hotlines.js)
+    GET   /hotlines           Categorized emergency contacts
+
+5.9 SMS Gateway  (routes/sms.js)
+    GET   /sms/gateway-phone  Public; gateway phone for client-side SOS
+    GET   /sms/status         Admin-only; device connectivity
+    POST  /sms/send           Admin-only; recipients[], message
+    GET   /sms/received       Admin-only; paginated inbox
+    POST  /sms/test           Admin-only; send test message
+
+5.10 SMS Reports (offline ingestion)  (routes/smsReports.js)
+    GET   /sms-reports                List pending PULSE911 reports
+    POST  /sms-reports/:id/convert    Convert to formal incident report
+    POST  /sms-reports/:id/dismiss    Dismiss (spam/invalid)
+
+5.11 Community Posts  (routes/posts.js)
+    GET    /posts             List with category + search filters
+    POST   /posts             Create; categories: community, city-news, videos
+    DELETE /posts/:id         Author or admin only
+
+5.12 News & Disaster Feed  (routes/news.js)
+    GET   /news               Combined GDACS + NewsAPI feed with relevance
+                              scoring for MDRRMO/Morong/Rizal keywords
+
+5.13 Health
+    GET   /health             Liveness probe (no auth)
+
+
+6. DATABASE SCHEMA
+--------------------------------------------------------------------------------
+Schema is defined in src/database/migrations/ and runs on either MySQL or
+SQLite via a unified abstraction layer (src/backend/config/database.js).
+
+6.1 users
+    id, name, email (unique), phone, address, avatar (1 char),
+    role ('citizen'|'admin'), password_hash, joined_date, created_at, updated_at
+
+6.2 reports
+    id, title, type, status (default 'submitted'), description, location,
+    latitude, longitude, submitted_by (FK users, NULL for SMS-origin),
+    source ('web'|'sms'), created_at, updated_at
+
+6.3 report_images
+    id, report_id (FK reports, ON DELETE CASCADE), file_path, uploaded_at
+
+6.4 hazard_alerts
+    id, title, severity, location, description, created_by (FK users),
+    created_at, updated_at
+
+6.5 notifications
+    id, user_id (FK), report_id (FK), title, text, status, is_read,
+    created_at
+
+6.6 emergency_hotlines
+    id, category, label, number, sort_order
+
+6.7 community_posts
+    id, user_id (FK), category, title, content, image_path, type, created_at,
+    updated_at
+
+6.8 sms_reports  (offline PULSE911 ingestion staging)
+    id, raw_message, sender_phone, type, severity, message, sender_name,
+    latitude, longitude, status ('pending'|'converted'|'dismissed'),
+    converted_report_id (FK reports), textbee_sms_id, received_at, created_at
+
+
+7. AUTHENTICATION & SECURITY MODEL
+--------------------------------------------------------------------------------
+- JWT (HS256) tokens with sub (user id) and role claims, 24h expiry
+- Passwords hashed with bcryptjs (10 rounds); plaintext never stored
+- authenticate() middleware extracts Bearer token, verifies signature,
+  attaches req.user; requireAdmin() adds role gating
+- Citizens see only their own reports; admins see everything
+- Helmet security headers (CSP relaxed for inline scripts in SPA shell)
+- CORS whitelist per environment
+- Express rate limiter: 100 requests / 15 min / IP on /api
+- express-validator input validation on all write endpoints
+- HTTPS enforced in production via Let's Encrypt + Nginx
+
+
+8. OFFLINE EMERGENCY SMS (PULSE911 PROTOCOL)
+--------------------------------------------------------------------------------
+A key thesis contribution: citizens without internet can still report
+emergencies by SMS.
+
+Message format (sent to TextBee gateway number):
+    PULSE911|{TYPE}|{SEV}|{LAT},{LNG}|{NAME}|{PHONE}|{MESSAGE}
+
+Codes:
+    TYPE     FL=Flood, FR=Fire, TY=Typhoon, IN=Infrastructure,
+             EQ=Earthquake, LS=Landslide, OT=Others
+    SEV      1=low, 2=medium, 3=high
+    LAT,LNG  Decimal WGS84 coordinates from device GPS
+    NAME     Citizen display name
+    PHONE    Citizen phone number (PH)
+    MESSAGE  Short free-text description (<=100 chars)
+
+Example:
+    PULSE911|FL|3|14.5117,121.2395|Ray Lopez|09122078435|Flooded road
+
+Processing pipeline:
+    1. TextBee Android gateway receives the SMS
+    2. smsPoller.js polls TextBee REST inbox every 60 seconds
+    3. smsParser.js parses the PULSE911 payload
+    4. A row is inserted into sms_reports (status='pending')
+    5. Admin reviews in dashboard and either converts it into a formal
+       incident report or dismisses it
+
+
+9. BACKEND CODE LAYOUT
+--------------------------------------------------------------------------------
+src/backend/
+  server.js                       Express app, middleware chain, route mount,
+                                  SMS poller start, graceful shutdown
+  config/
+    index.js                      Central env loader, APP_MODE switch
+    database.js                   MySQL pool + SQLite wrapper, unified query()
+    newsapi.js                    NewsAPI constants & limits
+  controllers/                    authController, userController,
+                                  reportController, hazardController,
+                                  notificationController, dashboardController,
+                                  newsController, mediaController,
+                                  smsController, smsReportController,
+                                  postController
+  routes/                         auth, users, reports, hazards, notifications,
+                                  dashboard, media, hotlines, sms, smsReports,
+                                  posts, news
+  models/                         User, Report, ReportImage, Hazard,
+                                  Notification, Hotline, Post, SmsReport
+  middleware/                     auth.js (authenticate, requireAdmin),
+                                  validate.js, errorHandler.js
+  services/
+    sms/textbee.js                REST wrapper (send, bulkSend, getReceived,
+                                  getStatus, isConfigured)
+    sms/smsPoller.js              Background 60s polling loop
+    sms/smsParser.js              PULSE911 parser
+
+
+10. FRONTEND CODE LAYOUT
+--------------------------------------------------------------------------------
+src/frontend/
+  index.html                      SPA shell
+  public/
+    css/styles.css                All styling, theming variables, responsive
+    assets/fonts/InterVariable.woff2
+    js/
+      app.js                      Route registration + bootstrap
+      utils/router.js             Hash router, auth guard, page lifecycle
+      utils/store.js              Auth/session state via localStorage
+      components/header.js        Top bar, back, settings, notification bell
+      components/nav.js           Bottom nav (citizen vs admin menus)
+      components/detail-modal.js  Reusable detail viewer
+      components/terms-modal.js   Signup T&C modal
+      pages/
+        login.js                  Login form
+        signup.js                 Registration form
+        forgot-password.js        Password recovery entry
+        citizen-home.js           Citizen landing (SOS, report CTA, weather,
+                                  hazard strip)
+        citizen-profile.js        Profile menu
+        edit-profile.js           Editable profile form
+        personal-info.js          Read-only personal info
+        report-incident.js        3-step report wizard
+        my-reports.js             Submitted-report list + status
+        sos-offline.js            Offline SOS composer (PULSE911 via SMS)
+        emergency.js              Hotlines reference (Police/Hospital/Fire/RC)
+        hazards.js                Active hazard alerts
+        news-updates.js           Combined GDACS + NewsAPI feed
+        notifications.js          Notification inbox
+        admin-home.js             Admin landing with quick stats
+        admin-dashboard.js        MDRRMO control center (Incidents/Hazards/
+                                  Reports tabs)
+        admin-profile.js          Admin profile + system status
+        report-progress.js        Status timeline per report
+        service-request.js       Service request stub
+        preferences.js            Notification/language prefs
+        appearance.js             Theme / font-size / accessibility
+        activities.js             Activity log
+
+
+11. USER-FACING FEATURES
+--------------------------------------------------------------------------------
+11.1 Citizen-Facing
+  - Account creation & login (JWT session, auto-restore)
+  - Profile management (name, phone, address, avatar)
+  - 3-step Report Incident wizard: type -> media/GPS -> review/submit
+  - GPS capture via Capacitor Geolocation
+  - Up to 5 image attachments per report
+  - Status tracking: submitted -> pending -> under-review -> investigating
+    -> resolved
+  - My Reports list with live status
+  - Offline SOS emergency report via native SMS composer (PULSE911 format)
+  - Active hazard alerts list with severity colouring
+  - News & Disaster feed (GDACS + NewsAPI, Morong/Rizal prioritised)
+  - Emergency Hotlines reference (MDRRMO, PNP, hospitals, BFP, PRC)
+  - Slide-to-call 911 shortcut
+  - Community Board (posts, city news, videos)
+  - Notifications (admin status updates, hazard alerts)
+  - Theme (light/dark), language, accessibility preferences
+
+11.2 Admin (MDRRMO)
+  - Admin dashboard with live counts (pending, investigating, resolved,
+    hazards)
+  - Incident review queue with approve/reject + status transitions
+  - Hazard alert creation -> automatic SMS broadcast to citizens
+  - SMS gateway controls: status check, manual send, inbox view, test
+  - PULSE911 SMS report queue: convert to formal report or dismiss
+  - Admin profile with system status indicators
+
+
+12. DEPLOYMENT
+--------------------------------------------------------------------------------
+12.1 Kali Server
+    Host   : 76.13.215.54 (root, SSH port 22)
+    Key    : C:\Users\tseri\kali_openclaw
+    Root   : /opt/PULSE-RTIP/
+    Data   : /opt/PULSE-RTIP/data/
+    DB     : /opt/PULSE-RTIP/db/
+    Access : ssh -i ~/kali_openclaw root@76.13.215.54
+
+12.2 Nginx + SSL
+    Domain : pulse.afkcube.com
+    SSL    : Let's Encrypt via certbot, auto-renew
+    Config : /etc/nginx/sites-enabled/pulse.afkcube.com
+    Static : /var/www/pulse.afkcube.com/ (frontend)
+    Proxy  : /api -> http://127.0.0.1:3000
+    APK    : /var/www/pulse.afkcube.com/downloads/
+
+12.3 Environment Variables (.env)
+    APP_MODE=production
+    PORT=3000
+    JWT_SECRET=<random>
+    JWT_EXPIRES_IN=24h
+    MYSQL_HOST=localhost
+    MYSQL_PORT=3306
+    MYSQL_USER=pulse_user
+    MYSQL_PASSWORD=<secret>
+    MYSQL_DATABASE=pulse_rtip
+    NEWSAPI_KEY=<key>
+    TEXTBEE_API_KEY=<key>
+    TEXTBEE_DEVICE_ID=<device>
+    TEXTBEE_GATEWAY_PHONE=<ph number>
+
+12.4 Commands
+    Backend dev   : cd src/backend && npm run dev
+    Backend start : cd src/backend && npm start
+    Migrations    : npm run migrate
+    Seed demo     : npm run seed
+    Capacitor sync: npx cap sync android
+    Build APK     : (set GRADLE_USER_HOME=d:/gradle-home) &&
+                    cd android && gradlew assembleDebug
+
+12.5 Demo Accounts (after seed)
+    Admin   : admin@mdrrmo.gov    / admin123
+    Citizen : ray.lopez@email.com / citizen123
+
+
+13. NOTABLE DESIGN DECISIONS (for the thesis discussion)
+--------------------------------------------------------------------------------
+- Vanilla-JS frontend wrapped by Capacitor instead of React/Flutter: minimises
+  dependency footprint and build complexity while keeping a single codebase
+  for web, mobile, and desktop (Electron) targets.
+- Dual-database abstraction (MySQL/SQLite) allows full offline development
+  and field demos without a live database server.
+- Stateless JWT auth simplifies horizontal scaling and mobile session reuse.
+- TextBee on a low-cost Android phone serves as an SMS gateway, avoiding
+  telco API fees and working end-to-end with free infrastructure.
+- PULSE911 SMS protocol provides a functioning offline reporting channel in
+  communities with poor mobile data coverage.
+- News feed fuses the free GDACS RSS feed with NewsAPI, with relevance
+  scoring to prioritise MDRRMO, Morong, and Rizal mentions.
+
+
+14. THESIS EVALUATION SURFACE
+--------------------------------------------------------------------------------
+The system is designed to be evaluated on:
+  - Functionality : report submission, status workflow, SMS broadcast,
+                    offline SOS ingestion, news aggregation
+  - Usability     : 3-step wizard, bottom-nav IA, theme support, large
+                    tap targets, accessible labels
+  - Reliability   : rate limiting, graceful SMS degradation, dual-DB
+                    fallback, 60s poller, request validation
+  - Security      : JWT + bcrypt + helmet + CORS + HTTPS + RBAC
+
+================================================================================
+END OF BASE DOCUMENT
+================================================================================
+
+
+################################################################################
+#                                                                              #
+#   APPENDIX A — ITERATION CHANGE LOG (2026-04-22)                            #
+#   Account Approval, Soft-Delete, Offline Reports, ID Verification,           #
+#   Editable TextBee Credentials, Email Notifications                          #
+#                                                                              #
+################################################################################
+
+
+A.1  SCOPE OF THIS ITERATION
+--------------------------------------------------------------------------------
+Eleven (11) concerns raised by the project owner were addressed in a single
+iteration. Each concern is documented with (a) the requirement, (b) the
+diagnosis, (c) the implementation, and (d) the verification evidence.
+
+Concern index:
+  A.3.1  Editable TextBee SMS credentials (admin UI, runtime override)
+  A.3.2  Account approval workflow for BOTH admin and citizen signups
+  A.3.3  Soft-delete: self-service + admin-initiated
+  A.3.4  Password-reset OTP end-to-end verification
+  A.3.5  Signup role forced to 'citizen' server-side (privilege escalation)
+  A.3.6  Account creation regression coverage
+  A.3.7  "Verification expired" popup — OTP timezone parsing hardening
+  A.3.8  Delete-account operational verification
+  A.3.9  Manual ID verification by admin (image upload + review UI)
+  A.3.10 Offline SMS incident reporting (REPORT pathway, complements PULSE911)
+  A.3.11 Cross-role community post visibility
+
+
+A.2  NEW AND MODIFIED COMPONENTS AT A GLANCE
+--------------------------------------------------------------------------------
+Migrations added:
+  014_add_soft_delete_to_users.sql
+  015_add_source_type_to_sms_reports.sql
+  016_create_app_settings.sql
+  017_add_id_fields_to_users.sql
+
+New back-end modules:
+  src/backend/utils/dates.js                Robust DB-date parsing helper
+  src/backend/services/email/mailer.js      nodemailer wrapper + dev fallback
+  src/backend/models/AppSetting.js          Key/value runtime settings
+  src/backend/routes/adminSettings.js       Admin API for TextBee creds
+
+New front-end modules:
+  src/frontend/public/js/utils/hazard-cache.js       Offline hazard cache
+  src/frontend/public/js/pages/admin-settings.js     TextBee creds UI
+  src/frontend/public/js/pages/report-offline.js     REPORT modal (offline)
+
+Modified back-end files (high-level):
+  config/database.js, config/index.js, controllers/authController.js,
+  controllers/adminRequestController.js, controllers/userController.js,
+  middleware/auth.js, models/User.js, models/SmsReport.js, routes/auth.js,
+  routes/users.js, routes/index.js, services/sms/textbee.js,
+  services/sms/smsParser.js, services/sms/smsPoller.js,
+  src/database/migrations/migrate.js
+
+Modified front-end files (high-level):
+  index.html, desktop.html, public/css/styles.css, public/js/app.js,
+  public/js/utils/store.js, pages/signup.js, pages/login.js,
+  pages/citizen-home.js, pages/hazards.js, pages/notifications.js,
+  pages/admin-dashboard.js
+
+
+A.3  CONCERN-BY-CONCERN CHANGES
+--------------------------------------------------------------------------------
+
+A.3.1  EDITABLE TEXTBEE SMS CREDENTIALS (ADMIN UI)
+--------------------------------------------------------------------------------
+Requirement: Admins can change the TextBee API key, device ID, API URL, and
+gateway phone at runtime without editing the server .env or restarting the
+backend.
+
+Diagnosis: Credentials were read only from process environment variables at
+startup; a change required shell access plus a service restart.
+
+Implementation:
+  * New table app_settings (migration 016) — key VARCHAR(64) primary key,
+    value TEXT, updated_at, updated_by. Column `key` is back-tick quoted
+    for MySQL reserved-word compatibility.
+  * Model AppSetting provides get / getMany / set, with dialect-aware
+    upsert (SQLite ON CONFLICT vs MySQL ON DUPLICATE KEY UPDATE).
+  * services/sms/textbee.js refactored to resolve credentials via
+    getEffectiveConfig() — DB overrides .env per field. An in-memory
+    cache is invalidated after every admin settings save so the next
+    SMS send picks up the new values without a restart.
+  * Three admin-guarded routes under /api/admin/settings/sms:
+        GET   — returns each field with masked apiKey + source marker
+                ('db' | 'env' | 'unset')
+        PUT   — upserts any subset of fields; '' clears an override
+        POST /test — sends "PULSE 911 admin test ✓" to a phone
+  * Admin page src/frontend/public/js/pages/admin-settings.js renders
+    the creds card + Test SMS section. API key field shows only a mask
+    for the current value; typing replaces it.
+  * Desktop sidebar adds an "Admin" group with a Settings link. Mobile
+    access via #/admin-settings.
+
+Security:
+  - GET masks apiKey (first 6 characters + bullets); PUT never echoes
+    secrets back
+  - Both endpoints require authenticate + requireAdmin middleware
+
+A.3.2  ACCOUNT APPROVAL WORKFLOW (ADMIN + CITIZEN) WITH EMAIL + SMS
+--------------------------------------------------------------------------------
+Requirement: Every new account — citizen or admin — must be reviewed by an
+MDRRMO admin before first login. On approval, the applicant receives both
+SMS and email notifications; on rejection, a human-readable reason.
+
+Diagnosis: Citizen signups were previously auto-activated (JWT on register).
+Only admin-role requests queued via admin_request_status='pending'. Email
+infrastructure did not exist in the codebase.
+
+Implementation (back-end):
+  * controllers/authController.js register():
+      - Phone must be verified via SMS OTP in the preceding 15 minutes
+      - Client-submitted role field is IGNORED; every new row uses
+        role='citizen'. Server-side doc comment captures the invariant.
+      - admin_request_status = 'pending_admin' if the client claimed
+        admin intent, else 'pending'.
+      - Response is HTTP 202 with {success:true, pending:true, kind,
+        message} — no JWT.
+      - All admins receive an in-app Notification with actor_user_id
+        pointing at the new user.
+  * controllers/authController.js login():
+      - After bcrypt check, blocks admin_request_status in
+        {'pending','pending_admin','rejected'} with explicit error
+        codes ACCOUNT_PENDING and ACCOUNT_REJECTED.
+  * controllers/adminRequestController.js approve() / reject():
+      - approve(): promotes role to 'admin' only when status was
+        'pending_admin'; otherwise keeps role='citizen'. Stamps
+        status='approved'. Fires SMS + email + in-app notification
+        (all best-effort with try/catch).
+      - reject(): sets status='rejected' and fires SMS + email + in-app
+        rejection notification.
+  * models/User.js:
+      - findPendingApprovals() returns both pending_admin + pending rows
+        tagged with a `kind` discriminator.
+      - findPendingAdminRequests() preserved as alias for backward compat.
+
+Implementation (front-end):
+  * utils/store.js register() handles the new 202 pending response
+    shape; login() surfaces the error code to callers.
+  * pages/signup.js: on pending response, renders a "Account pending
+    review" screen ("Thanks! Your account is pending MDRRMO admin
+    review. You'll be notified by SMS and email.") instead of auto-
+    navigating to home. No token is stored.
+  * pages/login.js: branches on ACCOUNT_PENDING / ACCOUNT_REJECTED /
+    ACCOUNT_DELETED and shows the server's message.
+  * pages/notifications.js: approval cards carry a type badge
+    ("Admin Request" vs "Citizen Signup") and the ID verification
+    panel (see A.3.9).
+
+Email service (new):
+  * src/backend/services/email/mailer.js — nodemailer wrapper.
+      if SMTP_HOST configured → sends via the SMTP relay
+      if SMTP_HOST empty      → logs "[mailer:dev] ..." to stdout
+    The dev fallback is the key choice that keeps the approval flow
+    runnable in any environment without a real mail account.
+  * config/index.js adds SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER,
+    SMTP_PASS, SMTP_FROM (default "PULSE 911 <noreply@afkcube.com>").
+
+Future mail infrastructure: see §A.7.
+
+A.3.3  ACCOUNT SOFT-DELETE
+--------------------------------------------------------------------------------
+Requirement: Any user can delete their own account; admins can delete
+citizen accounts (not other admins, not themselves). Deletion must preserve
+referential integrity — reports, hazards, and posts authored by a deleted
+user stay visible.
+
+Diagnosis: Frontend Delete Account button existed but the backend route
+did not. The users table had no column to mark a deletion.
+
+Implementation:
+  * Migration 014 adds users.deleted_at DATETIME DEFAULT NULL.
+  * models/User.js:
+      - All find/list helpers add "AND deleted_at IS NULL" so deleted
+        users are invisible by default.
+      - deleteUser(id) sets deleted_at = CURRENT_TIMESTAMP.
+      - findByIdIncludingDeleted(id) for the narrow "Account deleted"
+        error disambiguation path.
+  * middleware/auth.js: when findById returns null, a deleted-inclusive
+    lookup surfaces a clear 401 ACCOUNT_DELETED instead of generic
+    "User not found".
+  * controllers/authController.js login(): email-not-found path checks
+    for a soft-deleted row and returns 403 ACCOUNT_DELETED with
+    message "This account has been deleted. Contact MDRRMO support if
+    this was a mistake." Otherwise 401 INVALID_CREDENTIALS.
+  * controllers/userController.js:
+      - deleteMe() soft-deletes req.user.id.
+      - adminDeleteUser() guards against self-delete (403
+        CANNOT_DELETE_SELF) and admin-targets (403 CANNOT_DELETE_ADMIN).
+  * routes/users.js: DELETE /api/users/me (authenticate) and
+    DELETE /api/users/:id (authenticate + requireAdmin).
+  * Posts / Reports joins do NOT filter on deleted_at, preserving
+    historical authorship (verified in code).
+  * Migration runner (migrate.js): idempotent-error filter widened to
+    tolerate "duplicate column name" and "duplicate key name" so ALTER
+    migrations are safe to re-run.
+
+Verification: DELETE /api/users/me sets deleted_at; subsequent login with
+the same credentials returns 403 ACCOUNT_DELETED.
+
+A.3.4  PASSWORD-RESET OTP END-TO-END VERIFICATION
+--------------------------------------------------------------------------------
+Requirement: Forgot-password delivers an SMS OTP, accepts verification,
+and sets the new password — no login required after reset.
+
+Diagnosis: Controllers logic was correct. Suspected failures were
+environmental (TextBee config, OTP expiry — see A.3.7).
+
+Verification: POST /api/auth/forgot-password returned 200 with masked
+phone; verify-otp (purpose=reset) returned 200; reset-password returned
+200; login with the new password succeeded.
+
+A.3.5  SIGNUP ROLE FORCED TO 'CITIZEN' (PRIVILEGE ESCALATION)
+--------------------------------------------------------------------------------
+Requirement: Only an admin can create an admin account. Self-signup must
+never grant admin privileges.
+
+Diagnosis: role was already hardcoded to 'citizen' in User.create. No
+escalation path existed.
+
+Implementation: Added an explicit security comment at the creation site to
+make the invariant visible. Combined with the approval gate (A.3.2), even
+admin role UPGRADE requires an existing admin.
+
+A.3.6  ACCOUNT CREATION REGRESSION COVERAGE
+--------------------------------------------------------------------------------
+After this iteration's changes, account creation was exercised end-to-end
+(see A.8 Acceptance test log). All branches pass.
+
+A.3.7  "VERIFICATION EXPIRED" POPUP — OTP TIMEZONE BUG FIX
+--------------------------------------------------------------------------------
+Requirement: The verification-expired popup should only appear after the
+real 10-minute TTL lapses, not within seconds of generation.
+
+Diagnosis: Three call sites used `new Date(record.expires_at + 'Z')` to
+parse a naive UTC datetime from the DB. This works for SQLite (strings)
+but is fragile on MySQL (mysql2 returns Date objects by default;
+appending 'Z' to a Date coerces to an unparseable string → NaN).
+
+Implementation:
+  * New helper src/backend/utils/dates.js — parseDbDate(value):
+      accepts Date or string, treats naive strings as UTC, returns null
+      on Invalid Date so callers can early-exit instead of propagating
+      NaN into downstream arithmetic.
+  * Five call sites converted to parseDbDate() with explicit null
+    handling (authController.js:294, 368, 486; userController.js:256,
+    329).
+  * MySQL deployments: mysql2 pool now uses dateStrings:true and
+    timezone:'Z', so DATETIME values round-trip as UTC strings —
+    matching the shape parseDbDate() expects from SQLite.
+
+A.3.8  DELETE OPTION FUNCTIONAL VERIFICATION
+--------------------------------------------------------------------------------
+Shares implementation with A.3.3. The frontend button at
+pages/personal-info.js presents a native confirm() + "type DELETE to
+confirm" gate and calls the new backend endpoint successfully.
+
+A.3.9  MANUAL ID VERIFICATION BY ADMIN
+--------------------------------------------------------------------------------
+Requirement: Every citizen signup must include a photo of a government ID.
+An admin manually reviews the ID as part of the approval step. No
+automated OCR or third-party ID service — verification is human
+judgement, by design.
+
+Diagnosis: Signup Step 4 collected ID Type, ID Number, and a file but
+threw all three away — it only did client-side validation. The users
+table had no columns for ID data; admin dashboard had no review UI.
+
+Implementation (back-end):
+  * Migration 017 adds id_type, id_number, id_document_path,
+    id_verified_at, id_verified_by to users.
+  * models/User.js create() persists the ID fields; new
+    setIdVerified(userId, adminUserId) stamps verified_at + verified_by.
+  * controllers/authController.js register():
+      - handleIdUpload multer middleware engages only when the
+        Content-Type is multipart/form-data (JSON path still works in
+        tests).
+      - Storage path: {config.upload.dir}/id-documents/
+      - Filename pattern: id-<timestamp>-<9-digit-random>.<ext>
+      - MIME allow-list: image/png, image/jpeg, image/webp
+      - Size cap: config.upload.maxFileSize (5 MiB)
+      - Registration requires idType + idNumber + req.file; missing any
+        returns 400 ID_*_REQUIRED. Orphaned files are unlinked on
+        validation failures.
+  * controllers/adminRequestController.js approve() calls
+    User.setIdVerified() so the approval action IS the ID verification
+    — one click, one audit trail.
+
+Implementation (front-end):
+  * pages/signup.js: handleFileSelect captures the File into
+    _state.form.idFile with size/type checks; finalizeSignup passes
+    idFile through to Store.register. On ID-related server errors, the
+    form bounces to Step 4 instead of restarting.
+  * utils/store.js: register() builds FormData when idFile is a
+    File/Blob, else falls back to JSON. Centralises the content-type
+    decision.
+  * pages/notifications.js: approval cards render an "ID VERIFICATION"
+    panel with type, number, and a 120x80 thumbnail. Tapping the
+    thumbnail opens a full-screen modal (click anywhere to dismiss).
+
+Static serving: /uploads/id-documents/ is served via the existing
+app.use('/uploads', express.static(...)). Filenames use random suffixes
+to resist trivial enumeration. The URL is obfuscated but not
+authenticated — a future hardening step is to replace static serving
+with a gated GET /api/admin/users/:id/id-document streaming endpoint.
+
+A.3.10  OFFLINE SMS INCIDENT REPORTING (REPORT PATHWAY)
+--------------------------------------------------------------------------------
+Requirement: When the mobile APK is offline but a cell tower is available,
+citizens should file a non-emergency incident report by SMS. App collects
+title + description + GPS and transmits to the TextBee gateway. The
+backend polls, parses, and stages for admin review.
+
+Diagnosis: The existing offline SOS pathway (PULSE911 protocol) handled
+emergencies only; the SMS format required a pre-set type/severity code
+pair and was unsuitable for general incident reports. The back-end
+smsParser rejected non-PULSE911 formats.
+
+Implementation:
+  * Second SMS protocol, complementing PULSE911:
+        REPORT|TITLE|LAT,LNG|NAME|PHONE|MESSAGE
+    Client-side constraints: title ≤ 80 chars, message ≤ 130 chars.
+    User-typed '|' characters are replaced with '/' to protect the
+    delimiter. Stays within one 160-char SMS segment.
+  * services/sms/smsParser.js: added isReport() + parseReport() + a
+    unified parse() that returns {source_type, ...fields}. isPulse911
+    / parsePulse911 preserved. isSupported() helper gates the poller.
+  * services/sms/smsPoller.js: gate changed from isPulse911 to
+    isSupported. source_type is persisted. For REPORT messages the
+    TITLE is prepended to the stored message ("Title — body") so
+    admins see context without a new schema column.
+  * Migration 015 adds sms_reports.source_type VARCHAR(10) NOT NULL
+    DEFAULT 'sos'. Pre-existing rows stay valid.
+  * models/SmsReport.js create() persists source_type (default 'sos').
+  * admin-dashboard.js: each SMS report card now shows a colored
+    badge differentiating SOS (red) from Report (blue). Existing
+    "Convert to full report" workflow unchanged.
+  * pages/report-offline.js (new): ReportOffline modal mirroring the
+    SosOffline structure — Title input, Description textarea with live
+    counter, GPS auto-capture (navigator.geolocation,
+    enableHighAccuracy:true, 15s timeout). On submit, builds the pipe-
+    delimited REPORT payload and opens sms:<gateway>?body=<encoded>
+    so the user taps Send in their native SMS app. Gateway phone is
+    retrieved from localStorage (cached during prior online session).
+  * citizen-home.js: #sos-btn-container now contains TWO offline-only
+    buttons — "SOS Emergency Report" (red) + "Report Incident (offline)"
+    (green). Same offline-visibility toggle; same online/offline event
+    listeners.
+  * index.html registers the new script with a cache-buster.
+
+Security: Inbound SMS NEVER auto-promote to public incidents; they land
+in sms_reports and require admin action to become visible. This
+preserves manual review and prevents SMS-based spam flood.
+
+A.3.11  CROSS-ROLE POST VISIBILITY
+--------------------------------------------------------------------------------
+Requirement: A post authored by an admin is visible to citizens; a post
+authored by a citizen is visible to admins.
+
+Diagnosis: models/Post.js findAll() and routes/posts.js GET had NO
+role-based filtering. Both roles already saw the unified feed.
+
+Implementation: None — behaviour verified in code.
+
+
+A.4  DATABASE SCHEMA CHANGES (MIGRATIONS 014–017)
+--------------------------------------------------------------------------------
+
+014_add_soft_delete_to_users.sql
+  ALTER TABLE users ADD COLUMN deleted_at DATETIME DEFAULT NULL;
+
+015_add_source_type_to_sms_reports.sql
+  ALTER TABLE sms_reports
+    ADD COLUMN source_type VARCHAR(10) NOT NULL DEFAULT 'sos';
+
+016_create_app_settings.sql
+  CREATE TABLE IF NOT EXISTS app_settings (
+    `key`       VARCHAR(64) PRIMARY KEY,
+    value       TEXT,
+    updated_at  DATETIME    DEFAULT CURRENT_TIMESTAMP,
+    updated_by  INTEGER     NULL
+  );
+
+017_add_id_fields_to_users.sql
+  ALTER TABLE users ADD COLUMN id_type           VARCHAR(64)  DEFAULT NULL;
+  ALTER TABLE users ADD COLUMN id_number         VARCHAR(64)  DEFAULT NULL;
+  ALTER TABLE users ADD COLUMN id_document_path  VARCHAR(500) DEFAULT NULL;
+  ALTER TABLE users ADD COLUMN id_verified_at    DATETIME     DEFAULT NULL;
+  ALTER TABLE users ADD COLUMN id_verified_by    INTEGER      DEFAULT NULL;
+
+All four migrations applied successfully on the production SQLite
+database at /opt/PULSE-RTIP/src/database/offline/pulse_rtip.db.
+
+
+A.5  NEW / CHANGED API ENDPOINTS
+--------------------------------------------------------------------------------
+
+ADDED
+-----
+  DELETE /api/users/me
+      Auth:    authenticate
+      Returns: { success:true, message:"Your account has been deleted." }
+
+  DELETE /api/users/:id
+      Auth:    authenticate + requireAdmin
+      Guards:  403 CANNOT_DELETE_SELF, 403 CANNOT_DELETE_ADMIN,
+               404 not found
+
+  GET    /api/admin/settings/sms
+      Auth:    authenticate + requireAdmin
+      Returns: per-field { value, source:'db'|'env'|'unset' } with
+               apiKey masked
+
+  PUT    /api/admin/settings/sms
+      Auth:    authenticate + requireAdmin
+      Body:    subset of { apiKey, deviceId, apiUrl, gatewayPhone }
+
+  POST   /api/admin/settings/sms/test
+      Auth:    authenticate + requireAdmin
+      Body:    { phone }
+      Returns: 200 / 502 with failure reason
+
+CHANGED
+-------
+  POST   /api/auth/register
+      Accepts multipart/form-data when an ID file is present; JSON
+      otherwise. Extra fields: idType, idNumber, idFile. No JWT issued
+      — returns HTTP 202 { success:true, pending:true, kind, message }.
+
+  POST   /api/auth/login
+      New failure codes: ACCOUNT_PENDING (403), ACCOUNT_REJECTED (403),
+      ACCOUNT_DELETED (403). INVALID_CREDENTIALS (401) unchanged.
+
+  PUT    /api/admin-requests/:id/approve
+      Handles both kinds. Promotes role to 'admin' only when status was
+      'pending_admin'. Stamps id_verified_at + id_verified_by. Fires
+      SMS + email best-effort. Returns: {success, kind, smsSent, emailSent}.
+
+  PUT    /api/admin-requests/:id/reject
+      Sets status='rejected'. Fires SMS + email best-effort.
+
+
+A.6  NEW SERVICE MODULES (SUMMARY)
+--------------------------------------------------------------------------------
+
+src/backend/services/email/mailer.js
+  nodemailer wrapper with dev fallback. When SMTP_HOST is unset, logs
+  messages to stdout; otherwise sends via configured SMTP. Callers use
+  send({to, subject, text, html}). Used by the approval flow.
+
+src/backend/utils/dates.js
+  parseDbDate(value) normalises DB datetime return shapes across SQLite
+  (strings) and MySQL (Date objects), always producing a comparable
+  UTC-interpreted JS Date or null.
+
+src/backend/models/AppSetting.js
+  Dialect-aware get/set/getMany for the app_settings key-value store.
+
+src/backend/routes/adminSettings.js
+  Admin-guarded router for SMS credential management endpoints.
+
+src/frontend/public/js/pages/admin-settings.js
+  Admin UI for TextBee credentials + test-send.
+
+src/frontend/public/js/pages/report-offline.js
+  Offline general-incident-report modal (REPORT protocol).
+
+
+A.7  MAIL INFRASTRUCTURE — CURRENT STATE AND ROADMAP
+--------------------------------------------------------------------------------
+The production server hosts a receive-only Python SMTP catch-all at
+/root/afkcube-mail/mail_server.py (port 25, Flask API on port 5001)
+intended for OTP-capture from other services by a Chrome extension.
+afkcube.com has NO outbound-mail DNS records (no MX, no SPF, no DKIM,
+no DMARC). Consequently, messages from *@afkcube.com to real Gmail /
+Yahoo / Outlook recipients are almost certainly rejected or spam-filtered.
+
+Chosen interim strategy (suitable for thesis defence):
+  * nodemailer is fully integrated with env-driven SMTP configuration.
+  * The production server's .env leaves SMTP_HOST UNSET. The mailer's
+    dev fallback logs approval / rejection email bodies to the pm2
+    log. This keeps the approval contract ("SMS + email") verifiable
+    without attempting unreliable delivery from an unverified domain.
+  * Recommended future path (30-minute production setup):
+      1. Register an account with Brevo (formerly Sendinblue) free
+         tier — 300 emails/day, forever free, no credit card.
+      2. Add afkcube.com as a sender domain; paste the SPF, DKIM, and
+         DMARC TXT records Brevo provides into the DNS zone.
+      3. Generate an SMTP key in Brevo; populate the server .env:
+             SMTP_HOST=smtp-relay.brevo.com
+             SMTP_PORT=587
+             SMTP_USER=<brevo login>
+             SMTP_PASS=<brevo SMTP key>
+             SMTP_FROM=PULSE 911 <noreply@afkcube.com>
+      4. pm2 restart pulse-rtip-api.
+  No application code changes are required at switch-over time — the
+  mailer auto-detects SMTP_HOST and swaps from dev-log to real send.
+
+Alternative full-mailbox option for future work: Zoho Mail Lite free
+tier (5 mailboxes × 5 GB, forever free) — requires replacing the
+afkcube.com MX record, which would break the existing Python catch-all
+unless that service is moved to a subdomain.
+
+
+A.8  ACCEPTANCE TEST LOG
+--------------------------------------------------------------------------------
+Environment: production host 76.13.215.54, APP_MODE=offline (SQLite).
+Date of run: 2026-04-22.
+
+  [PASS] POST /api/auth/send-otp (purpose=signup)         → 200
+  [PASS] Invalid PH phone (092717186871)                  → 400
+                                                            INVALID_PHONE_FORMAT
+  [PASS] POST /api/auth/verify-otp                        → 200
+  [PASS] Register without ID file                         → 400
+                                                            ID_FILE_REQUIRED
+  [PASS] Register with multipart + ID file                → 202 pending, no JWT
+  [PASS] Login before approval                            → 403 ACCOUNT_PENDING
+  [PASS] Seed admin login                                 → 200 + JWT
+  [PASS] PUT /api/admin-requests/:id/approve              → 200
+                                                            smsSent + emailSent
+  [PASS] id_verified_at stamped on approval               → non-null
+  [PASS] Login after approval                             → 200 + JWT
+  [PASS] DELETE /api/users/me                             → 200
+  [PASS] deleted_at populated                             → non-null timestamp
+  [PASS] Login after delete                               → 403 ACCOUNT_DELETED
+  [PASS] Forgot-password with admin email                 → 200 masked phone
+  [PASS] Verify-OTP (purpose=reset)                       → 200
+  [PASS] Reset-password                                   → 200
+  [PASS] Migrations 014–017 applied                       → OK, idempotent
+  [PASS] pm2 restart pulse-rtip-api                       → clean boot
+  [PASS] Frontend sync to /var/www/pulse.afkcube.com      → assets served
+  [PASS] APK rebuild + deploy                             → 5,186,189 bytes at
+                                                            /downloads/pulse-911.apk
+
+
+A.9  DELTA AGAINST THE BASE DOCUMENT SECTIONS
+--------------------------------------------------------------------------------
+Updates to reconcile with the base document above if read in isolation:
+
+  §5 Endpoint Reference — supersede with A.5 for anything under /auth,
+     /users, /admin/settings, /admin-requests.
+  §6 Database Schema — the following columns now exist on users:
+     admin_request_status, deleted_at, id_type, id_number,
+     id_document_path, id_verified_at, id_verified_by.
+     sms_reports has an additional source_type column.
+     A new table app_settings exists (key, value, updated_at, updated_by).
+  §7 Authentication & Security Model — now includes soft-delete,
+     ACCOUNT_PENDING/REJECTED/DELETED error codes, pending-approval gate,
+     multipart ID uploads with MIME + size validation.
+  §8 Offline Emergency SMS — the PULSE911 protocol is retained; see
+     A.3.10 for the new REPORT protocol that complements it for non-
+     emergency reports.
+  §11 User-Facing Features — citizens now additionally have:
+     account-pending state, account delete, offline REPORT button, ID
+     upload during signup. Admins now additionally have: account
+     approval queue (mixed admin + citizen), editable TextBee creds
+     at /admin-settings, citizen deletion via admin endpoint.
+
+
+################################################################################
+#   END OF APPENDIX A                                                          #
+################################################################################
+
+
+################################################################################
+#                                                                              #
+#   APPENDIX B — ITERATION CHANGE LOG (2026-04-25)                            #
+#   Wave 1 + Wave 2: Barangay targeting, community posts overhaul, admin      #
+#   accountability, analytics, push notifications, UI polish                  #
+#                                                                              #
+################################################################################
+
+
+B.1  SCOPE OF THIS ITERATION
+--------------------------------------------------------------------------------
+A second large requirement list (translated from Tagalog at the owner's
+instruction) was implemented end-to-end. Sixteen user-side items and eleven
+admin-side items (items 1–3 on the admin side were missing from the source
+list and have been skipped). Execution used parallel coding agents across
+two waves.
+
+Concern index:
+  USER SIDE
+    U-1  About Us — researchers' names in profile
+    U-2  Timezone handling (Asia/Manila + en-PH locale)
+    U-3  Post "reason" — deferred; owner to clarify
+    U-4  Community posts on the citizen dashboard (newsfeed)
+    U-5  Picture / video + metadata on community posts
+    U-6  Post edit + edit history
+    U-7  Flood / disaster push + SMS (offline-friendly)
+    U-8  Audience-scoped alerts by barangay
+    U-9  Repost button on community posts
+    U-10 Signup defaults to 'citizen' — role-selection step removed
+    U-11 Offline SMS delivery (inherent — no code change needed)
+    U-12 Header back button + Android hardware-back handling
+    U-13 Dark-mode button contrast
+    U-14 App icon — deferred; owner will supply a 1024×1024 source PNG
+    U-15 "Slide to Call" as a real draggable gesture
+    U-16 Carrier indicator badges on phone numbers
+
+  ADMIN SIDE
+    A-4  Disaster announcement category + sound alert on push
+    A-5  Audience-scoped push broadcasts (same infra as U-8)
+    A-6  Admin login web-style UI — already satisfied by desktop.html shell
+    A-7  Fix "0 pending" dashboard bug (status IN submitted + pending)
+    A-8  Report processing history (report_events)
+    A-9  Admin accounts provisioned by developer (no self-register admin)
+    A-10 Admin Preferences page split from citizen Preferences
+    A-11 Reports & Analytics dashboard (4 Chart.js views)
+    A-12 Admin activity / audit log
+    A-13 Incident modification history (shares A-8 schema)
+    A-14 Promote report → community post from admin Reports dashboard
+
+
+B.2  NEW COMPONENTS AT A GLANCE
+--------------------------------------------------------------------------------
+Migrations added (7):
+  018_add_barangay_to_users.sql
+  019_create_report_events.sql
+  020_create_audit_log.sql
+  021_extend_community_posts.sql
+  022_create_post_edits.sql
+  023_add_audience_to_hazards.sql
+  024_create_push_tokens.sql
+
+New back-end modules:
+  src/backend/cli/provision-admin.js              Developer-only admin mint
+  src/backend/middleware/auditLog.js              Best-effort audit helper
+  src/backend/controllers/analyticsController.js  4 analytics endpoints
+  src/backend/controllers/pushController.js       Push-token register + claim
+  src/backend/models/AuditLog.js
+  src/backend/models/PostEdit.js
+  src/backend/models/PushToken.js
+  src/backend/models/ReportEvent.js
+  src/backend/routes/adminAuditLog.js
+  src/backend/routes/analytics.js
+  src/backend/routes/push.js
+  src/backend/services/push/fcm.js                FCM sender w/ dev fallback
+
+New front-end modules:
+  src/frontend/public/js/utils/barangays.js        Morong barangay list
+  src/frontend/public/js/utils/carrier-lookup.js   Prefix → Globe/Smart/DITO
+  src/frontend/public/js/utils/push.js             Capacitor push init + claim
+  src/frontend/public/js/components/team-modal.js  About Us modal (JSON-fed)
+  src/frontend/public/js/pages/admin-analytics.js  Chart.js dashboard
+  src/frontend/public/js/pages/admin-audit-log.js  Paginated admin action log
+  src/frontend/public/js/pages/admin-preferences.js  Admin-only prefs variant
+  src/frontend/public/assets/team.json             Placeholder roster data
+
+
+B.3  CONCERN-BY-CONCERN CHANGES
+--------------------------------------------------------------------------------
+
+B.3.1  BARANGAY FIELD — SIGNUP + AUDIENCE TARGETING (U-8, A-5, U-11 context)
+--------------------------------------------------------------------------------
+Requirement: citizens select their barangay at signup; admin hazard and
+announcement broadcasts can target "everyone" or a specific set of barangays.
+
+Implementation:
+  * Migration 018 adds users.barangay VARCHAR(64) DEFAULT NULL.
+  * Signup Step 1 now includes a required dropdown populated from
+    window.MorongBarangays (11 barangays: Bombongan, Caingin, Can-Cal-Lay,
+    Cuasay, Lagundi, Maybancal, Poblacion, San Guillermo, San Jose, San Juan,
+    San Pedro).
+  * users.barangay is persisted by User.create(); User.findPhonesForAudience()
+    applies a WHERE-in filter when audience_type='barangay'.
+  * Migration 023 extends hazard_alerts with four columns:
+      audience_type        VARCHAR(16)  DEFAULT 'all'       ('all' | 'barangay')
+      audience_barangays   TEXT                              JSON array when 'barangay'
+      category             VARCHAR(20)  DEFAULT 'hazard'    ('hazard' | 'announcement')
+      sound_enabled        INTEGER      DEFAULT 1
+  * Admin hazard creation UI (admin-home.js) extended with Category radio
+    (Hazard / Announcement), Audience radio (Everyone / Specific barangays)
+    with a checklist of barangays, and a "Play alert sound" toggle.
+  * hazardController.createHazard() persists the new fields (via a post-insert
+    UPDATE against hazard_alerts to keep Hazard.js untouched) and branches
+    both SMS and push broadcasts on the audience, falling back to "all" when
+    audience_type is 'all'.
+  * Announcements vs hazards: SMS body prefix differs
+    ("PULSE 911 HAZARD:" vs "PULSE 911 ANNOUNCEMENT:"); push notifications
+    honor the sound_enabled flag via the FCM `sound: 'default'` field.
+
+B.3.2  SIGNUP — ROLE SELECTION REMOVED (U-10)
+--------------------------------------------------------------------------------
+The signup flow dropped from 5 steps to 4 steps: Create Account → Phone OTP →
+ID Verification → Submitting / Pending. The renderSelectRole() step was
+deleted and role is hardcoded as 'citizen' client-side too. Backend
+register() continues to force role='citizen'; admin_request_status is
+now always 'pending' for new signups (the legacy 'pending_admin' value is
+still honored in approve() for any pre-existing rows but new signups never
+write it).
+
+B.3.3  DEVELOPER-ONLY ADMIN PROVISIONING (A-9)
+--------------------------------------------------------------------------------
+Admins are no longer minted through the signup flow. A new CLI tool:
+
+  node src/backend/cli/provision-admin.js \
+       --email "jane@mdrrmo.gov" \
+       --name "Jane Doe" \
+       --phone "09171234567" \
+       --password "TempPass123!" \
+       --barangay "Poblacion"
+
+Writes the row directly with role='admin', admin_request_status='approved',
+id_verified_at=CURRENT_TIMESTAMP (ID check bypassed for developer-minted
+admins). Exit code 2 if the email already exists. Also exposed as
+  npm run provision-admin -- [args]
+in package.json.
+
+B.3.4  "0 PENDING" DASHBOARD BUG (A-7)
+--------------------------------------------------------------------------------
+Report.getStats() previously counted status='pending' only. New reports are
+created with status='submitted' by default, so the count always read 0.
+Fixed by folding both states into the pending bucket:
+
+  SUM(CASE WHEN status IN ('submitted', 'pending') THEN 1 ELSE 0 END) AS pending_count
+
+Verified in production: inserting a status='submitted' report immediately
+increments pendingCount.
+
+B.3.5  REPORT PROCESSING HISTORY (A-8 + A-13)
+--------------------------------------------------------------------------------
+Migration 019 introduces report_events:
+  (id, report_id, actor_user_id, action, from_status, to_status, note,
+   created_at) with an index on (report_id, created_at).
+
+ReportEvent.create() is called from reportController.updateReportStatus on
+every status change with action='status_change', the old/new statuses, and
+an optional admin note. ReportEvent.findByReport(id) returns the ordered
+history joined with user names. The detail modal (detail-modal.js) now
+renders a "Processing History" section showing chronological entries like:
+
+  "Sarah Chen changed status from submitted → investigating on Apr 25, 2:15pm"
+
+A-13 (per-admin accountability) is satisfied by the actor_user_id +
+actor_name columns — every modification carries the actor.
+
+B.3.6  ADMIN ACTIVITY / AUDIT LOG (A-12)
+--------------------------------------------------------------------------------
+Migration 020 introduces audit_log:
+  (id, actor_user_id, action, target_type, target_id, details, created_at)
+
+The auditLog middleware helper logAction() is best-effort (try/catch, never
+blocks the parent request). Instrumented actions:
+  user_approved / user_rejected   adminRequestController.approve/reject
+  hazard_created                  hazardController.createHazard
+  report_status_changed           reportController.updateReportStatus
+  self_delete                     userController.deleteMe
+  user_deleted                    userController.adminDeleteUser
+  sms_settings_updated            routes/adminSettings.js (fields only, never secrets)
+
+New admin UI page admin-audit-log.js provides a paginated table (50/page,
+prev/next) with action chips (color-coded positive/destructive), timestamps
+in Asia/Manila, and a per-row collapsible details JSON.
+
+B.3.7  REPORTS & ANALYTICS DASHBOARD (A-11)
+--------------------------------------------------------------------------------
+Four admin-only endpoints under /api/analytics:
+  GET /incidents-over-time?granularity=day|week|month&days=30
+    → { bucket, count }[]
+  GET /type-breakdown
+    → { type, count }[]
+  GET /response-time
+    → { avgHours, medianHours, p95Hours, samples }
+    (resolved_at proxied via updated_at for status='resolved' reports)
+  GET /location-breakdown
+    → { barangay, count }[]  including an "Unknown" bucket
+
+The barangay list in this controller is kept in sync with the signup
+front-end's MORONG_BARANGAYS constant (11 items).
+
+New page admin-analytics.js renders:
+  * Four summary stat cards (30-day total, % resolved, avg response hours,
+    most common type)
+  * Line chart: Incidents Over Time (day/week/month toggle; destroy-and-
+    recreate on granularity change to avoid Chart.js canvas leaks)
+  * Doughnut: Emergency Type Breakdown
+  * Vertical bar: Response-time Performance (avg / median / p95)
+  * Horizontal bar: Location Breakdown by barangay
+
+Chart.js 4.4.1 added via CDN (jsdelivr); CSP updated to allow the script-src.
+
+B.3.8  COMMUNITY POSTS OVERHAUL (U-4 + U-5 + U-6 + U-9 + A-14)
+--------------------------------------------------------------------------------
+Migrations 021 + 022:
+  community_posts adds: video_path, location, reposted_from_post_id,
+                         promoted_from_report_id
+  new post_edits table: (id, post_id, editor_user_id, old_title,
+                         old_content, edited_at)
+
+Endpoints:
+  GET  /api/posts?limit=N       — now honors limit for the dashboard feed
+  POST /api/posts               — accepts multipart (image/* or video/mp4)
+                                   OR JSON. `location` defaults to author's
+                                   users.barangay when omitted.
+  PUT  /api/posts/:id           — author (or admin) edits title/content;
+                                   the prior values are snapshotted into
+                                   post_edits before UPDATE. updated_at bumps.
+  GET  /api/posts/:id/edits     — returns chronological edit history.
+  POST /api/posts/:id/repost    — creates a new card attributed to the
+                                   reposter, rejects repost-of-repost.
+  POST /api/reports/:id/promote-to-post
+                                — admin-only. Creates a community post from
+                                   the report (title + description + current
+                                   status). Returns 409 if already promoted.
+
+Citizen home dashboard now shows the 3 latest community posts as compact
+cards below the hazard alerts, with a "See all" link to the full news-updates
+feed.
+
+Post cards display author avatar + name, Asia/Manila date-time, location
+(barangay), image thumb / video, and per-card Edit + Repost buttons. The
+detail modal includes "See edit history" when updated_at ≠ created_at,
+which loads the edit list inline.
+
+Admin report cards carry a "Promote to Post" button with toast feedback.
+
+B.3.9  PUSH NOTIFICATIONS (U-7 + A-4)
+--------------------------------------------------------------------------------
+Migration 024 creates push_tokens (token VARCHAR(500) UNIQUE, user_id
+nullable, platform, barangay, last_seen_at, created_at). Tokens registered
+BEFORE login are unclaimed (user_id=NULL) and still receive broadcasts — the
+pre-login barangay can be supplied by the client. On login, a claim() step
+associates the token with the user and inherits users.barangay.
+
+Capacitor integration:
+  * @capacitor/push-notifications@8.0.3 added as a dependency.
+  * @capacitor/app@8.1.0 added alongside (for U-12's hardware-back listener).
+  * capacitor.config.ts exposes PushNotifications presentation options
+    (badge, sound, alert).
+  * src/frontend/public/js/utils/push.js handles the lifecycle:
+    requestPermissions → register → listen for registration → POST
+    /api/push-tokens. On login, claimAfterLogin() attaches the token.
+
+FCM sender (src/backend/services/push/fcm.js):
+  * isConfigured() returns false when FCM_SERVER_KEY is unset → send() logs
+    payloads to stdout instead of dispatching. This keeps broadcasts working
+    end-to-end in dev without FCM credentials.
+  * Batches of 500 tokens per HTTP call (FCM legacy HTTP).
+  * Each push carries { title, body, sound: 'default' | undefined,
+                        priority: 'high', data }.
+
+Hazard broadcasts now do SMS + push in parallel. Audience filter applies to
+both channels.
+
+B.3.10  UI POLISH BATCH (U-1, U-2, U-12, U-13, U-15, U-16, A-10)
+--------------------------------------------------------------------------------
+U-1 — About Us: TeamModal component reads /public/assets/team.json at open
+time and renders project title, institution details, member roster, and
+acknowledgements. The source of truth is docs/TEAM-ROSTER.md which the owner
+fills in; the JSON mirror is regenerated from that.
+
+U-2 — Timezone: `toLocaleDateString('en-US'...)` across multiple citizen-
+facing pages (hazards, my-reports, citizen-profile, detail-modal) was
+replaced with `toLocaleDateString('en-PH', { ..., timeZone: 'Asia/Manila' })`
+so dates render in PH format and PH time regardless of device locale.
+
+U-12 — Back button: a Router._stack navigation stack was added, with
+push-on-navigate and pop-on-goBack. The shared header.js renders a circular
+← button on every non-root page. Android hardware-back is handled via
+@capacitor/app's backButton listener, falling through to App.exitApp() when
+the stack is empty. Login/signup/forgot-password routes clear the stack so
+a fresh session starts clean.
+
+U-13 — Dark mode button contrast: styles.css gained dark-mode overrides for
+.btn--primary, .btn--danger, .btn--outline, .btn--ghost, .btn--link, and
+.header__back (explicit #FFFFFF text on primary/danger; greened-out outline
+variant).
+
+U-15 — Slide-to-call: emergency.js's plain `<a href="tel:...">` is now a
+draggable iOS-style pill. Touch + mouse supported; 80% drag threshold
+triggers the `tel:` URL. Handle animates back to start if released early.
+
+U-16 — Carrier indicator: new carrier-lookup.js utility exposes a prefix
+→ carrier map (Globe / Smart / DITO / Landline / Unknown). Emergency page
+phone numbers render a small pill badge alongside each number. Dark mode
+brightness-adjusted automatically via .carrier-badge body.theme-dark.
+
+A-10 — Admin Preferences split: admin-preferences.js is a separate page.
+app.js dispatches the 'preferences' route based on Store.get('role'). Admin
+variant removes citizen-only settings (Auto-detect location, status-update
+toggles) and adds admin-relevant ones (new-signup / new-report /
+broadcast-delivery notifications).
+
+
+B.4  API ENDPOINTS ADDED / CHANGED
+--------------------------------------------------------------------------------
+Added
+-----
+  GET    /api/analytics/incidents-over-time
+  GET    /api/analytics/type-breakdown
+  GET    /api/analytics/response-time
+  GET    /api/analytics/location-breakdown
+  GET    /api/admin/audit-log?limit=&offset=
+  GET    /api/reports/:id/events
+  POST   /api/push-tokens             (optional auth — unclaimed or claimed)
+  POST   /api/push-tokens/claim       (authenticate)
+  PUT    /api/posts/:id               (author or admin)
+  GET    /api/posts/:id/edits
+  POST   /api/posts/:id/repost
+  POST   /api/reports/:id/promote-to-post  (admin)
+
+Changed
+-------
+  POST   /api/auth/register           — barangay field now required
+  POST   /api/hazards                 — audience_type / audience_barangays /
+                                         category / sound_enabled fields
+  GET    /api/posts?limit=N           — honors limit; returns location,
+                                         video_path, reposted_from_*, and
+                                         promoted_from_report_id
+
+
+B.5  FILES CHANGED (REFERENCE)
+--------------------------------------------------------------------------------
+Exhaustive list omitted for brevity. The git diff from tag "iteration-1"
+(see §A.10 base doc) to this iteration covers:
+  * 7 new migrations
+  * 11 new source files (models / routes / services / utils / pages /
+                          CLI / components)
+  * ~25 modified source files spanning backend controllers, models, routes
+    and frontend pages, plus index.html, app.js, styles.css
+  * 2 new documentation files: docs/TEAM-ROSTER.md, docs/OWNER-TODO.md
+
+
+B.6  OWNER ACTION ITEMS (OUTSTANDING)
+--------------------------------------------------------------------------------
+See docs/OWNER-TODO.md for the authoritative list. Summary:
+  1. Fill in docs/TEAM-ROSTER.md   → team modal surfaces real names.
+  2. Supply a 1024×1024 app icon PNG → APK icon / favicon / PWA icons
+                                        regenerated.
+  3. Create a Firebase project; drop google-services.json under android/app/;
+     set FCM_SERVER_KEY in /opt/PULSE-RTIP/.env → push notifications go live.
+  4. Wire Brevo (or equivalent) SMTP → approval emails actually send.
+  5. Manage TextBee quota / gateway SIM load → SMS reliably dispatches.
+  6. Confirm the canonical Morong barangay list if any of the 11 are
+     incorrect.
+
+
+B.7  ACCEPTANCE TEST LOG
+--------------------------------------------------------------------------------
+Run: 2026-04-25 against production host 76.13.215.54, APP_MODE=offline.
+
+  [PASS] Admin login → 200 + JWT
+  [PASS] GET /api/dashboard/stats        → pendingCount now reflects submitted
+                                            (verified: inserting a
+                                            status='submitted' row incremented
+                                            pendingCount from 0 to 1)
+  [PASS] GET /api/analytics/type-breakdown         → [Flood 16, Fire 5,
+                                                        Typhoon 2, Infra 1]
+  [PASS] GET /api/analytics/incidents-over-time    → 5 time buckets returned
+  [PASS] GET /api/analytics/location-breakdown     → barangay list matches
+                                                        frontend MORONG_BARANGAYS
+  [PASS] GET /api/admin/audit-log        → returns paginated list (empty
+                                            initially until new admin actions)
+  [PASS] POST /api/push-tokens (no auth) → 200 success (unclaimed token)
+  [PASS] POST /api/reports/:id/promote-to-post → new post id=9 created with
+                                                  promoted_from_report_id=1
+  [PASS] GET /api/posts?limit=3          → includes the promoted post
+  [PASS] Migrations 018–024 applied      → all OK, idempotent
+  [PASS] Backend pm2 restart             → clean boot
+  [PASS] Frontend sync to webroot        → all new assets served (admin-
+                                            analytics.js, admin-audit-log.js,
+                                            admin-preferences.js, carrier-
+                                            lookup.js, barangays.js, push.js,
+                                            team-modal.js)
+  [PASS] APK rebuilt (on server)         → 6,745,539 bytes at
+                                            /downloads/pulse-911.apk
+
+
+################################################################################
+#   END OF APPENDIX B                                                          #
+################################################################################
