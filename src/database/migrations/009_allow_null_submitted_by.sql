@@ -1,15 +1,23 @@
 -- =============================================================================
--- Migration 009: Allow NULL submitted_by and add source column to reports
+-- Migration 009: Allow NULL submitted_by + add source column to reports
 -- =============================================================================
--- SMS-based offline reports may not have a registered user account.
--- The source column tracks report origin: 'web' (default) or 'sms'.
+-- SMS-based offline reports may not have a registered user account, so
+-- submitted_by becomes nullable. The source column tracks origin: 'web'
+-- (default) or 'sms'.
+--
+-- Why the swap-via-tmp pattern instead of ALTER TABLE ... RENAME TO:
+--   SQLite captures FK target names at table-creation time. ALTER TABLE
+--   reports RENAME TO reports_old updates references in dependent tables
+--   (report_images, sms_reports) to point at "reports_old". Subsequently
+--   dropping reports_old leaves those FKs dangling. We avoid the rename
+--   path entirely: create the new table under a tmp name, copy rows, drop
+--   the original, then rename the tmp to the original name. Dependent FKs
+--   continue to resolve to "reports" the entire time.
 -- =============================================================================
 
 PRAGMA foreign_keys=OFF;
 
-ALTER TABLE reports RENAME TO reports_old;
-
-CREATE TABLE reports (
+CREATE TABLE IF NOT EXISTS reports_v2_tmp (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     title           VARCHAR(255)    NOT NULL,
     type            VARCHAR(50)     NOT NULL,
@@ -25,10 +33,12 @@ CREATE TABLE reports (
     FOREIGN KEY (submitted_by) REFERENCES users(id)
 );
 
-INSERT INTO reports (id, title, type, status, description, location, latitude, longitude, submitted_by, source, created_at, updated_at)
+INSERT INTO reports_v2_tmp (id, title, type, status, description, location, latitude, longitude, submitted_by, source, created_at, updated_at)
     SELECT id, title, type, status, description, location, latitude, longitude, submitted_by, 'web', created_at, updated_at
-    FROM reports_old;
+    FROM reports;
 
-DROP TABLE reports_old;
+DROP TABLE reports;
+
+ALTER TABLE reports_v2_tmp RENAME TO reports;
 
 PRAGMA foreign_keys=ON;

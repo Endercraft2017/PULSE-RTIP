@@ -55,7 +55,13 @@ async function runMigrations() {
       try {
         await db.query(statement);
       } catch (err) {
-        if (err.message && err.message.includes('already exists')) {
+        const msg = (err.message || '').toLowerCase();
+        // Idempotent re-runs: tolerate repeat CREATE / ALTER ADD COLUMN
+        if (
+          msg.includes('already exists') ||
+          msg.includes('duplicate column') ||
+          msg.includes('duplicate key name')
+        ) {
           continue;
         }
         throw err;
