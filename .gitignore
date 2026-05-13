@@ -46,3 +46,7 @@ d:/gradle-home/
 # AI tools (must not reach main branch)
 CLAUDE.md
 .claude/
+
+# Firebase service-account key — never commit.
+secrets/
+**/firebase-service-account*.json
