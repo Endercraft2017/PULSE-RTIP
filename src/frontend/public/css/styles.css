@@ -255,6 +255,47 @@ h4 { font-size: var(--font-size-base); }
     color: var(--color-white);
 }
 
+/* Left cluster: back button (when present) + title. The back button
+   uses a circular transparent tap target matching the header foreground. */
+.header__left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-width: 0;
+}
+
+.header__back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--color-white);
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.15s ease;
+}
+
+.header__back:hover,
+.header__back:focus-visible {
+    background-color: rgba(255, 255, 255, 0.15);
+    outline: none;
+}
+
+.header__back svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .header__brand {
     display: flex;
     align-items: center;
@@ -513,8 +554,12 @@ h4 { font-size: var(--font-size-base); }
     width: 80px;
     height: 60px;
     background-color: var(--color-gray-200);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     border-radius: var(--radius-md);
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 /* ============================================================
@@ -1165,6 +1210,38 @@ h4 { font-size: var(--font-size-base); }
     padding: 4px 8px;
 }
 .offline-card__retry:disabled { opacity: 0.6; cursor: wait; }
+
+/* Inline "offline — showing cached data" banner (used above lists that
+   fell back to localStorage because the API was unreachable). Low-key
+   styling so it doesn't compete with the content below. */
+.offline-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #FEF3C7;
+    border: 1px solid #FCD34D;
+    color: #92400E;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.35;
+    margin-bottom: 12px;
+}
+.offline-note svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+body.theme-dark .offline-note {
+    background: rgba(252, 211, 77, 0.12);
+    border-color: rgba(252, 211, 77, 0.35);
+    color: #FCD34D;
+}
 
 /* Legacy login-page class (keep for signup/forgot-password which still use it) */
 .login-page {
@@ -3009,6 +3086,75 @@ body.theme-dark .empty-state {
     margin-top: var(--spacing-lg);
 }
 
+.stat-card { position: relative; }
+.dashboard-stat { position: relative; }
+
+.dashboard-stat--clickable {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.dashboard-stat--clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.dashboard-subtabs__count {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 5px;
+    margin-left: 4px;
+    background: var(--color-danger);
+    color: var(--color-white);
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.stat-card__notif-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    background: var(--color-danger);
+    color: var(--color-white);
+    border: 2px solid var(--color-surface);
+    border-radius: 11px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+    animation: pendingBadgePulse 2s ease-in-out infinite;
+}
+@keyframes pendingBadgePulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.08); }
+}
+
+.stat-card--clickable {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+.stat-card--clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-primary);
+}
+
+.pending-list-card {
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+.pending-list-card:hover {
+    background: var(--color-gray-50);
+    box-shadow: var(--shadow-md);
+}
+
 .stat-card {
     background-color: var(--color-surface);
     border-radius: var(--radius-lg);
@@ -3095,6 +3241,39 @@ body.theme-dark .empty-state {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 4px;
+    gap: 8px;
+}
+
+.alert-card__header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.alert-card__edit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--color-gray-100);
+    border: 1px solid var(--color-gray-200);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-gray-700);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.alert-card__edit-btn:hover {
+    background: var(--color-primary);
+    color: var(--color-white);
+    border-color: var(--color-primary);
+}
+.alert-card__edit-btn svg {
+    width: 12px; height: 12px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
 
 .alert-card__title {
@@ -3426,6 +3605,183 @@ body.theme-dark .empty-state {
 .notification-card--clickable { cursor: pointer; transition: background 0.15s; }
 .notification-card--clickable:hover { background: var(--color-gray-50); }
 
+.newsfeed-card--clickable { cursor: pointer; transition: box-shadow 0.15s, transform 0.15s; }
+.newsfeed-card--clickable:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+
+.newsfeed-card__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-gray-100);
+}
+.newsfeed-card__action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--color-gray-100);
+    border: 1px solid var(--color-gray-200);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-gray-700);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.newsfeed-card__action-btn:hover {
+    background: var(--color-primary);
+    color: var(--color-white);
+    border-color: var(--color-primary);
+}
+.newsfeed-card__action-btn svg {
+    width: 12px; height: 12px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Report edit modal — citizen edits their own report */
+.modal-overlay--centered .modal.report-edit-modal {
+    max-width: 480px !important;
+    padding: var(--spacing-xl);
+    position: relative;
+    text-align: left;
+}
+
+/* Post edit modal — same shell + room for media controls */
+.modal-overlay--centered .modal.post-edit-modal {
+    max-width: 480px !important;
+    padding: var(--spacing-xl);
+    position: relative;
+    text-align: left;
+}
+
+.edit-media {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+.edit-media__current {
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--color-gray-100);
+    border: 1px solid var(--color-gray-200);
+}
+.edit-media__empty {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    background: var(--color-gray-50);
+    border: 1px dashed var(--color-gray-300);
+    color: var(--color-gray-500);
+    font-size: var(--font-size-xs);
+    text-align: center;
+}
+.edit-media__preview {
+    display: block;
+    width: 100%;
+    max-height: 240px;
+    object-fit: contain;
+    background: var(--color-gray-100);
+}
+.edit-media__remove-btn {
+    position: absolute;
+    top: 8px; right: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.6);
+    color: var(--color-white);
+    border: none;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+}
+.edit-media__remove-btn:hover { background: var(--color-danger); }
+.edit-media__remove-btn svg {
+    width: 12px; height: 12px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.edit-media__upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: var(--color-gray-100);
+    border: 1px solid var(--color-gray-200);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-gray-700);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    align-self: flex-start;
+}
+.edit-media__upload-btn:hover {
+    background: var(--color-primary);
+    color: var(--color-white);
+    border-color: var(--color-primary);
+}
+.edit-media__upload-btn svg {
+    width: 14px; height: 14px;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Post detail modal — body-mounted, full-content view */
+.modal-overlay--centered .modal.post-detail-modal {
+    max-width: 560px !important;
+    max-height: 90dvh;
+    padding: var(--spacing-xl);
+    position: relative;
+    text-align: left;
+}
+.post-detail-modal__close {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--color-gray-100);
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2;
+}
+.post-detail-modal__close svg {
+    width: 16px; height: 16px;
+    fill: none; stroke: var(--color-gray-700);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.post-detail-modal__close:hover { background: var(--color-gray-200); }
+
+.post-detail-modal__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-500);
+}
+.post-detail-modal__media {
+    display: block;
+    width: 100%;
+    max-height: 360px;
+    object-fit: contain;
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-md);
+    background: var(--color-gray-100);
+}
+.post-detail-modal__content {
+    white-space: pre-wrap;
+    line-height: 1.5;
+    color: var(--color-gray-800);
+    font-size: var(--font-size-sm);
+}
+
 .btn--approve {
     background: var(--color-success-light); color: var(--color-primary-dark);
     border: 1.5px solid var(--color-primary);
@@ -3478,7 +3834,7 @@ body.theme-dark .empty-state {
     to   { opacity: 1; transform: scale(1); }
 }
 .modal-overlay--centered .modal {
-    background: var(--color-surface);
+    background: var(--color-surface) !important;
     border-radius: var(--radius-xl) !important;
     padding: var(--spacing-xl);
     width: 100%;
@@ -3487,6 +3843,12 @@ body.theme-dark .empty-state {
     box-shadow: var(--shadow-lg);
     transform: none !important;
     opacity: 1 !important;
+    visibility: visible !important;
+    display: flex !important;
+    flex-direction: column;
+    overflow-y: auto;
+    position: relative;
+    z-index: 1001;
 }
 .modal-overlay--centered .modal.terms-modal {
     padding: 0;
@@ -4669,7 +5031,7 @@ html.embed-mode .fab {
     justify-content: space-between;
     padding: 16px 20px;
     border-bottom: 1px solid var(--color-gray-200);
-    background: var(--color-danger);
+    background: var(--color-primary);
     color: white;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
@@ -4685,7 +5047,13 @@ html.embed-mode .fab {
     fill: none; stroke: currentColor;
     stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
-.sos-offline-form__header .modal__close { color: white; }
+.sos-offline-form__header .modal__close {
+    color: white;
+    background: rgba(255, 255, 255, 0.2);
+}
+.sos-offline-form__header .modal__close:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
 .sos-offline-form__body {
     padding: 20px;
     flex: 1;
@@ -4822,6 +5190,12 @@ html.embed-mode .fab {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+}
+.sos-offline-form__footer .btn--danger:hover {
+    background: var(--color-primary-dark, #15803D);
+    border-color: var(--color-primary-dark, #15803D);
 }
 .sos-offline-form__footer .btn--danger svg {
     width: 16px; height: 16px;
@@ -4854,6 +5228,27 @@ html.embed-mode .fab {
     color: var(--color-gray-400);
 }
 
+.report-offline-preview {
+    margin: 4px 0 0;
+    padding: 10px 12px;
+    background: var(--color-gray-50, #F9FAFB);
+    border: 1px solid var(--color-gray-200, #E5E7EB);
+    border-radius: var(--radius-md, 8px);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--color-gray-700, #374151);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 140px;
+    overflow-y: auto;
+}
+body.theme-dark .report-offline-preview {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #D1D5DB;
+}
+
 /* SMS Badge (admin dashboard) */
 .badge--sms {
     background: var(--color-gray-100);
@@ -4883,4 +5278,655 @@ html.embed-mode .fab {
     .profile-menu-item {
         min-height: 48px;
     }
+}
+
+/* ============================================================
+   Dark-mode button contrast fixes — existing buttons inherit
+   light-ish text colors that fail WCAG on dark surfaces.
+   ============================================================ */
+body.theme-dark .btn--primary {
+    color: #FFFFFF;
+}
+body.theme-dark .btn--danger {
+    color: #FFFFFF;
+}
+body.theme-dark .btn--outline {
+    color: #E8FCEF;
+    border-color: #4ADE80;
+    background: transparent;
+}
+body.theme-dark .btn--outline:hover {
+    background: rgba(74, 222, 128, 0.15);
+}
+body.theme-dark .btn--ghost,
+body.theme-dark .btn--link {
+    color: #E8FCEF;
+}
+body.theme-dark .header__back {
+    color: #FFFFFF;
+}
+
+/* ============================================================
+   Slide-to-Call (U-15) — draggable handle on the emergency banner.
+   80% drag threshold triggers tel: dial.
+   ============================================================ */
+.slide-to-call {
+    position: relative;
+    width: 100%;
+    max-width: 320px;
+    height: 52px;
+    margin: 0 auto;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: pan-y;
+}
+
+.slide-to-call__track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 999px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.slide-to-call__label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--color-danger);
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    padding-left: 48px;
+}
+
+.slide-to-call__handle {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-danger);
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s ease;
+    will-change: transform;
+}
+
+.slide-to-call__handle:active {
+    cursor: grabbing;
+}
+
+.slide-to-call__handle svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* JS-disabled fallback: if the script didn't run, the <a> anchor
+   inside remains clickable so users aren't stranded. Hidden by
+   default; a CSS-only .no-js class would reveal it. */
+.slide-to-call__fallback {
+    display: none;
+}
+
+/* ============================================================
+   Carrier badge (U-16) — colored pill next to phone numbers.
+   ============================================================ */
+.carrier-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.carrier-badge--globe    { background: #DBEAFE; color: #1D4ED8; }
+.carrier-badge--smart    { background: #FEE2E2; color: #B91C1C; }
+.carrier-badge--dito     { background: #E0E7FF; color: #4338CA; }
+.carrier-badge--landline { background: #F3F4F6; color: #374151; }
+.carrier-badge--unknown  { background: #FEF3C7; color: #92400E; }
+body.theme-dark .carrier-badge { filter: brightness(0.9); }
+
+/* ============================================================
+   Team modal (About Us) — member cards grid.
+   ============================================================ */
+.team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+.team-card {
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    text-align: center;
+}
+.team-card__name {
+    font-weight: 600;
+    color: var(--color-gray-900);
+    font-size: var(--font-size-sm);
+}
+.team-card__role {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-500);
+    margin-top: 2px;
+}
+
+/* =========================================================================
+   Community Posts Overhaul (U-4, U-5, U-6, U-9, A-14)
+   ========================================================================= */
+
+/* Citizen home newsfeed section + cards */
+.newsfeed-section {
+    margin-top: var(--spacing-lg);
+}
+.newsfeed-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--color-white, #fff);
+    border: 1px solid var(--color-gray-100);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-sm);
+    cursor: pointer;
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.newsfeed-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transform: translateY(-1px);
+}
+.newsfeed-card__avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+.newsfeed-card__body {
+    flex: 1;
+    min-width: 0;
+}
+.newsfeed-card__author {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-900);
+}
+.newsfeed-card__time {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-500);
+    margin-top: 2px;
+}
+.newsfeed-card__title {
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-800);
+    margin-top: 4px;
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.newsfeed-card__thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.newsfeed-card__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Full-content variant — used on the citizen-home dashboard so the post is
+   readable inline (no click-through). All the post fields render here:
+   author, timestamp, location, full body, image OR video. */
+.newsfeed-card--full {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+    cursor: default;
+}
+.newsfeed-card--full:hover {
+    box-shadow: none;
+    transform: none;
+}
+.newsfeed-card__header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+.newsfeed-card__meta {
+    flex: 1;
+    min-width: 0;
+}
+.newsfeed-card--full .newsfeed-card__title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-gray-900);
+    margin-top: 0;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    display: block;
+    line-height: 1.35;
+}
+.newsfeed-card__content {
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-700);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.newsfeed-card__provenance {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-500);
+    background: var(--color-gray-50, #F9FAFB);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    align-self: flex-start;
+}
+.newsfeed-card__media {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--color-gray-100);
+}
+.newsfeed-card__media img,
+.newsfeed-card__media video {
+    width: 100%;
+    height: auto;
+    display: block;
+    max-height: 320px;
+    object-fit: cover;
+}
+body.theme-dark .newsfeed-card {
+    background: var(--color-surface);
+    border-color: var(--color-gray-200);
+}
+body.theme-dark .newsfeed-card__provenance {
+    background: rgba(255,255,255,0.06);
+    color: var(--color-gray-300);
+}
+
+/* Post card extras — reposts, location, inline actions, video */
+.post-card__video {
+    width: 100%;
+    max-height: 320px;
+    border-radius: var(--radius-md);
+    background: #000;
+    display: block;
+}
+.post-card__location {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-500);
+    margin-top: 4px;
+}
+.post-card__repost-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--color-gray-50, #f7f7f7);
+    border-bottom: 1px solid var(--color-gray-100);
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-600);
+    /* Parent .news-card is display:flex (row). Force this to span the full
+       row so the thumb + body sit BELOW it instead of beside it. */
+    flex-basis: 100%;
+    width: 100%;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    margin: calc(-1 * var(--spacing-md)) calc(-1 * var(--spacing-md)) var(--spacing-sm);
+}
+.news-card { flex-wrap: wrap; }
+.news-card__actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-gray-100);
+}
+.news-card__action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-700);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.news-card__action:hover {
+    background: var(--color-gray-100);
+}
+
+/* Edit history (U-6) */
+.post-edit-history {
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--color-gray-50, #f7f7f7);
+    border-radius: var(--radius-sm);
+    max-height: 260px;
+    overflow-y: auto;
+}
+.post-edit-history__item {
+    padding: var(--spacing-sm);
+    border-bottom: 1px dashed var(--color-gray-200);
+}
+.post-edit-history__item:last-child {
+    border-bottom: none;
+}
+.post-edit-history__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-600);
+    margin-bottom: 4px;
+}
+.post-edit-history__old-title {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-800);
+}
+.post-edit-history__old-content {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-600);
+    white-space: pre-wrap;
+    margin-top: 2px;
+}
+
+/* Admin toast (A-14 feedback) */
+.admin-toast {
+    padding: 10px 16px;
+    margin-top: 6px;
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    opacity: 1;
+    transition: opacity 0.25s ease;
+}
+.admin-toast--leaving {
+    opacity: 0;
+}
+
+/* ============================================================
+   A-1: Report photo grid inside the detail modal. Photos are
+   anchor-wrapped so tapping pops a fresh tab with the full image.
+   ============================================================ */
+.detail-modal__media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin: 12px 0 16px;
+}
+.detail-modal__media-item {
+    display: block;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-gray-200);
+    background: var(--color-gray-100);
+    aspect-ratio: 4 / 3;
+    line-height: 0;
+}
+.detail-modal__media-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.18s ease;
+}
+.detail-modal__media-item:hover img {
+    transform: scale(1.03);
+}
+
+/* ============================================================
+   A-2: Resolution-note banner shown at the top of the detail
+   modal when an admin has marked the report resolved.
+   ============================================================ */
+.detail-modal__resolution {
+    margin: 8px 0 14px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(34, 197, 94, 0.08);
+    border-left: 4px solid var(--color-success, #22C55E);
+}
+.detail-modal__resolution-label {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-success, #22C55E);
+    margin-bottom: 4px;
+}
+.detail-modal__resolution-note {
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-800, #1f2937);
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+
+
+/* U-7: Bootstrap recovery UI shown when app.js init() throws so the
+   user has a way out of the white-screen-of-death state. */
+.app-recovery {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-lg);
+    background: var(--color-bg, #fff);
+}
+.app-recovery__card {
+    width: 100%;
+    max-width: 360px;
+    padding: var(--spacing-xl);
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-gray-200, #eee);
+    border-radius: var(--radius-lg, 12px);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+    text-align: center;
+}
+.app-recovery__title {
+    font-size: var(--font-size-lg, 1.125rem);
+    font-weight: 700;
+    margin-bottom: var(--spacing-sm);
+    color: var(--color-gray-900, #111);
+}
+.app-recovery__msg {
+    font-size: var(--font-size-sm, 0.875rem);
+    color: var(--color-gray-600, #555);
+    line-height: 1.5;
+    margin-bottom: var(--spacing-lg);
+}
+
+/* ============================================================
+   News Updates fixes (U-2 / U-3 / U-4 / A-6)
+   ============================================================ */
+
+/* U-3: prominent Create Post CTA above the feed. */
+.news-create-cta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    width: 100%;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    color: var(--color-white);
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    cursor: pointer;
+    text-align: left;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.news-create-cta:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.news-create-cta:active { transform: translateY(0); }
+.news-create-cta__icon {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.2);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.news-create-cta__icon svg {
+    width: 20px; height: 20px; fill: none;
+    stroke: currentColor; stroke-width: 2.5;
+    stroke-linecap: round; stroke-linejoin: round;
+}
+.news-create-cta__label {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    flex: 1;
+}
+.news-create-cta__hint {
+    font-size: var(--font-size-xs);
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
+/* U-2: media preview inside the create-post modal. */
+.post-media-preview {
+    margin-top: var(--spacing-sm);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--color-gray-100);
+}
+.post-media-preview img,
+.post-media-preview video {
+    display: block;
+    width: 100%;
+}
+
+/* U-4: news-updates page padding shouldn't squish content against the edges
+   on narrow viewports. Page-padding already sets var(--spacing-lg) but on
+   very small phones (clamp lower bound 12px) text feels cramped, so bump
+   the news-updates page specifically. Also kill any horizontal overflow
+   inside the feed. */
+.news-page__title {
+    padding-left: 2px;
+    padding-right: 2px;
+}
+#news-list,
+#news-list .news-card,
+#news-list .news-card__body {
+    min-width: 0; /* lets flex children shrink instead of overflowing */
+}
+#news-list .news-card__body {
+    flex: 1;
+    overflow: hidden;
+}
+#news-list .news-card__title,
+#news-list .news-card__excerpt {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* U-4: action buttons must wrap on narrow screens — without flex-wrap they
+   slide off the right edge of reposted post cards. */
+.news-card__actions {
+    flex-wrap: wrap;
+    row-gap: var(--spacing-xs, 6px);
+    min-width: 0;
+}
+.news-card__action {
+    flex: 0 0 auto;
+    max-width: 100%;
+}
+
+/* Belt-and-braces: never let the page itself force horizontal scroll. */
+@media (max-width: 480px) {
+    body, #app, #app-content {
+        overflow-x: hidden;
+    }
+    .news-create-cta {
+        padding: var(--spacing-sm) var(--spacing-md);
+        gap: var(--spacing-sm);
+    }
+    .news-create-cta__hint {
+        display: none; /* keep the CTA compact on small phones */
+    }
+
+    /* U-4 (mobile): on narrow phones (~360–400px), the 88×88 thumb + 16px gap
+       leaves only ~250px for the body — too narrow for the actions row,
+       author/date/location meta, and reposted-post header. Stack the card
+       vertically so the body has the full card width. */
+    .news-card {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+    .news-card__thumb {
+        width: 100%;
+        height: 160px;
+    }
+    .news-card__body {
+        width: 100%;
+    }
+    .news-card__actions {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .news-card__action {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+    .news-card__meta {
+        flex-wrap: wrap;
+        row-gap: 2px;
+    }
+    .post-card__location {
+        flex-wrap: wrap;
+    }
+    /* Keep the repost-header attached to the card edges when stacked. */
+    .post-card__repost-header {
+        margin: calc(-1 * var(--spacing-sm)) calc(-1 * var(--spacing-md)) 0;
+        border-radius: var(--radius-md) var(--radius-md) 0 0;
+    }
+}
+
+/* A-6: indicate that admin-dashboard cards are tappable. The card click
+   opens the detail modal; inner buttons stop propagation. */
+.incident-card--clickable {
+    cursor: pointer;
+}
+.incident-card--clickable:hover {
+    box-shadow: var(--shadow-md);
 }

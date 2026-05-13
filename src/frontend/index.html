@@ -13,11 +13,11 @@
     <title>PULSE 911 - MDRRMO Morong, Rizal</title>
 
     <!-- Favicons & app icons -->
-    <link rel="icon" type="image/x-icon" href="public/assets/icons/favicon.ico?v=20260421">
-    <link rel="icon" type="image/png" sizes="16x16" href="public/assets/icons/favicon-16.png?v=20260421">
-    <link rel="icon" type="image/png" sizes="32x32" href="public/assets/icons/favicon-32.png?v=20260421">
-    <link rel="icon" type="image/png" sizes="48x48" href="public/assets/icons/favicon-48.png?v=20260421">
-    <link rel="apple-touch-icon" sizes="180x180" href="public/assets/icons/apple-touch-icon.png?v=20260421">
+    <link rel="icon" type="image/x-icon" href="public/assets/icons/favicon.ico?v=20260430-batch5">
+    <link rel="icon" type="image/png" sizes="16x16" href="public/assets/icons/favicon-16.png?v=20260430-batch5">
+    <link rel="icon" type="image/png" sizes="32x32" href="public/assets/icons/favicon-32.png?v=20260430-batch5">
+    <link rel="icon" type="image/png" sizes="48x48" href="public/assets/icons/favicon-48.png?v=20260430-batch5">
+    <link rel="apple-touch-icon" sizes="180x180" href="public/assets/icons/apple-touch-icon.png?v=20260430-batch5">
     <link rel="manifest" href="public/manifest.webmanifest">
 
     <!-- Self-hosted Inter font preload (critical resource) -->
@@ -27,7 +27,9 @@
           type="font/woff2"
           crossorigin="anonymous">
 
-    <link rel="stylesheet" href="public/css/styles.css?v=20260421-appcta">
+    <script src="public/assets/vendor/chart.umd.min.js?v=4.4.1"></script>
+
+    <link rel="stylesheet" href="public/css/styles.css?v=20260512-sos-green">
 
     <!-- Embed mode: when loaded in the admin-preview iframe via ?embed=1,
          hide the app's own header/nav since the preview shell provides them. -->
@@ -44,8 +46,19 @@
         /* Desktop (>=1024px) users get the sidebar shell at /desktop.
            Mobile/tablet users stay on this mobile-first index.
            ABSOLUTE path required — a relative "./desktop" from e.g.
-           /admin/desktop would resolve to itself and infinite-loop. */
-        if (window.innerWidth >= 1024 && location.pathname !== '/desktop') {
+           /admin/desktop would resolve to itself and infinite-loop.
+
+           Skip entirely inside the Capacitor APK: bundled assets are
+           served by the WebView with no router, so /desktop returns 404
+           and the WebView shows its built-in "Check your Internet
+           connection" page even though the device is online. Wide
+           phones (innerWidth >= 1024) would otherwise hit this. */
+        var isCapacitor = !!(window.Capacitor && (
+          window.Capacitor.isNativePlatform
+            ? window.Capacitor.isNativePlatform()
+            : window.Capacitor.platform && window.Capacitor.platform !== 'web'
+        ));
+        if (!isCapacitor && window.innerWidth >= 1024 && location.pathname !== '/desktop') {
           window.location.replace('/desktop' + (location.hash || ''));
         }
       })();
@@ -64,36 +77,47 @@
     </div>
 
     <!-- Page modules -->
-    <script src="public/js/utils/store.js?v=20260421-winfix"></script>
-    <script src="public/js/utils/router.js"></script>
+    <script src="public/js/utils/store.js?v=20260512-register-errors"></script>
+    <script src="public/js/utils/router.js?v=20260428-u7"></script>
+    <script src="public/js/utils/hazard-cache.js?v=20260422-offline"></script>
+    <script src="public/js/utils/device-readiness.js?v=20260512-batoptfallback"></script>
+    <script src="public/js/utils/push.js?v=20260509-bridgefix2"></script>
+    <script src="public/js/utils/carrier-lookup.js?v=20260425-carrier"></script>
+    <script src="public/js/utils/barangays.js?v=20260425-barangay"></script>
     <script src="public/js/components/header.js?v=20260417c"></script>
     <script src="public/js/components/nav.js"></script>
     <script src="public/js/components/terms-modal.js"></script>
-    <script src="public/js/components/detail-modal.js?v=20260421-hzconfirm"></script>
-    <script src="public/js/components/toast.js?v=20260421-winfix"></script>
-    <script src="public/js/pages/login.js?v=20260421-errmsg"></script>
-    <script src="public/js/pages/login-offline.js?v=20260417c"></script>
-    <script src="public/js/pages/signup.js?v=20260421-errmsg"></script>
-    <script src="public/js/pages/forgot-password.js?v=20260421-errmsg"></script>
-    <script src="public/js/pages/citizen-home.js"></script>
+    <script src="public/js/components/detail-modal.js?v=20260509-mediaurl"></script>
+    <script src="public/js/components/team-modal.js?v=20260425-team"></script>
+    <script src="public/js/components/toast.js?v=20260430-batch5-winfix"></script>
+    <script src="public/js/pages/login.js?v=20260512-apibase"></script>
+    <script src="public/js/pages/login-offline.js?v=20260512-retry-reload"></script>
+    <script src="public/js/pages/signup.js?v=20260425-barangay"></script>
+    <script src="public/js/pages/forgot-password.js?v=20260430-batch5-errmsg"></script>
+    <script src="public/js/pages/citizen-home.js?v=20260509-mediaurl"></script>
     <script src="public/js/pages/sos-offline.js"></script>
-    <script src="public/js/pages/hazards.js?v=20260421-hzconfirm"></script>
-    <script src="public/js/pages/my-reports.js?v=20260417c"></script>
+    <script src="public/js/pages/report-offline.js?v=20260512-no-autoopen"></script>
+    <script src="public/js/pages/hazards.js?v=20260422-offline"></script>
+    <script src="public/js/pages/my-reports.js?v=20260509-mediaurl"></script>
     <script src="public/js/pages/emergency.js"></script>
-    <script src="public/js/pages/citizen-profile.js"></script>
-    <script src="public/js/pages/notifications.js"></script>
-    <script src="public/js/pages/admin-home.js?v=20260421-hzconfirm"></script>
-    <script src="public/js/pages/admin-dashboard.js?v=20260417c"></script>
-    <script src="public/js/pages/admin-profile.js"></script>
-    <script src="public/js/pages/news-updates.js?v=20260421-qrform"></script>
-    <script src="public/js/pages/report-incident.js"></script>
+    <script src="public/js/pages/citizen-profile.js?v=20260428-u7"></script>
+    <script src="public/js/pages/notifications.js?v=20260509-mediaurl"></script>
+    <script src="public/js/pages/admin-home.js?v=20260509-mediaurl"></script>
+    <script src="public/js/pages/admin-dashboard.js?v=20260509-mediaurl"></script>
+    <script src="public/js/pages/admin-profile.js?v=20260512-appearance-link"></script>
+    <script src="public/js/pages/admin-settings.js?v=20260422-settings"></script>
+    <script src="public/js/pages/admin-analytics.js?v=20260507-au3"></script>
+    <script src="public/js/pages/admin-audit-log.js?v=20260425-audit"></script>
+    <script src="public/js/pages/news-updates.js?v=20260509-disaster"></script>
+    <script src="public/js/pages/report-incident.js?v=20260428-postsfix"></script>
     <script src="public/js/pages/personal-info.js"></script>
     <script src="public/js/pages/edit-profile.js"></script>
     <script src="public/js/pages/report-progress.js"></script>
     <script src="public/js/pages/service-request.js"></script>
     <script src="public/js/pages/preferences.js"></script>
-    <script src="public/js/pages/appearance.js"></script>
+    <script src="public/js/pages/admin-preferences.js?v=20260425-adminprefs"></script>
+    <script src="public/js/pages/appearance.js?v=20260512-autopersist"></script>
     <script src="public/js/pages/activities.js"></script>
-    <script src="public/js/app.js"></script>
+    <script src="public/js/app.js?v=20260512-netwatch"></script>
 </body>
 </html>

@@ -4,9 +4,18 @@
    Table of Contents:
    1. Render method
    2. Title mapping
+   3. Back-button helper
    ============================================================ */
 
 const Header = {
+    // Routes where the header should NOT render a back button —
+    // these are "root" landing pages for a given role / auth flow.
+    _rootRoutes: [
+        'citizen-home', 'admin-home',
+        'login', 'signup', 'forgot-password', 'login-offline',
+        'home'
+    ],
+
     /**
      * Map route paths to header titles.
      */
@@ -42,10 +51,22 @@ const Header = {
         const route = Router.getPath();
         const title = this.getTitleForRoute(route);
         const count = Store.get('notificationCount') || 0;
+        const showBack = !this._rootRoutes.includes(route);
+
+        const backBtn = showBack ? `
+            <button type="button" class="header__back" onclick="Router.goBack()" aria-label="Back">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+        ` : '';
 
         document.getElementById('app-header').innerHTML = `
             <div class="header">
-                <span class="header__title">${title}</span>
+                <div class="header__left">
+                    ${backBtn}
+                    <span class="header__title">${title}</span>
+                </div>
                 <div class="header__actions">
                     <button class="header__notification-btn" onclick="Router.navigate('notifications')" aria-label="Notifications">
                         <svg viewBox="0 0 24 24">
