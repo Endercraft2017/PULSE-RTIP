@@ -25,17 +25,18 @@ async function create(data) {
   const {
     raw_message, sender_phone, type, severity, message,
     sender_name, latitude, longitude, textbee_sms_id, received_at,
+    source_type,
   } = data;
 
   const result = await db.query(
     `INSERT INTO sms_reports
        (raw_message, sender_phone, type, severity, message, sender_name,
-        latitude, longitude, textbee_sms_id, received_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        latitude, longitude, textbee_sms_id, received_at, source_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       raw_message, sender_phone || null, type || null, severity || 'medium',
       message || null, sender_name || null, latitude || null, longitude || null,
-      textbee_sms_id || null, received_at || null,
+      textbee_sms_id || null, received_at || null, source_type || 'sos',
     ]
   );
 

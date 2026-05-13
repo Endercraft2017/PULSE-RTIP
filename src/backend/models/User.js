@@ -11,6 +11,11 @@
  * 5. updateById   - Update user profile fields
  *
  * Data access layer for the users table.
+ *
+ * Soft-delete convention: all find/list helpers add `AND deleted_at IS NULL`
+ * so callers never accidentally surface a deleted account. Use
+ * findByIdIncludingDeleted() on the rare path (audit) where a deleted row
+ * still needs to be read.
  * =============================================================================
  */
 
@@ -26,7 +31,26 @@ const db = require('../config/database');
  * @returns {Promise<object|null>} User object or null
  */
 async function findByEmail(email) {
-  const rows = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+  const rows = await db.query(
+    'SELECT * FROM users WHERE email = ? AND deleted_at IS NULL',
+    [email]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Like findByEmail but also surfaces soft-deleted rows. The users.email
+ * UNIQUE constraint applies to ALL rows including tombstones, so the signup
+ * path must consult this variant before INSERT to avoid a UNIQUE-violation
+ * crash on emails belonging to deleted accounts.
+ * @param {string} email
+ * @returns {Promise<object|null>}
+ */
+async function findByEmailIncludingDeleted(email) {
+  const rows = await db.query(
+    'SELECT * FROM users WHERE email = ?',
+    [email]
+  );
   return rows[0] || null;
 }
 
@@ -41,7 +65,10 @@ async function findByPhone(phone) {
   if (!phone) return null;
 
   // Exact match first (fastest)
-  let rows = await db.query('SELECT * FROM users WHERE phone = ?', [phone]);
+  let rows = await db.query(
+    'SELECT * FROM users WHERE phone = ? AND deleted_at IS NULL',
+    [phone]
+  );
   if (rows[0]) return rows[0];
 
   // Fallback: compare stripped-to-digits on both sides
@@ -50,7 +77,8 @@ async function findByPhone(phone) {
 
   rows = await db.query(
     `SELECT * FROM users
-     WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') = ?`,
+     WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') = ?
+       AND deleted_at IS NULL`,
     [needle]
   );
   return rows[0] || null;
@@ -67,7 +95,21 @@ async function findByPhone(phone) {
  */
 async function findById(id) {
   const rows = await db.query(
-    'SELECT id, name, email, phone, address, avatar, role, admin_request_status, joined_date, created_at, updated_at FROM users WHERE id = ?',
+    'SELECT id, name, email, phone, address, barangay, avatar, role, admin_request_status, id_type, id_number, id_document_path, id_verified_at, id_verified_by, joined_date, created_at, updated_at FROM users WHERE id = ? AND deleted_at IS NULL',
+    [id]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Like findById but also surfaces soft-deleted rows. Use sparingly — only
+ * when an admin tool genuinely needs to inspect a tombstoned account.
+ * @param {number} id - The user ID
+ * @returns {Promise<object|null>}
+ */
+async function findByIdIncludingDeleted(id) {
+  const rows = await db.query(
+    'SELECT id, name, email, phone, address, barangay, avatar, role, admin_request_status, joined_date, created_at, updated_at, deleted_at FROM users WHERE id = ?',
     [id]
   );
   return rows[0] || null;
@@ -89,17 +131,34 @@ async function findById(id) {
  * @returns {Promise<object>} Created user (without password_hash)
  */
 async function create(data) {
-  const { name, email, phone, address, password_hash, role = 'citizen', admin_request_status = null } = data;
+  const {
+    name, email, phone, address, barangay = null, password_hash,
+    role = 'citizen', admin_request_status = null,
+    id_type = null, id_number = null, id_document_path = null,
+  } = data;
   const avatar = name ? name.charAt(0).toUpperCase() : 'U';
 
   const result = await db.query(
-    `INSERT INTO users (name, email, phone, address, avatar, role, password_hash, admin_request_status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, email, phone || null, address || null, avatar, role, password_hash, admin_request_status]
+    `INSERT INTO users (name, email, phone, address, barangay, avatar, role, password_hash, admin_request_status, id_type, id_number, id_document_path)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, email, phone || null, address || null, barangay || null, avatar, role, password_hash, admin_request_status, id_type, id_number, id_document_path]
   );
 
   const insertId = result.insertId || result.lastInsertRowid;
   return findById(insertId);
+}
+
+/**
+ * Stamps the ID-verification audit columns. Called from the approval flow
+ * so approving the account also marks the ID as manually verified.
+ * @param {number} userId
+ * @param {number} adminUserId - admin who approved
+ */
+async function setIdVerified(userId, adminUserId) {
+  await db.query(
+    'UPDATE users SET id_verified_at = CURRENT_TIMESTAMP, id_verified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [adminUserId, userId]
+  );
 }
 
 /**
@@ -119,13 +178,25 @@ async function updateAdminRequest(id, status, opts = {}) {
 }
 
 /**
- * Lists users with a pending admin request.
+ * Lists users waiting on admin approval — covers both admin-role upgrade
+ * requests ('pending_admin') AND plain citizen signups ('pending').
+ * We reuse admin_request_status as a discriminator to avoid a migration:
+ *   'pending'       → citizen signup, stays citizen on approval
+ *   'pending_admin' → admin-role upgrade, promoted to admin on approval
+ * `kind` is computed and added to the payload so the UI can badge them.
  */
-async function findPendingAdminRequests() {
-  return db.query(
-    "SELECT id, name, email, phone, avatar, joined_date, created_at FROM users WHERE admin_request_status = 'pending' ORDER BY created_at DESC"
+async function findPendingApprovals() {
+  const rows = await db.query(
+    "SELECT id, name, email, phone, barangay, avatar, role, admin_request_status, id_type, id_number, id_document_path, joined_date, created_at FROM users WHERE admin_request_status IN ('pending', 'pending_admin') AND deleted_at IS NULL ORDER BY created_at DESC"
   );
+  return rows.map(r => ({
+    ...r,
+    kind: r.admin_request_status === 'pending_admin' ? 'admin_request' : 'citizen_signup',
+  }));
 }
+
+// Backward-compat alias — older callers still import the original name.
+const findPendingAdminRequests = findPendingApprovals;
 
 /* --------------------------------------------------------------------------
  * 5. updateById
@@ -158,6 +229,10 @@ async function updateById(id, data) {
     fields.push('address = ?');
     values.push(data.address);
   }
+  if (data.barangay !== undefined) {
+    fields.push('barangay = ?');
+    values.push(data.barangay || null);
+  }
 
   if (fields.length === 0) return findById(id);
 
@@ -183,7 +258,23 @@ async function updateById(id, data) {
  */
 async function findCitizenPhones() {
   const rows = await db.query(
-    "SELECT phone FROM users WHERE role = 'citizen' AND phone IS NOT NULL AND phone != ''"
+    "SELECT phone FROM users WHERE role = 'citizen' AND phone IS NOT NULL AND phone != '' AND deleted_at IS NULL"
+  );
+  return rows.map(r => r.phone);
+}
+
+/**
+ * Returns citizen phone numbers filtered by barangay. Used for targeted
+ * SMS broadcasts — e.g. a hazard confirmed in Bombongan only needs to
+ * reach residents of that barangay, not the whole municipality.
+ * @param {string} barangay - Barangay name (must match exactly, case-sensitive)
+ * @returns {Promise<string[]>}
+ */
+async function findCitizenPhonesByBarangay(barangay) {
+  if (!barangay) return [];
+  const rows = await db.query(
+    "SELECT phone FROM users WHERE role = 'citizen' AND barangay = ? AND phone IS NOT NULL AND phone != '' AND deleted_at IS NULL",
+    [barangay]
   );
   return rows.map(r => r.phone);
 }
@@ -196,7 +287,7 @@ async function findCitizenPhones() {
  */
 async function findAllPhones() {
   const rows = await db.query(
-    "SELECT phone FROM users WHERE phone IS NOT NULL AND phone != ''"
+    "SELECT phone FROM users WHERE phone IS NOT NULL AND phone != '' AND deleted_at IS NULL"
   );
   return rows.map(r => r.phone);
 }
@@ -207,7 +298,10 @@ async function findAllPhones() {
  * @returns {Promise<Array>} Array of user objects
  */
 async function findByRole(role) {
-  return db.query('SELECT * FROM users WHERE role = ?', [role]);
+  return db.query(
+    'SELECT * FROM users WHERE role = ? AND deleted_at IS NULL',
+    [role]
+  );
 }
 
 /**
@@ -223,4 +317,51 @@ async function updatePassword(id, password_hash) {
   );
 }
 
-module.exports = { findByEmail, findByPhone, findById, create, updateById, updatePassword, updateAdminRequest, findPendingAdminRequests, findCitizenPhones, findAllPhones, findByRole };
+/* --------------------------------------------------------------------------
+ * 7. deleteUser
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Soft-deletes a user by setting deleted_at. The row itself is preserved so
+ * that LEFT/INNER joins on authored reports, hazards, and community posts
+ * continue to render the original author name.
+ *
+ * Idempotent: a no-op on rows already tombstoned.
+ *
+ * @param {number} id - User ID
+ * @returns {Promise<void>}
+ */
+async function deleteUser(id) {
+  await db.query(
+    'UPDATE users SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
+    [id]
+  );
+}
+
+/**
+ * Returns citizen phone numbers filtered by a hazard/announcement audience
+ * spec. audience_type='all' falls back to findCitizenPhones();
+ * audience_type='barangay' restricts to the given barangay list.
+ *
+ * @param {object} opts
+ * @param {string} opts.audience_type         'all' | 'barangay'
+ * @param {string[]} [opts.audience_barangays]
+ * @returns {Promise<string[]>}
+ */
+async function findPhonesForAudience({ audience_type = 'all', audience_barangays = [] } = {}) {
+  if (audience_type !== 'barangay' || !Array.isArray(audience_barangays) || audience_barangays.length === 0) {
+    return findCitizenPhones();
+  }
+  const placeholders = audience_barangays.map(() => '?').join(', ');
+  const rows = await db.query(
+    `SELECT phone FROM users
+      WHERE role = 'citizen'
+        AND deleted_at IS NULL
+        AND phone IS NOT NULL AND phone != ''
+        AND barangay IN (${placeholders})`,
+    audience_barangays
+  );
+  return rows.map(r => r.phone);
+}
+
+module.exports = { findByEmail, findByEmailIncludingDeleted, findByPhone, findById, findByIdIncludingDeleted, create, updateById, updatePassword, updateAdminRequest, setIdVerified, findPendingAdminRequests, findPendingApprovals, findCitizenPhones, findCitizenPhonesByBarangay, findAllPhones, findPhonesForAudience, findByRole, deleteUser };

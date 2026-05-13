@@ -153,30 +153,61 @@ async function fetchNewsAPI() {
     }
 
     try {
-        const [headlines, morong] = await Promise.all([
-            fetchFromNewsAPI('/top-headlines', { country: 'ph', pageSize: 50 }),
-            fetchFromNewsAPI('/everything', { q: '"Morong" OR "Rizal"', language: 'en', sortBy: 'publishedAt', pageSize: 30 }),
+        // PH disaster/calamity coverage with images. /top-headlines?country=ph
+        // returns 0 results on the free tier, so we pivot to /everything with
+        // explicit calamity keywords scoped to the Philippines, and keep a
+        // local-relevance pass for Morong/Rizal.
+        const phDisasterQuery = '(Philippines OR Filipino OR Manila OR Luzon OR Visayas OR Mindanao) AND ' +
+            '(typhoon OR bagyo OR storm OR flood OR baha OR earthquake OR lindol OR landslide OR ' +
+            'volcano OR eruption OR tsunami OR fire OR sunog OR disaster OR calamity OR rescue OR ' +
+            'evacuation OR PAGASA OR PHIVOLCS OR NDRRMC OR MDRRMO)';
+
+        const [phDisasters, morong, phHeadlines] = await Promise.all([
+            fetchFromNewsAPI('/everything', { q: phDisasterQuery, language: 'en', sortBy: 'publishedAt', pageSize: 50 }),
+            fetchFromNewsAPI('/everything', { q: '"Morong" OR "Rizal"', language: 'en', sortBy: 'publishedAt', pageSize: 20 }),
+            fetchFromNewsAPI('/top-headlines', { country: 'ph', pageSize: 30 }),
         ]);
 
-        const allArticles = [...(headlines.articles || []), ...(morong.articles || [])];
+        const allArticles = [
+            ...(phDisasters.articles || []),
+            ...(morong.articles || []),
+            ...(phHeadlines.articles || []),
+        ];
         const seen = new Set();
         const unique = allArticles.filter(a => {
             if (!a.title || seen.has(a.title)) return false;
+            // Drop "[Removed]" placeholder rows NewsAPI returns for purged articles.
+            if (a.title === '[Removed]' || a.source?.name === '[Removed]') return false;
             seen.add(a.title);
             return true;
         });
 
-        const scored = unique.map(a => ({ ...a, _score: computeRelevance(a) }));
+        // Require an image so the news cards in the app aren't empty rectangles.
+        // Also require Philippine context — NewsAPI's relevance is loose, so an
+        // article about a typhoon hitting Japan or a US drill in Asia will hit
+        // disaster keywords without being PH news. We anchor on PH explicitly.
+        const phWords = ['philippines', 'philippine', 'filipino', 'pinoy', 'manila',
+            'luzon', 'visayas', 'mindanao', 'cebu', 'davao', 'baguio', 'rizal',
+            'morong', 'pagasa', 'phivolcs', 'ndrrmc', 'mdrrmc', 'mdrrmo'];
+        const isPhContext = (a) => {
+            const t = `${a.title || ''} ${a.description || ''}`.toLowerCase();
+            return phWords.some(w => t.includes(w));
+        };
+        const phPool = unique.filter(a => a.urlToImage && isPhContext(a));
+
+        const scored = phPool.map(a => ({ ...a, _score: computeRelevance(a) }));
         scored.sort((a, b) => b._score - a._score || new Date(b.publishedAt) - new Date(a.publishedAt));
 
-        const formatted = scored.slice(0, 20).map(a => ({
+        const formatted = scored.slice(0, 30).map(a => ({
             title: a.title,
             description: a.description || '',
             source: a.source ? a.source.name : 'Unknown',
             url: a.url,
             image: a.urlToImage || null,
             publishedAt: a.publishedAt,
-            relevance: a._score > 0 ? 'local' : 'national',
+            // local = Morong/Rizal/MDRRMO; disaster = PH calamity/risk;
+            // national = generic PH coverage with no disaster keyword.
+            relevance: a._score >= 12 ? 'local' : (a._score >= 6 ? 'disaster' : 'national'),
         }));
 
         _newsCache = { data: formatted, ts: now };
@@ -239,10 +270,34 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 function computeRelevance(article) {
     let score = 0;
     const text = `${article.title || ''} ${article.description || ''}`.toLowerCase();
-    if (text.includes('morong')) score += 10;
-    if (text.includes('rizal')) score += 5;
+
+    // Hyper-local — Morong/Rizal/MDRRMO.
+    if (text.includes('morong')) score += 12;
+    if (text.includes('rizal')) score += 6;
     if (text.includes('mdrrmo')) score += 15;
-    if (text.includes('disaster') || text.includes('flood') || text.includes('typhoon')) score += 3;
+
+    // Disaster / calamity signals — these float PH disaster news above generic
+    // headlines so the feed actually feels like a calamity board.
+    const disasterTerms = [
+        'typhoon', 'bagyo', 'storm', 'flood', 'baha', 'earthquake', 'lindol',
+        'landslide', 'volcano', 'eruption', 'tsunami', 'fire', 'sunog',
+        'disaster', 'calamity', 'rescue', 'evacuation', 'pagasa', 'phivolcs',
+        'ndrrmc', 'mdrrmc', 'state of calamity'
+    ];
+    let disasterHits = 0;
+    for (const term of disasterTerms) {
+        if (text.includes(term)) disasterHits += 1;
+    }
+    if (disasterHits > 0) score += 3 + Math.min(disasterHits, 4);
+
+    // Philippine context boost — anchors disaster keywords to PH instead of
+    // any global story that mentioned a typhoon elsewhere.
+    if (text.includes('philippines') || text.includes('filipino') ||
+        text.includes('manila') || text.includes('luzon') ||
+        text.includes('visayas') || text.includes('mindanao')) {
+        score += 2;
+    }
+
     return score;
 }
 

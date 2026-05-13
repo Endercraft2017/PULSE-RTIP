@@ -15,11 +15,73 @@
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const config = require('../config');
+const db = require('../config/database');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const OtpVerification = require('../models/OtpVerification');
 const textbee = require('../services/sms/textbee');
+const { parseDbDate } = require('../utils/dates');
+
+/* --------------------------------------------------------------------------
+ * Multer — ID document uploads
+ * -------------------------------------------------------------------------- */
+// Separate subfolder under the static uploads dir so /uploads/id-documents/<file>
+// serves directly. Admins need to view the image when approving an account.
+const ID_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const ID_UPLOAD_SUBDIR = 'id-documents';
+const ID_UPLOAD_DIR = path.join(config.upload.dir, ID_UPLOAD_SUBDIR);
+
+if (!fs.existsSync(ID_UPLOAD_DIR)) {
+  fs.mkdirSync(ID_UPLOAD_DIR, { recursive: true });
+}
+
+const idStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, ID_UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const ext = (path.extname(file.originalname) || '').toLowerCase();
+    cb(null, `id-${unique}${ext}`);
+  },
+});
+
+const idFileFilter = (req, file, cb) => {
+  if (ID_ALLOWED_TYPES.includes(file.mimetype)) return cb(null, true);
+  cb(new Error('ID upload must be a PNG, JPG, or WEBP image.'), false);
+};
+
+const uploadIdDocument = multer({
+  storage: idStorage,
+  fileFilter: idFileFilter,
+  limits: { fileSize: config.upload.maxFileSize },
+}).single('idFile');
+
+/**
+ * Route middleware that runs uploadIdDocument only when the request is
+ * multipart/form-data. JSON callers pass through untouched so the original
+ * JSON flow (and express-validator rules bound to `body('...')`) still work.
+ * Multer errors surface as 400 with a readable message.
+ */
+function handleIdUpload(req, res, next) {
+  const ct = req.headers['content-type'] || '';
+  if (!ct.startsWith('multipart/form-data')) return next();
+  uploadIdDocument(req, res, (err) => {
+    if (err) {
+      const isSize = err.code === 'LIMIT_FILE_SIZE';
+      return res.status(400).json({
+        success: false,
+        code: isSize ? 'ID_FILE_TOO_LARGE' : 'ID_UPLOAD_FAILED',
+        message: isSize
+          ? `ID upload failed: file too large (max ${Math.floor(config.upload.maxFileSize / 1024 / 1024)}MB).`
+          : `ID upload failed: ${err.message}`,
+      });
+    }
+    next();
+  });
+}
 
 /* --------------------------------------------------------------------------
  * 4. Helper - Generate JWT token
@@ -56,7 +118,21 @@ async function login(req, res, next) {
 
     const user = await User.findByEmail(email);
     if (!user) {
-      // Generic response to prevent email enumeration, but descriptive
+      // findByEmail hides soft-deleted accounts. Do a deleted-inclusive
+      // lookup by email so someone trying to log back in after deletion
+      // gets a clear "account deleted" message instead of the generic
+      // "wrong password" path.
+      const deletedCheck = await db.query(
+        'SELECT deleted_at FROM users WHERE email = ? AND deleted_at IS NOT NULL',
+        [email]
+      );
+      if (deletedCheck && deletedCheck[0]) {
+        return res.status(403).json({
+          success: false,
+          code: 'ACCOUNT_DELETED',
+          message: 'This account has been deleted. Contact MDRRMO support if this was a mistake.',
+        });
+      }
       return res.status(401).json({
         success: false,
         code: 'INVALID_CREDENTIALS',
@@ -73,24 +149,29 @@ async function login(req, res, next) {
       });
     }
 
-    // Account might exist but admin request is still pending review
-    if (user.admin_request_status === 'pending') {
+    // Every new account — citizen or admin — is now queued for MDRRMO
+    // review before first login. Block until the status is approved (or null,
+    // for legacy rows seeded before this flow landed).
+    if (user.admin_request_status === 'pending' || user.admin_request_status === 'pending_admin') {
       return res.status(403).json({
         success: false,
-        code: 'ADMIN_REQUEST_PENDING',
-        message: 'Your admin account request is still awaiting MDRRMO approval. You\'ll receive a notification once reviewed.',
+        code: 'ACCOUNT_PENDING',
+        message: 'Your account is awaiting MDRRMO admin approval. You\'ll receive an SMS and email when reviewed.',
       });
     }
     if (user.admin_request_status === 'rejected') {
       return res.status(403).json({
         success: false,
-        code: 'ADMIN_REQUEST_REJECTED',
-        message: 'Your admin account request was not approved. Contact MDRRMO support if you believe this is a mistake.',
+        code: 'ACCOUNT_REJECTED',
+        message: 'Your account application was not approved. Please contact MDRRMO Morong for details.',
       });
     }
 
     const token = generateToken(user);
-    const notificationCount = await Notification.countUnread(user.id);
+    // Pass the role so admins see the badge filtered to still-open
+    // reports (matches the dashboard intent + bell badge served by
+    // /api/notifications).
+    const notificationCount = await Notification.countUnread(user.id, user.role);
 
     res.json({
       success: true,
@@ -128,20 +209,30 @@ async function login(req, res, next) {
  */
 async function register(req, res, next) {
   try {
-    const { name, email, password, phone, address, role: requestedRole } = req.body;
+    const { name, email, password, phone, address, barangay, idType, idNumber } = req.body;
 
-    const existing = await User.findByEmail(email);
+    // Use the "including deleted" variant — the users.email UNIQUE constraint
+    // covers tombstones, so a plain findByEmail() lookup misses soft-deleted
+    // rows and the insert crashes with `UNIQUE constraint failed`.
+    const existing = await User.findByEmailIncludingDeleted(email);
     if (existing) {
+      // The uploaded file is now orphaned — clean it up so we don't collect
+      // junk for every duplicate-signup attempt.
+      if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
+      const isDeleted = !!existing.deleted_at;
       return res.status(409).json({
         success: false,
-        code: 'EMAIL_TAKEN',
-        message: `An account already exists for ${email}. Please log in or use a different email.`,
+        code: isDeleted ? 'EMAIL_PREVIOUSLY_USED' : 'EMAIL_TAKEN',
+        message: isDeleted
+          ? `This email was previously used by an account that has since been deleted. Please contact MDRRMO admin to recover it, or sign up with a different email.`
+          : `An account already exists for ${email}. Please log in or use a different email.`,
       });
     }
 
     // Require a recently-verified SMS OTP for the signup phone.
     // (15-minute window — matches the OTP TTL + a small grace period.)
     if (!phone) {
+      if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
       return res.status(400).json({
         success: false,
         code: 'PHONE_REQUIRED',
@@ -150,6 +241,7 @@ async function register(req, res, next) {
     }
     const phoneVerified = await OtpVerification.hasRecentVerified(phone, 'signup', 900);
     if (!phoneVerified) {
+      if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
       return res.status(403).json({
         success: false,
         code: 'PHONE_NOT_VERIFIED',
@@ -157,66 +249,95 @@ async function register(req, res, next) {
       });
     }
 
-    // Admin signups are queued for approval — the account is created as a
-    // citizen and flagged pending. Existing admins get a notification with
-    // approve/reject actions.
-    const wantsAdmin = requestedRole === 'admin';
-
-    const password_hash = await bcrypt.hash(password, 10);
-    const user = await User.create({
-      name,
-      email,
-      phone,
-      address,
-      password_hash,
-      role: 'citizen',
-      admin_request_status: wantsAdmin ? 'pending' : null,
-    });
-
-    if (wantsAdmin) {
-      try {
-        const Notification = require('../models/Notification');
-        const admins = await User.findByRole('admin');
-        for (const admin of admins) {
-          await Notification.create({
-            user_id: admin.id,
-            actor_user_id: user.id,
-            type: 'admin_request',
-            title: 'New admin account request',
-            text: `${user.name} (${user.email}) has requested admin access. Review and approve or reject.`,
-          });
-        }
-      } catch (notifErr) {
-        console.error('[register] failed to notify admins of admin request:', notifErr.message);
-      }
-
-      // Don't auto-login the requester; respond with a status the frontend
-      // can use to show "request submitted" toast and bounce back to login.
-      return res.status(202).json({
-        success: true,
-        adminRequest: 'pending',
-        message: 'Your admin account request has been submitted for approval.',
+    // ID verification is required for every signup. Reject early with a clear
+    // message — the frontend shows this to the user.
+    const cleanIdType = (idType || '').trim();
+    const cleanIdNumber = (idNumber || '').trim();
+    if (!cleanIdType || !cleanIdNumber) {
+      if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
+      return res.status(400).json({
+        success: false,
+        code: 'ID_FIELDS_REQUIRED',
+        message: 'ID type and ID number are required for signup.',
+      });
+    }
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        code: 'ID_FILE_REQUIRED',
+        message: 'A photo of your ID is required for signup.',
       });
     }
 
-    const token = generateToken(user);
+    // Stored as a path relative to the uploads root so frontend can build a
+    // URL as `/uploads/<path>`. Always forward slashes.
+    const idDocumentPath = `${ID_UPLOAD_SUBDIR}/${req.file.filename}`.replace(/\\/g, '/');
 
-    res.status(201).json({
+    // Every signup is a citizen awaiting MDRRMO review. The admin
+    // self-request path was removed (U-10) — admins are now provisioned
+    // only via the server-side CLI (`npm run provision-admin`).
+    const password_hash = await bcrypt.hash(password, 10);
+    // Role is ALWAYS forced to 'citizen' server-side — a malicious client
+    // sending {role:'admin'} cannot self-promote. Admins are minted only
+    // through the CLI.
+    let user;
+    try {
+      user = await User.create({
+        name,
+        email,
+        phone,
+        address,
+        barangay: barangay || null,
+        password_hash,
+        role: 'citizen',
+        admin_request_status: 'pending',
+        id_type: cleanIdType,
+        id_number: cleanIdNumber,
+        id_document_path: idDocumentPath,
+      });
+    } catch (insertErr) {
+      // Safety net: if a UNIQUE-constraint violation slips past the
+      // pre-check (race condition, schema mismatch, etc.), translate it
+      // into a clean 409 so the client gets parseable JSON instead of an
+      // HTML 500 page that the frontend reports as "Network error".
+      const msg = String(insertErr && insertErr.message || '');
+      const isUnique = /UNIQUE\s+constraint\s+failed|ER_DUP_ENTRY|Duplicate entry/i.test(msg);
+      if (isUnique) {
+        if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
+        const field = /email/i.test(msg) ? 'email' : /phone/i.test(msg) ? 'phone' : 'field';
+        return res.status(409).json({
+          success: false,
+          code: 'DUPLICATE_ENTRY',
+          message: `This ${field} is already registered. Please use a different ${field} or log in.`,
+        });
+      }
+      throw insertErr;
+    }
+
+    // Notify every admin that a new citizen signup is waiting for review.
+    try {
+      const Notification = require('../models/Notification');
+      const admins = await User.findByRole('admin');
+      for (const admin of admins) {
+        await Notification.create({
+          user_id: admin.id,
+          actor_user_id: user.id,
+          type: 'admin_request',
+          title: 'New citizen signup',
+          text: `${user.name} (${user.email}) has signed up and is awaiting approval. Review and approve or reject.`,
+        });
+      }
+    } catch (notifErr) {
+      console.error('[register] failed to notify admins of pending signup:', notifErr.message);
+    }
+
+    // No JWT — user cannot log in until an admin approves. Frontend shows
+    // a "pending review" screen and routes back to login.
+    return res.status(202).json({
       success: true,
-      data: {
-        token,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          address: user.address,
-          avatar: user.avatar,
-          role: user.role,
-          joinedDate: user.joined_date,
-        },
-        notificationCount: 0,
-      },
+      pending: true,
+      kind: 'citizen_signup',
+      message: 'Thanks! Your account is pending MDRRMO admin review. You\'ll be notified by SMS and email.',
     });
   } catch (err) {
     next(err);
@@ -275,7 +396,8 @@ async function sendOtp(req, res, next) {
     // Rate limit: block sending if the last OTP was less than 30 seconds ago
     const lastOtp = await OtpVerification.findLatest(phone, purpose);
     if (lastOtp) {
-      const age = (Date.now() - new Date(lastOtp.created_at + 'Z').getTime()) / 1000;
+      const createdAt = parseDbDate(lastOtp.created_at);
+      const age = createdAt ? (Date.now() - createdAt.getTime()) / 1000 : Infinity;
       if (age < 30) {
         return res.status(429).json({
           success: false,
@@ -350,7 +472,8 @@ async function verifyOtp(req, res, next) {
     }
 
     // Expiry check
-    if (new Date(record.expires_at + 'Z') < new Date()) {
+    const expiresAt = parseDbDate(record.expires_at);
+    if (!expiresAt || expiresAt.getTime() < Date.now()) {
       return res.status(410).json({
         success: false,
         code: 'OTP_EXPIRED',
@@ -467,7 +590,8 @@ async function forgotPassword(req, res, next) {
     // Rate limit: one OTP per 30 seconds per phone+purpose
     const lastOtp = await OtpVerification.findLatest(user.phone, 'reset');
     if (lastOtp) {
-      const age = (Date.now() - new Date(lastOtp.created_at + 'Z').getTime()) / 1000;
+      const createdAt = parseDbDate(lastOtp.created_at);
+      const age = createdAt ? (Date.now() - createdAt.getTime()) / 1000 : Infinity;
       if (age < 30) {
         return res.status(429).json({
           success: false,
@@ -570,4 +694,4 @@ async function resetPassword(req, res, next) {
   }
 }
 
-module.exports = { login, register, sendOtp, verifyOtp, forgotPassword, resetPassword };
+module.exports = { login, register, sendOtp, verifyOtp, forgotPassword, resetPassword, handleIdUpload };

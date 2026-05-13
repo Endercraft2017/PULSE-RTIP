@@ -7,18 +7,20 @@
  * 1. Imports
  * 2. Route Definitions
  *
- * GET  /api/users/me                - Get current user profile
- * PUT  /api/users/me                - Update current user profile (name, address)
- * PUT  /api/users/me/password       - Change current user's password
- * POST /api/users/me/phone/send-otp - Send OTP to a new phone number
- * PUT  /api/users/me/phone          - Verify OTP and update phone number
+ * GET    /api/users/me                - Get current user profile
+ * PUT    /api/users/me                - Update current user profile (name, address)
+ * PUT    /api/users/me/password       - Change current user's password
+ * POST   /api/users/me/phone/send-otp - Send OTP to a new phone number
+ * PUT    /api/users/me/phone          - Verify OTP and update phone number
+ * DELETE /api/users/me                - Soft-delete the authenticated account
+ * DELETE /api/users/:id               - Admin soft-delete a citizen account
  * =============================================================================
  */
 
 const { Router } = require('express');
 const { body } = require('express-validator');
 const validate = require('../middleware/validate');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 const userController = require('../controllers/userController');
 
 const router = Router();
@@ -33,6 +35,7 @@ router.put('/me', authenticate, validate([
   body('name').optional().trim().notEmpty().withMessage('Name cannot be empty'),
   body('phone').optional().trim(),
   body('address').optional().trim(),
+  body('barangay').optional({ nullable: true, checkFalsy: true }).trim(),
 ]), userController.updateMe);
 
 router.put('/me/password', authenticate, validate([
@@ -52,5 +55,9 @@ router.put('/me/phone', authenticate, validate([
   body('phone').trim().notEmpty().withMessage('Phone number is required'),
   body('code').trim().isLength({ min: 6, max: 6 }).withMessage('Code must be 6 digits'),
 ]), userController.updatePhone);
+
+router.delete('/me', authenticate, userController.deleteMe);
+
+router.delete('/:id', authenticate, requireAdmin, userController.adminDeleteUser);
 
 module.exports = router;

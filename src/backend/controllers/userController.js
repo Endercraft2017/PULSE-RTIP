@@ -16,6 +16,8 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const OtpVerification = require('../models/OtpVerification');
 const textbee = require('../services/sms/textbee');
+const { parseDbDate } = require('../utils/dates');
+const { logAction } = require('../middleware/auditLog');
 
 /** Digits-only for phone equality comparison (tolerant of -, spaces, etc.) */
 function sameDigits(a, b) {
@@ -66,8 +68,8 @@ async function getMe(req, res, next) {
  */
 async function updateMe(req, res, next) {
   try {
-    const { name, phone, address } = req.body;
-    const updated = await User.updateById(req.user.id, { name, phone, address });
+    const { name, phone, address, barangay } = req.body;
+    const updated = await User.updateById(req.user.id, { name, phone, address, barangay });
 
     res.json({
       success: true,
@@ -253,7 +255,8 @@ async function sendPhoneChangeOtp(req, res, next) {
     // Rate-limit: 30s per phone+purpose
     const lastOtp = await OtpVerification.findLatest(normalized, 'phone_change');
     if (lastOtp) {
-      const age = (Date.now() - new Date(lastOtp.created_at + 'Z').getTime()) / 1000;
+      const createdAt = parseDbDate(lastOtp.created_at);
+      const age = createdAt ? (Date.now() - createdAt.getTime()) / 1000 : Infinity;
       if (age < 30) {
         return res.status(429).json({
           success: false,
@@ -326,7 +329,8 @@ async function updatePhone(req, res, next) {
       });
     }
 
-    if (new Date(record.expires_at + 'Z') < new Date()) {
+    const expiresAt = parseDbDate(record.expires_at);
+    if (!expiresAt || expiresAt.getTime() < Date.now()) {
       return res.status(410).json({
         success: false,
         message: 'This verification code has expired. Please request a new one.',
@@ -367,4 +371,91 @@ async function updatePhone(req, res, next) {
   }
 }
 
-module.exports = { getMe, updateMe, changePassword, checkPhoneAvailable, sendPhoneChangeOtp, updatePhone };
+/* --------------------------------------------------------------------------
+ * 7. deleteMe
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Soft-deletes the authenticated user's account. The frontend is expected
+ * to drop its local JWT and bounce back to /login — the server doesn't
+ * maintain session state to tear down.
+ *
+ * @param {object} req - Express request (req.user set by auth middleware)
+ * @param {object} res - Express response
+ * @param {function} next - Express next function
+ */
+async function deleteMe(req, res, next) {
+  try {
+    await User.deleteUser(req.user.id);
+    logAction(req.user.id, 'self_delete', 'user', req.user.id, {
+      name: req.user.name,
+      email: req.user.email,
+      role: req.user.role,
+    });
+    res.json({
+      success: true,
+      message: 'Your account has been deleted.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * 8. adminDeleteUser
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Admin-only soft-delete of a citizen account. Rejects attempts to delete
+ * another admin (protects the MDRRMO chain of command) or the requesting
+ * admin themselves (those use DELETE /api/users/me instead, which also
+ * forces a client-side logout).
+ *
+ * @param {object} req - Express request (req.params.id = target user id)
+ * @param {object} res - Express response
+ * @param {function} next - Express next function
+ */
+async function adminDeleteUser(req, res, next) {
+  try {
+    const targetId = Number(req.params.id);
+    if (!Number.isInteger(targetId) || targetId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid user id.' });
+    }
+
+    if (targetId === req.user.id) {
+      return res.status(403).json({
+        success: false,
+        code: 'CANNOT_DELETE_SELF',
+        message: 'Admins cannot delete their own account from this endpoint. Use the personal account settings page.',
+      });
+    }
+
+    const target = await User.findById(targetId);
+    if (!target) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    if (target.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        code: 'CANNOT_DELETE_ADMIN',
+        message: 'Admin accounts cannot be removed through this endpoint.',
+      });
+    }
+
+    await User.deleteUser(targetId);
+    logAction(req.user.id, 'user_deleted', 'user', targetId, {
+      name: target.name,
+      email: target.email,
+      role: target.role,
+    });
+    res.json({
+      success: true,
+      message: `${target.name} has been removed.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getMe, updateMe, changePassword, checkPhoneAvailable, sendPhoneChangeOtp, updatePhone, deleteMe, adminDeleteUser };

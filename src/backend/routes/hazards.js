@@ -34,6 +34,14 @@ const createRules = [
     .isFloat({ min: -90, max: 90 }).withMessage('Latitude must be between -90 and 90'),
   body('longitude').optional({ nullable: true, checkFalsy: true })
     .isFloat({ min: -180, max: 180 }).withMessage('Longitude must be between -180 and 180'),
+  body('category').optional({ nullable: true })
+    .isIn(['hazard', 'announcement']).withMessage("Category must be 'hazard' or 'announcement'"),
+  body('audience_type').optional({ nullable: true })
+    .isIn(['all', 'barangay']).withMessage("Audience must be 'all' or 'barangay'"),
+  body('audience_barangays').optional({ nullable: true })
+    .isArray().withMessage('audience_barangays must be an array'),
+  body('sound_enabled').optional({ nullable: true })
+    .isBoolean().withMessage('sound_enabled must be a boolean'),
 ];
 
 /* --------------------------------------------------------------------------
@@ -41,6 +49,16 @@ const createRules = [
  * -------------------------------------------------------------------------- */
 
 router.get('/', authenticate, hazardController.getHazards);
+
+// Recycle bin (admin-only). MUST be declared before the /:id routes below
+// so Express matches the literal "/bin" segment instead of treating it as
+// a numeric hazard id.
+router.get('/bin', authenticate, requireAdmin, hazardController.getBinHazards);
+
 router.post('/', authenticate, requireAdmin, validate(createRules), hazardController.createHazard);
+router.put('/:id', authenticate, requireAdmin, validate(createRules), hazardController.updateHazard);
+router.put('/:id/restore', authenticate, requireAdmin, hazardController.restoreHazard);
+router.delete('/:id/permanent', authenticate, requireAdmin, hazardController.permanentDeleteHazard);
+router.delete('/:id', authenticate, requireAdmin, hazardController.deleteHazard);
 
 module.exports = router;

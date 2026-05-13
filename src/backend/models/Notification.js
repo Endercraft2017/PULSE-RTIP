@@ -16,18 +16,49 @@
 
 const db = require('../config/database');
 
+// Statuses an admin still considers "open / needs attention". Notifications
+// tied to reports outside this set are filtered out of the admin inbox + bell
+// badge so those measures align with the dashboard's "Pending" tile.
+const ADMIN_OPEN_STATUSES = ['submitted', 'pending', 'investigating', 'in_progress', 'pending_confirmation'];
+const ADMIN_OPEN_PLACEHOLDERS = ADMIN_OPEN_STATUSES.map(() => '?').join(',');
+
 /* --------------------------------------------------------------------------
  * 2. findByUserId
  * -------------------------------------------------------------------------- */
 
 /**
  * Gets all notifications for a specific user, newest first.
+ *
+ * For admins, notifications about reports that have already been
+ * resolved/rejected/cancelled are hidden so the inbox matches the
+ * dashboard's open-workload counters. Citizens always see their full
+ * personal history.
+ *
  * @param {number} userId - The user ID
+ * @param {string} [role] - 'admin' triggers the open-report filter
  * @returns {Promise<Array>} Array of notification objects
  */
-async function findByUserId(userId) {
+async function findByUserId(userId, role) {
+  // LEFT JOIN reports so the notification card can show the report's
+  // current status, not the status snapshot taken when the notification
+  // was created (which goes stale as the report moves through workflow).
+  if (role === 'admin') {
+    return db.query(
+      `SELECT n.*, r.status AS report_current_status
+         FROM notifications n
+         LEFT JOIN reports r ON r.id = n.report_id
+        WHERE n.user_id = ?
+          AND (n.report_id IS NULL OR r.status IN (${ADMIN_OPEN_PLACEHOLDERS}))
+        ORDER BY n.created_at DESC`,
+      [userId, ...ADMIN_OPEN_STATUSES]
+    );
+  }
   return db.query(
-    'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
+    `SELECT n.*, r.status AS report_current_status
+       FROM notifications n
+       LEFT JOIN reports r ON r.id = n.report_id
+      WHERE n.user_id = ?
+      ORDER BY n.created_at DESC`,
     [userId]
   );
 }
@@ -76,10 +107,30 @@ async function deleteByTypeAndActor(type, actor_user_id) {
 
 /**
  * Counts unread notifications for a user.
+ *
+ * For admins, only unread notifications whose related report is still in
+ * an "open" status (or notifications without an attached report) count
+ * toward the bell badge — this keeps the badge aligned with the
+ * dashboard's pending-work counters and prevents stale entries about
+ * already-resolved reports from inflating the number.
+ *
  * @param {number} userId - The user ID
+ * @param {string} [role] - 'admin' triggers the open-report filter
  * @returns {Promise<number>} Unread count
  */
-async function countUnread(userId) {
+async function countUnread(userId, role) {
+  if (role === 'admin') {
+    const rows = await db.query(
+      `SELECT COUNT(*) AS total
+         FROM notifications n
+         LEFT JOIN reports r ON r.id = n.report_id
+        WHERE n.user_id = ?
+          AND n.is_read = 0
+          AND (n.report_id IS NULL OR r.status IN (${ADMIN_OPEN_PLACEHOLDERS}))`,
+      [userId, ...ADMIN_OPEN_STATUSES]
+    );
+    return Number(rows[0].total) || 0;
+  }
   const rows = await db.query(
     'SELECT COUNT(*) AS total FROM notifications WHERE user_id = ? AND is_read = 0',
     [userId]
@@ -116,4 +167,17 @@ async function markAllAsRead(userId) {
   );
 }
 
-module.exports = { findByUserId, create, deleteByTypeAndActor, countUnread, markAsRead, markAllAsRead };
+/**
+ * Marks every notification tied to a given report as read (across all users).
+ * Used when an admin acts on a report so the "new report" inbox entries
+ * across all admins resolve automatically.
+ * @param {number} reportId
+ */
+async function markReadByReportId(reportId) {
+  return db.query(
+    'UPDATE notifications SET is_read = 1 WHERE report_id = ? AND is_read = 0',
+    [reportId]
+  );
+}
+
+module.exports = { findByUserId, create, deleteByTypeAndActor, countUnread, markAsRead, markAllAsRead, markReadByReportId };

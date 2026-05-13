@@ -45,6 +45,11 @@ router.use('/sms-reports', require('./smsReports'));
 router.use('/posts', require('./posts'));
 router.use('/news', require('./news'));
 router.use('/admin-requests', require('./adminRequests'));
+router.use('/admin/settings', require('./adminSettings'));
+router.use('/admin/audit-log', require('./adminAuditLog'));
+router.use('/analytics', require('./analytics'));
+router.use('/push-tokens', require('./push'));
+router.use('/geocode', require('./geocode'));
 
 /* --------------------------------------------------------------------------
  * 3. Health Check

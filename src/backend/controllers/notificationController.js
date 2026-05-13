@@ -26,8 +26,10 @@ const Notification = require('../models/Notification');
  */
 async function getNotifications(req, res, next) {
   try {
-    const notifications = await Notification.findByUserId(req.user.id);
-    const unreadCount = await Notification.countUnread(req.user.id);
+    // Pass the role so admins get an inbox + badge filtered to
+    // notifications about still-open reports (matches dashboard intent).
+    const notifications = await Notification.findByUserId(req.user.id, req.user.role);
+    const unreadCount = await Notification.countUnread(req.user.id, req.user.role);
 
     res.json({
       success: true,

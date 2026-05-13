@@ -67,7 +67,10 @@ const resetPasswordRules = [
  * -------------------------------------------------------------------------- */
 
 router.post('/login', validate(loginRules), authController.login);
-router.post('/register', validate(registerRules), authController.register);
+// handleIdUpload runs multer only on multipart requests so validate() still
+// sees req.body for either content type. ID fields are enforced inside the
+// register controller (multer doesn't know about our custom codes).
+router.post('/register', authController.handleIdUpload, validate(registerRules), authController.register);
 router.post('/send-otp', validate(sendOtpRules), authController.sendOtp);
 router.post('/verify-otp', validate(verifyOtpRules), authController.verifyOtp);
 router.post('/forgot-password', validate(forgotPasswordRules), authController.forgotPassword);

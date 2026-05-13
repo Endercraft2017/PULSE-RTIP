@@ -45,24 +45,32 @@ async function pollAndProcess() {
       if (!smsId) continue;
       const existing = await SmsReport.findByTextbeeSmsId(smsId);
       if (existing) continue;
-      if (!smsParser.isPulse911(msg.message)) continue;
+      if (!smsParser.isSupported(msg.message)) continue;
       const parsed = smsParser.parse(msg.message);
       if (!parsed) continue;
+
+      // Prefix the stored `message` with the user-supplied title on general
+      // reports so admins see context without an extra column.
+      const storedMessage = parsed.title
+        ? `${parsed.title} — ${parsed.message}`
+        : parsed.message;
 
       await SmsReport.create({
         raw_message: msg.message,
         sender_phone: msg.sender || null,
         type: parsed.type,
         severity: parsed.severity,
-        message: parsed.message,
+        message: storedMessage,
         sender_name: parsed.sender_name,
         latitude: parsed.latitude,
         longitude: parsed.longitude,
         textbee_sms_id: smsId,
         received_at: msg.receivedAt || msg.createdAt || null,
+        source_type: parsed.source_type,
       });
 
-      console.log(`[SMS Poller] New PULSE911 report from ${parsed.sender_name} (${msg.sender})`);
+      const label = parsed.source_type === 'sos' ? 'PULSE911 SOS' : 'REPORT';
+      console.log(`[SMS Poller] New ${label} from ${parsed.sender_name} (${msg.sender})`);
     }
   } catch (err) {
     consecutiveFailures += 1;

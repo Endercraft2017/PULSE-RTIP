@@ -45,6 +45,11 @@ function initMySQL() {
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
+    // DATETIME values round-trip as UTC strings so downstream parseDbDate()
+    // gets the same shape it gets from SQLite. Without this, mysql2 returns
+    // JS Date objects in the server's local TZ, which breaks expiry checks.
+    dateStrings: true,
+    timezone: 'Z',
   });
   return mysqlPool;
 }

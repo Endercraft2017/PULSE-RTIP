@@ -67,6 +67,27 @@ const config = {
     apiUrl: process.env.TEXTBEE_API_URL || 'https://api.textbee.dev/api/v1',
     gatewayPhone: process.env.TEXTBEE_GATEWAY_PHONE || '',
   },
+
+  /** Firebase Cloud Messaging (push notifications). The HTTP v1 API uses
+   *  service-account credentials — set FIREBASE_SERVICE_ACCOUNT_PATH to the
+   *  absolute path of the JSON downloaded from Firebase → Project Settings
+   *  → Service accounts. When unset, the push service logs payloads instead
+   *  of sending so the broadcast pipeline runs end-to-end in dev. */
+  push: {
+    serviceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || '',
+  },
+
+  /** SMTP / Email config. If SMTP_HOST is unset, the mailer logs to the
+   *  console instead of sending — lets the approval flow run end-to-end
+   *  in dev without a mail account. */
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    secure: String(process.env.SMTP_SECURE || 'false') === 'true',
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || 'PULSE 911 <noreply@afkcube.com>',
+  },
 };
 
 /* --------------------------------------------------------------------------

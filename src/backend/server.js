@@ -55,6 +55,13 @@ const app = express();
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
+  // The Capacitor APK loads the WebView from https://localhost and fetches
+  // images/uploads from https://pulse.afkcube.com — that's cross-origin, so
+  // Helmet's default CORP=same-origin blocks <img> and CSS background-image
+  // even though the API itself works (CORS handles fetch). Relaxing CORP to
+  // cross-origin is safe here: API endpoints are already CORS-gated, and
+  // /uploads serves user-supplied images that are intentionally public.
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
 app.use(cors({

@@ -16,6 +16,39 @@
 
 const textbee = require('../services/sms/textbee');
 
+/**
+ * Translates a tagged TextBee error into an HTTP response. Returns true if
+ * the error was handled (response sent); false if the caller should fall
+ * through to `next(err)`. Keeps 429/502 passthrough logic in one place.
+ */
+function handleSmsError(err, res) {
+  if (err.isRateLimit) {
+    const q = err.quota;
+    // TextBee distinguishes two flavors of 429: daily/monthly quota vs a
+    // short-term burst throttle. Surface the right message to the admin.
+    const isQuota = q && q.hasReachedLimit;
+    const message = isQuota
+      ? `TextBee daily SMS limit reached (${q.dailyRemaining}/${q.dailyLimit} remaining today, ${q.monthlyRemaining}/${q.monthlyLimit} for the month). Resets at 00:00 UTC.`
+      : 'The SMS gateway is temporarily rate-limited. Please wait a minute and try again.';
+    res.status(429).json({
+      success: false,
+      code: isQuota ? 'SMS_QUOTA_EXCEEDED' : 'SMS_RATE_LIMITED',
+      message,
+      ...(q ? { quota: q } : {}),
+    });
+    return true;
+  }
+  if (err.isGatewayError) {
+    res.status(502).json({
+      success: false,
+      code: 'SMS_GATEWAY_ERROR',
+      message: err.message || 'SMS gateway is unavailable. Please try again shortly.',
+    });
+    return true;
+  }
+  return false;
+}
+
 /* --------------------------------------------------------------------------
  * 2. getStatus
  * -------------------------------------------------------------------------- */
@@ -39,6 +72,7 @@ async function sendSMS(req, res, next) {
     const result = await textbee.sendSMS(recipients, message);
     res.json({ success: true, data: result });
   } catch (err) {
+    if (handleSmsError(err, res)) return;
     next(err);
   }
 }
@@ -78,6 +112,7 @@ async function sendTestSMS(req, res, next) {
       data: result,
     });
   } catch (err) {
+    if (handleSmsError(err, res)) return;
     next(err);
   }
 }
