@@ -1,0 +1,121 @@
+================================================================================
+PULSE-RTIP — SETUP AND RUN INSTRUCTIONS
+================================================================================
+
+This file explains how to get the project running on your own machine, for
+local development and testing. For what the project is and how it's put
+together, see README.md.
+
+--------------------------------------------------------------------------------
+1. PREREQUISITES
+--------------------------------------------------------------------------------
+
+- Node.js 18 or newer, with npm (comes bundled with Node.js)
+- To also build/test the Android app: Android Studio (for the SDK + an
+  emulator or a physical device with USB debugging enabled)
+
+Nothing else is required to run the backend — the default mode uses a local
+SQLite database file, so there's no separate database server to install.
+
+--------------------------------------------------------------------------------
+2. RUNNING THE SERVER (WEB + API)
+--------------------------------------------------------------------------------
+
+Easiest way:
+
+  Double-click start.bat in the project root.
+
+That script will, in order:
+  1. Copy src/backend/.env.example to src/backend/.env if you don't already
+     have one (default: offline/SQLite mode, port 3000).
+  2. Run "npm install" in src/backend if dependencies aren't installed yet.
+  3. Print the addresses the server is reachable at:
+       - http://localhost:3000            (this machine only)
+       - http://<your LAN IP>:3000        (other devices on the same WiFi)
+  4. Start the server in its own window and open the site in your browser.
+
+Manual equivalent, if you'd rather run it yourself:
+
+  cd src/backend
+  copy .env.example .env      (first time only)
+  npm install                 (first time only)
+  npm start
+
+The server hosts both the API (http://localhost:3000/api) and the web
+frontend (http://localhost:3000) from the same process.
+
+--------------------------------------------------------------------------------
+3. DEMO / TEST ACCOUNTS
+--------------------------------------------------------------------------------
+
+If you want the SQLite database pre-populated with sample data, run inside
+src/backend:
+
+  npm run migrate
+  npm run seed
+
+That gives you these accounts to log in with:
+
+  Admin (MDRRMO):   admin@mdrrmo.gov / admin123
+  Citizen:          ray.lopez@email.com / citizen123
+
+--------------------------------------------------------------------------------
+4. BUILDING AND INSTALLING THE ANDROID APP
+--------------------------------------------------------------------------------
+
+  Double-click install-on-phone.bat
+
+That script will:
+  1. Sync the frontend + native plugins into the android/ project
+     (npx cap sync android)
+  2. Build a debug APK with Gradle
+  3. Look for a phone connected via USB with debugging enabled, and install
+     the APK automatically
+  4. If no phone is found, it tells you where the built APK is
+     (android/app/build/outputs/apk/debug/app-debug.apk) so you can copy it
+     over and install it manually
+
+If Gradle throws "Could not read workspace metadata" or similar cache
+errors, run repair-gradle.bat once, then try building again.
+
+--------------------------------------------------------------------------------
+5. POINTING THE APP AT A LOCALLY-HOSTED SERVER
+--------------------------------------------------------------------------------
+
+The installed app normally expects a fixed hosted server address. If you're
+testing against a server you're running locally instead (via start.bat on
+your own machine), that address will be different every time you're on a
+different WiFi network.
+
+To handle this, the app checks the connection when it opens. If it can't
+reach the server, it asks you to type in a different address instead of
+just failing:
+
+  1. Start the server on your machine (start.bat) and note the
+     "other devices on this WiFi" address it prints, e.g.
+     http://192.168.1.23:3000
+  2. Make sure your phone is on the SAME WiFi network as that machine.
+  3. Open the app. If the default server isn't reachable, you'll be
+     prompted for a different address — enter the one from step 1.
+  4. The address is remembered on the device, so you only need to redo this
+     when you move to a different WiFi network (the address will change).
+
+You can also change the address proactively at any time: on the login
+screen (or the offline screen), tap the small "Server: ..." text near the
+bottom.
+
+--------------------------------------------------------------------------------
+6. TROUBLESHOOTING
+--------------------------------------------------------------------------------
+
+- "npm install failed" — check your Node.js version (node --version, needs
+  18+) and your internet connection.
+- Server starts but the app can't reach it from a phone — check that both
+  devices are on the same WiFi network, and that Windows Firewall isn't
+  blocking Node.js (it may prompt the first time the server starts; allow
+  it on Private networks).
+- Gradle build fails with cache errors — run repair-gradle.bat, then
+  rebuild.
+- Phone shows "unauthorized" during install — check the phone screen for a
+  "Allow USB debugging?" prompt and accept it, then re-run
+  install-on-phone.bat.
