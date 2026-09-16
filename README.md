@@ -2,6 +2,8 @@
 
 **Real-Time Incident Reporting Platform for MDRRMO Morong, Rizal**
 
+[**⬇ Download the Android app (debug APK)**](https://github.com/Endercraft2017/PULSE-RTIP/releases/download/debug-latest/pulse-911-debug.apk)
+
 ## What this is
 
 PULSE-RTIP is a disaster-response and emergency-reporting system built for the
