@@ -180,8 +180,6 @@ h4 { font-size: var(--font-size-base); }
    ============================================================ */
 #app {
     width: 100%;
-    max-width: var(--max-width);
-    margin: 0 auto;
     min-height: 100dvh;
     position: relative;
     background-color: var(--color-bg);
@@ -190,15 +188,14 @@ h4 { font-size: var(--font-size-base); }
 #app-header {
     position: fixed;
     top: 0;
-    left: 50%;
+    left: 0;
     /* Force GPU compositing — prevents flicker when mobile browser URL
        bar appears/disappears on scroll. */
-    transform: translate3d(-50%, 0, 0);
+    transform: translate3d(0, 0, 0);
     will-change: transform;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     width: 100%;
-    max-width: var(--max-width);
     height: var(--header-height);
     z-index: 100;
 }
@@ -217,23 +214,21 @@ h4 { font-size: var(--font-size-base); }
     padding-bottom: 0;
 }
 
+/* Bottom-nav is mobile-only. On phones (<=767px) it's fixed to the
+   bottom; on tablet/desktop it's hidden and reserves no space. */
 #app-nav {
     position: fixed;
     bottom: 0;
-    left: 50%;
-    /* translate3d forces GPU compositing so iOS Safari / Chrome Android
-       don't repaint the nav when their URL bar toggles on scroll —
-       without this the nav appears to flicker or briefly hide. */
-    transform: translate3d(-50%, 0, 0);
-    will-change: transform;
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
+    left: 0;
     width: 100%;
-    max-width: var(--max-width);
     height: var(--nav-height);
-    /* Respect iOS home-indicator safe area */
     padding-bottom: env(safe-area-inset-bottom, 0);
     z-index: 100;
+}
+
+@media (min-width: 768px) {
+    #app-nav { display: none; }
+    #app-content { padding-bottom: 16px; }
 }
 
 /* ============================================================
@@ -361,6 +356,160 @@ h4 { font-size: var(--font-size-base); }
     background-color: var(--color-surface);
     border-top: 1px solid var(--color-gray-200);
     padding: var(--spacing-xs) 0;
+}
+
+/* ============================================================
+   Hamburger button (header__menu)
+   Sits in the header on root routes — opens the side drawer.
+   Shares chrome with .header__back.
+   ============================================================ */
+.header__menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--color-white);
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.15s ease;
+}
+
+.header__menu:hover,
+.header__menu:focus-visible {
+    background-color: rgba(255, 255, 255, 0.15);
+    outline: none;
+}
+
+.header__menu svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+/* ============================================================
+   Side Drawer (replaces bottom-nav)
+   Slides in from the left when Nav.openDrawer() is called.
+   Mirrors the desktop sidebar shell's grouped layout.
+   ============================================================ */
+.side-drawer {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 90;
+    pointer-events: none;
+    visibility: hidden;
+    transition: visibility 0s linear 250ms;
+}
+
+.side-drawer.is-open {
+    pointer-events: auto;
+    visibility: visible;
+    transition: visibility 0s;
+}
+
+.side-drawer__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 250ms ease;
+}
+
+.side-drawer.is-open .side-drawer__backdrop {
+    opacity: 1;
+}
+
+.side-drawer__panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(280px, 85vw);
+    background: #0f172a;
+    color: #e2e8f0;
+    transform: translateX(-100%);
+    transition: transform 250ms ease;
+    overflow-y: auto;
+    padding: 16px 12px calc(16px + env(safe-area-inset-bottom, 0));
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+}
+
+.side-drawer.is-open .side-drawer__panel {
+    transform: translateX(0);
+}
+
+.side-drawer__brand {
+    color: #16A34A;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: 0.5px;
+    padding: 8px 12px 20px;
+}
+
+.side-drawer__group {
+    padding: 8px 0;
+}
+
+.side-drawer__label {
+    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #94a3b8;
+    padding: 8px 12px;
+}
+
+.side-drawer__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: #cbd5e1;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+}
+
+.side-drawer__item:hover,
+.side-drawer__item:focus-visible {
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+    outline: none;
+}
+
+.side-drawer__item.is-active {
+    background: rgba(22, 163, 74, 0.15);
+    color: #4ade80;
+}
+
+.side-drawer__item svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    flex-shrink: 0;
+}
+
+body.drawer-open {
+    overflow: hidden;
 }
 
 .bottom-nav__item {
@@ -4574,20 +4723,7 @@ textarea.form-input { resize: vertical; min-height: 100px; }
         z-index: 90;
     }
 
-    /* Sidebar nav replaces bottom nav */
-    #app-nav {
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: var(--sidebar-width);
-        height: 100dvh;
-        max-width: none;
-        transform: none;
-        border-radius: 0;
-        background-color: var(--color-surface);
-        border-right: 1px solid var(--color-gray-200);
-        z-index: 110;
-    }
+    /* (Bottom-nav removed — #app-nav stays static, no sidebar layout.) */
 
     .bottom-nav {
         flex-direction: column;
@@ -4640,9 +4776,9 @@ textarea.form-input { resize: vertical; min-height: 100px; }
         color: var(--color-primary);
     }
 
-    /* Main content area: offset by sidebar, centered up to max */
+    /* Full-width content — no sidebar offset (bottom-nav removed). */
     #app-content {
-        padding-left: calc(var(--sidebar-width) + var(--spacing-2xl));
+        padding-left: var(--spacing-2xl);
         padding-right: var(--spacing-2xl);
         padding-top: calc(var(--header-height) + var(--spacing-lg));
         padding-bottom: var(--spacing-2xl);
@@ -4654,23 +4790,13 @@ textarea.form-input { resize: vertical; min-height: 100px; }
         padding-top: 0;
     }
 
-    /* When nav is hidden (auth pages), reset left padding and hide header offset */
-    #app-content.no-nav {
-        padding-left: var(--spacing-2xl);
-        padding-right: var(--spacing-2xl);
-    }
-
-    /* Inner content wrapper for .page-padding — constrain and center */
+    /* Full-width content — no centering, no max-width constraint */
     .page-padding {
-        max-width: var(--max-width);
-        margin: 0 auto;
-        padding: 0;
+        padding: var(--spacing-lg) var(--spacing-2xl);
     }
 
-    /* Header content also constrained + centered within its offset area */
+    /* Full-width header — anchored left, padding handles inner spacing */
     #app-header .header {
-        max-width: var(--max-width);
-        margin: 0 auto;
         padding: 0 var(--spacing-2xl);
     }
 

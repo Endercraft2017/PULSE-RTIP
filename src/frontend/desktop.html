@@ -378,14 +378,9 @@
     .frame-wrap { border-radius: 0; box-shadow: none; }
   }
 
-  /* ----- Small tablet: sidebar fully visible, no collapse ----- */
-  @media (min-width: 768px) and (max-width: 1023px) {
-    .sidebar { width: var(--sidebar-collapsed); }
-    .sidebar .sidebar__group-label { display: none; }
-    .sidebar .sidebar__item-label,
-    .sidebar .sidebar__logout-label { display: none; }
-    .sidebar .sidebar__item,
-    .sidebar .sidebar__logout { justify-content: center; padding: 12px; }
+  /* ----- Tablet+ : sidebar permanently visible (full width, all labels).
+           Hamburger is hidden — nothing to toggle. ----- */
+  @media (min-width: 768px) {
     .topbar__menu { display: none; }
   }
 </style>

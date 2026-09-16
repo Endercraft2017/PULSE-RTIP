@@ -57,6 +57,7 @@ const LoginOfflinePage = {
                         <button type="button" class="offline-card__retry" onclick="LoginOfflinePage.retry()">
                             Retry connection
                         </button>
+                        <a href="#" onclick="event.preventDefault(); LoginOfflinePage.editServerUrl()" style="font-size:12px; opacity:0.6; display:block; margin-top:8px;">Server: ${API_BASE}</a>
                     </div>
                 </div>
 
@@ -69,6 +70,13 @@ const LoginOfflinePage = {
 
     _isNativeApp() {
         return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    },
+
+    editServerUrl() {
+        const current = ServerConfig.get() || API_BASE;
+        const next = prompt('Server address (e.g. http://192.168.1.23:3000):', current);
+        if (next === null) return;
+        ServerConfig.set(next);
     },
 
     async _recheck() {
@@ -116,6 +124,7 @@ const LoginOfflinePage = {
         } catch (_) {}
         btn.disabled = false;
         btn.textContent = 'Retry connection';
+        if (ServerConfig.promptAfterFailure(API_BASE)) return; // page is reloading with the new address
         alert('Still offline. You can continue in offline mode.');
     },
 

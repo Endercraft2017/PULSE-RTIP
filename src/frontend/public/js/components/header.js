@@ -53,18 +53,26 @@ const Header = {
         const count = Store.get('notificationCount') || 0;
         const showBack = !this._rootRoutes.includes(route);
 
-        const backBtn = showBack ? `
+        const leftBtn = showBack ? `
             <button type="button" class="header__back" onclick="Router.goBack()" aria-label="Back">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <polyline points="15 18 9 12 15 6"></polyline>
                 </svg>
             </button>
-        ` : '';
+        ` : `
+            <button type="button" class="header__menu" onclick="Nav.openDrawer()" aria-label="Menu">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        `;
 
         document.getElementById('app-header').innerHTML = `
             <div class="header">
                 <div class="header__left">
-                    ${backBtn}
+                    ${leftBtn}
                     <span class="header__title">${title}</span>
                 </div>
                 <div class="header__actions">

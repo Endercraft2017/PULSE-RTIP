@@ -107,6 +107,12 @@ const LoginPage = {
                         Don't have an account?
                         <a href="#/signup" onclick="event.preventDefault(); Router.navigate('signup')">Create</a>
                     </div>
+
+                    ${LoginPage._isNativeApp() ? `
+                    <div class="auth-screen__signup" style="margin-top:4px;">
+                        <a href="#" onclick="event.preventDefault(); LoginPage.editServerUrl()" style="font-size:12px; opacity:0.6;">Server: ${API_BASE}</a>
+                    </div>
+                    ` : ''}
                 </div>
 
                 <div class="auth-screen__footer">
@@ -118,6 +124,16 @@ const LoginPage = {
 
     _isNativeApp() {
         return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    },
+
+    // Testing-mode escape hatch: the local dev server's LAN IP changes every
+    // time it's hosted from a different WiFi network, so let the tester
+    // punch in the current address instead of rebuilding the APK each time.
+    editServerUrl() {
+        const current = ServerConfig.get() || API_BASE;
+        const next = prompt('Server address (e.g. http://192.168.1.23:3000):', current);
+        if (next === null) return;
+        ServerConfig.set(next);
     },
 
     togglePassword(btn) {
@@ -137,6 +153,7 @@ const LoginPage = {
             clearTimeout(timeout);
             if (!res.ok) throw new Error('server not ok');
         } catch (err) {
+            if (ServerConfig.promptAfterFailure(API_BASE)) return; // page is reloading with the new address
             Router.navigate('login-offline');
         }
     },

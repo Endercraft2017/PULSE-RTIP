@@ -29,7 +29,7 @@
 
     <script src="public/assets/vendor/chart.umd.min.js?v=4.4.1"></script>
 
-    <link rel="stylesheet" href="public/css/styles.css?v=20260512-sos-green">
+    <link rel="stylesheet" href="public/css/styles.css?v=20260513-mob">
 
     <!-- Embed mode: when loaded in the admin-preview iframe via ?embed=1,
          hide the app's own header/nav since the preview shell provides them. -->
@@ -43,23 +43,22 @@
           return;
         }
 
-        /* Desktop (>=1024px) users get the sidebar shell at /desktop.
-           Mobile/tablet users stay on this mobile-first index.
+        /* Tablet + desktop (>=768px) users get the sidebar shell at /desktop.
+           Phone users (<768px) stay on this mobile-first index.
            ABSOLUTE path required — a relative "./desktop" from e.g.
            /admin/desktop would resolve to itself and infinite-loop.
 
            Skip entirely inside the Capacitor APK: bundled assets are
            served by the WebView with no router, so /desktop returns 404
            and the WebView shows its built-in "Check your Internet
-           connection" page even though the device is online. Wide
-           phones (innerWidth >= 1024) would otherwise hit this. */
+           connection" page even though the device is online. */
         var isCapacitor = !!(window.Capacitor && (
           window.Capacitor.isNativePlatform
             ? window.Capacitor.isNativePlatform()
             : window.Capacitor.platform && window.Capacitor.platform !== 'web'
         ));
-        if (!isCapacitor && window.innerWidth >= 1024 && location.pathname !== '/desktop') {
-          window.location.replace('/desktop' + (location.hash || ''));
+        if (!isCapacitor && window.innerWidth >= 768 && location.pathname !== '/desktop.html') {
+          window.location.replace('/desktop.html' + (location.hash || ''));
         }
       })();
     </script>
@@ -77,21 +76,21 @@
     </div>
 
     <!-- Page modules -->
-    <script src="public/js/utils/store.js?v=20260512-register-errors"></script>
+    <script src="public/js/utils/store.js?v=20260916-serverconfig2"></script>
     <script src="public/js/utils/router.js?v=20260428-u7"></script>
     <script src="public/js/utils/hazard-cache.js?v=20260422-offline"></script>
     <script src="public/js/utils/device-readiness.js?v=20260512-batoptfallback"></script>
     <script src="public/js/utils/push.js?v=20260509-bridgefix2"></script>
     <script src="public/js/utils/carrier-lookup.js?v=20260425-carrier"></script>
     <script src="public/js/utils/barangays.js?v=20260425-barangay"></script>
-    <script src="public/js/components/header.js?v=20260417c"></script>
-    <script src="public/js/components/nav.js"></script>
+    <script src="public/js/components/header.js?v=20260513-drawer"></script>
+    <script src="public/js/components/nav.js?v=20260513-mob"></script>
     <script src="public/js/components/terms-modal.js"></script>
     <script src="public/js/components/detail-modal.js?v=20260509-mediaurl"></script>
     <script src="public/js/components/team-modal.js?v=20260425-team"></script>
     <script src="public/js/components/toast.js?v=20260430-batch5-winfix"></script>
-    <script src="public/js/pages/login.js?v=20260512-apibase"></script>
-    <script src="public/js/pages/login-offline.js?v=20260512-retry-reload"></script>
+    <script src="public/js/pages/login.js?v=20260916-serverconfig2"></script>
+    <script src="public/js/pages/login-offline.js?v=20260916-serverconfig2"></script>
     <script src="public/js/pages/signup.js?v=20260425-barangay"></script>
     <script src="public/js/pages/forgot-password.js?v=20260430-batch5-errmsg"></script>
     <script src="public/js/pages/citizen-home.js?v=20260509-mediaurl"></script>

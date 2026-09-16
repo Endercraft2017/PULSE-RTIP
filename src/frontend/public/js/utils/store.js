@@ -16,9 +16,53 @@
  * When running inside Capacitor (mobile app), API calls
  * must target the remote server. On the web, relative
  * paths hit the same origin.
+ *
+ * DEFAULT_SERVER_URL is the fallback for when hosting is
+ * available again. While testing against a locally-hosted
+ * server whose LAN IP changes (different WiFi per session),
+ * ServerConfig.set() below persists an override so the app
+ * doesn't need to be rebuilt every time the IP changes.
  * -------------------------------------------------------- */
+const DEFAULT_SERVER_URL = 'https://pulse.afkcube.com';
+const SERVER_URL_STORAGE_KEY = 'pulse_server_url_override';
+
+const ServerConfig = {
+    get() {
+        try {
+            return localStorage.getItem(SERVER_URL_STORAGE_KEY) || '';
+        } catch (_) {
+            return '';
+        }
+    },
+    // Persists the override and reloads so every script picks up the new
+    // API_BASE on next boot (API_BASE is a const set once at load time).
+    set(url) {
+        const clean = (url || '').trim().replace(/\/+$/, '');
+        try {
+            if (clean) localStorage.setItem(SERVER_URL_STORAGE_KEY, clean);
+            else localStorage.removeItem(SERVER_URL_STORAGE_KEY);
+        } catch (_) { /* storage unavailable, nothing to persist */ }
+        window.location.reload();
+    },
+    // Called right after a health-check against currentBase has failed.
+    // Offers to swap in a different address (for local/testing hosts whose
+    // IP changes per WiFi network) before falling back to offline mode.
+    // Returns true if a new address was saved (the page is now reloading).
+    promptAfterFailure(currentBase) {
+        const next = prompt(
+            `Can't reach the server:\n${currentBase}\n\nEnter a different server address to use instead, or leave blank to continue in offline mode.`,
+            ServerConfig.get() || ''
+        );
+        if (next === null) return false;
+        const trimmed = next.trim().replace(/\/+$/, '');
+        if (!trimmed || trimmed === currentBase) return false;
+        ServerConfig.set(trimmed);
+        return true;
+    },
+};
+
 const API_BASE = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
-    ? 'https://pulse.afkcube.com'
+    ? (ServerConfig.get() || DEFAULT_SERVER_URL)
     : '';
 
 /* --------------------------------------------------------
