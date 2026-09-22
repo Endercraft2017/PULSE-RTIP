@@ -28,6 +28,11 @@ package manager, winget) and carries on. Answer N and it instead offers
 to just open the right download page so you can install it yourself.
 Either way, nothing gets installed without you being asked first.
 
+If the install itself fails (no internet, a UAC prompt got dismissed,
+etc.), it tells you winget's error code, offers to try once more, and
+if that fails too, falls back to the download-page offer instead of
+just giving up silently.
+
 The one exception is the Android SDK itself: if that's missing, the
 script can install Android Studio for you, but finishing the SDK setup
 needs Android Studio's own first-run wizard (choosing components,

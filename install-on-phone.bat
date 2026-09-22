@@ -202,6 +202,7 @@ REM     or on winget being unavailable, offers to open %~3 instead.
 REM     Returns errorlevel 1 if the caller should treat this as a hard
 REM     stop (declined and isn't going to fix it another way). ---
 :OfferInstall
+set "WINGET_RETRY_COUNT=0"
 echo.
 choice /C YN /M "Install %~2 automatically now (via winget)"
 if errorlevel 2 goto :OfferInstall_Manual
@@ -214,9 +215,25 @@ if errorlevel 1 (
     goto :OfferInstall_Manual
 )
 
+:OfferInstall_Attempt
 echo.
 echo Installing %~2 via winget - this can take a few minutes...
 winget install --id %~1 -e --source winget --accept-package-agreements --accept-source-agreements
+set "WINGET_RC=%errorlevel%"
+if not "%WINGET_RC%"=="0" (
+    set /a WINGET_RETRY_COUNT+=1
+    echo.
+    echo winget reported an error installing %~2 ^(exit code %WINGET_RC%^).
+    echo Common causes: no internet connection, a UAC/elevation prompt
+    echo was dismissed, or it's already installed under a different name.
+    if !WINGET_RETRY_COUNT! LSS 2 (
+        choice /C YN /M "Try the automatic install again"
+        if not errorlevel 2 goto :OfferInstall_Attempt
+    )
+    echo.
+    goto :OfferInstall_Manual
+)
+
 echo.
 echo Refreshing this window's PATH...
 for /f "delims=" %%P in ('powershell -NoProfile -Command "[System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')"') do set "PATH=%%P"
