@@ -54,7 +54,19 @@ That script will, in order:
   3. Print the addresses the server is reachable at:
        - http://localhost:3000            (this machine only)
        - http://<your LAN IP>:3000        (other devices on the same WiFi)
-  4. Start the server in its own window and open the site in your browser.
+  4. Start the server in its own window and, once it actually responds
+     (it polls, rather than guessing a fixed delay), open the site in
+     your browser.
+
+If start.bat is run while a server is already up on that port, it won't
+start a second one - it just reuses the running one and opens the browser.
+
+To stop the server, double-click stop.bat. It closes the server (and the
+window start.bat opened for it) no matter how it was started. Use this
+before you try to move, zip, or delete the project folder — Windows will
+refuse those operations while a running Node.js process still has the
+SQLite database file (src/database/offline/pulse_rtip.db) open, and
+you'll otherwise only find out from a "file in use" error dialog.
 
 Manual equivalent, if you'd rather run it yourself:
 
@@ -141,6 +153,9 @@ bottom.
   window.
 - "npm install failed" (after the above checks pass) — usually a network
   issue; check your internet connection and try again.
+- Windows won't let you move/zip/delete the project folder, saying a file
+  is "open in Node.js JavaScript Runtime" — a server is still running.
+  Run stop.bat, then retry.
 - Server starts but the app can't reach it from a phone — check that both
   devices are on the same WiFi network, and that Windows Firewall isn't
   blocking Node.js (it may prompt the first time the server starts; allow

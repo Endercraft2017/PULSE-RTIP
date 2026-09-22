@@ -54,13 +54,42 @@ if defined LAN_IP (
 echo ========================================
 echo.
 
-start "PULSE-RTIP Server" cmd /k npm start
+REM --- Don't spawn a second server on top of one that's already running
+REM     (avoids a confusing EADDRINUSE crash and an orphaned duplicate). ---
+set "EXISTING_PID="
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":!PORT! .*LISTENING"') do set "EXISTING_PID=%%P"
 
-echo [start.bat] Waiting for server to boot...
-timeout /t 4 /nobreak >nul
+if defined EXISTING_PID (
+    echo [start.bat] A server is already running on port !PORT! ^(PID !EXISTING_PID!^).
+    echo [start.bat] Not starting another one - opening the browser only.
+    echo [start.bat] ^(Run stop.bat first if you want to restart it fresh.^)
+) else (
+    start "PULSE-RTIP Server" cmd /k npm start
+    call :WaitForServer
+)
+
 start "" "http://localhost:!PORT!"
 
 endlocal
+exit /b 0
+
+REM --- Polls /api/health until the server responds or ~15s pass, instead
+REM     of blindly guessing a fixed delay before opening the browser. ---
+:WaitForServer
+echo [start.bat] Waiting for the server to come up...
+set "READY="
+for /l %%i in (1,1,15) do (
+    if not defined READY (
+        for /f "delims=" %%R in ('powershell -NoProfile -Command "try { (Invoke-WebRequest -Uri 'http://localhost:!PORT!/api/health' -UseBasicParsing -TimeoutSec 1).StatusCode } catch { '' }" 2^>nul') do (
+            if "%%R"=="200" set "READY=1"
+        )
+        if not defined READY timeout /t 1 /nobreak >nul 2>nul
+    )
+)
+if not defined READY (
+    echo [start.bat] Server didn't respond within 15s - opening the browser
+    echo [start.bat] anyway; it may just need a few more seconds.
+)
 exit /b 0
 
 REM ============================================================
