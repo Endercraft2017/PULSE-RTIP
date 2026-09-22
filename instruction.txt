@@ -11,11 +11,17 @@ together, see README.md.
 --------------------------------------------------------------------------------
 
 - Node.js 18 or newer, with npm (comes bundled with Node.js)
-- To also build/test the Android app: Android Studio (for the SDK + an
-  emulator or a physical device with USB debugging enabled)
+- To also build/test the Android app: a JDK (installing Android Studio
+  includes one) and the Android SDK (also installed by Android Studio),
+  plus an emulator or a physical device with USB debugging enabled
 
 Nothing else is required to run the backend — the default mode uses a local
 SQLite database file, so there's no separate database server to install.
+
+start.bat and install-on-phone.bat both check for these on their own before
+doing anything else. If something's missing, they tell you exactly what
+and offer to open the right download page — they don't just fail with a
+raw tool error.
 
 --------------------------------------------------------------------------------
 2. RUNNING THE SERVER (WEB + API)
@@ -108,14 +114,22 @@ bottom.
 6. TROUBLESHOOTING
 --------------------------------------------------------------------------------
 
-- "npm install failed" — check your Node.js version (node --version, needs
-  18+) and your internet connection.
+- "Node.js was not found" / "version too old" — the script offers to open
+  the Node.js download page for you; install the LTS version (18+) and
+  re-run.
+- "Java (JDK) was not found" — the script offers to open the Android Studio
+  download page; installing it also installs a bundled JDK.
+- "npm install failed" (after the above checks pass) — usually a network
+  issue; check your internet connection and try again.
 - Server starts but the app can't reach it from a phone — check that both
   devices are on the same WiFi network, and that Windows Firewall isn't
   blocking Node.js (it may prompt the first time the server starts; allow
   it on Private networks).
-- Gradle build fails with cache errors — run repair-gradle.bat, then
-  rebuild.
+- Gradle build fails and android\local.properties is missing — the SDK
+  location isn't configured yet; open the android folder in Android Studio
+  once so it can set that up, then re-run install-on-phone.bat.
+- Gradle build fails with "Could not read workspace metadata" or similar
+  cache errors — run repair-gradle.bat, then rebuild.
 - Phone shows "unauthorized" during install — check the phone screen for a
   "Allow USB debugging?" prompt and accept it, then re-run
   install-on-phone.bat.

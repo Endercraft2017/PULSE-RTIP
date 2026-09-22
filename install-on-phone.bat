@@ -9,6 +9,37 @@ echo  PULSE 911 - Build and Install
 echo ============================================================
 echo.
 
+echo [0/4] Checking prerequisites...
+
+where node >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo ERROR: Node.js was not found. Install it from https://nodejs.org/
+    echo ^(LTS version, 18 or newer^), then re-run this script.
+    echo.
+    choice /C YN /M "Open the Node.js download page now"
+    if not errorlevel 2 start "" "https://nodejs.org/"
+    pause
+    exit /b 1
+)
+
+where java >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo ERROR: Java ^(JDK^) was not found. Gradle needs a JDK to build
+    echo the Android app - installing Android Studio also installs a
+    echo bundled JDK, so that's the easiest fix:
+    echo   https://developer.android.com/studio
+    echo.
+    choice /C YN /M "Open the Android Studio download page now"
+    if not errorlevel 2 start "" "https://developer.android.com/studio"
+    pause
+    exit /b 1
+)
+
+echo OK: Node.js and Java found.
+echo.
+
 echo [1/4] Syncing Capacitor (web assets + plugins -^> android)...
 call npx cap sync android
 if errorlevel 1 (
@@ -29,8 +60,16 @@ if not "%GRADLE_RC%"=="0" (
     echo.
     echo ERROR: Gradle build failed. Scroll up for the cause.
     echo.
-    echo If you see "Could not read workspace metadata" errors,
-    echo run repair-gradle.bat once, then re-run this script.
+    if not exist "android\local.properties" (
+        echo It looks like the Android SDK location isn't configured yet
+        echo ^(android\local.properties is missing^). Install Android Studio
+        echo from https://developer.android.com/studio, open this project's
+        echo android folder in it once so it can configure the SDK path,
+        echo then re-run this script.
+    ) else (
+        echo If you see "Could not read workspace metadata" errors,
+        echo run repair-gradle.bat once, then re-run this script.
+    )
     pause
     exit /b 1
 )

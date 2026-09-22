@@ -1,6 +1,37 @@
 @echo off
 setlocal enabledelayedexpansion
 
+REM --- Prerequisite: Node.js (npm ships with it) ---
+where node >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo ============================================================
+    echo   Node.js was not found on this PC.
+    echo   PULSE-RTIP needs Node.js 18 or newer to run the server.
+    echo ============================================================
+    echo.
+    choice /C YN /M "Open the Node.js download page now"
+    if not errorlevel 2 start "" "https://nodejs.org/"
+    pause
+    exit /b 1
+)
+
+REM --- Prerequisite: Node.js version 18+ ---
+for /f "tokens=1 delims=v" %%v in ('node -v') do set "NODE_VER_STRING=%%v"
+for /f "tokens=1 delims=." %%v in ("!NODE_VER_STRING!") do set "NODE_MAJOR=%%v"
+if !NODE_MAJOR! LSS 18 (
+    echo.
+    echo ============================================================
+    echo   Node.js !NODE_VER_STRING! is installed, but PULSE-RTIP needs
+    echo   version 18 or newer.
+    echo ============================================================
+    echo.
+    choice /C YN /M "Open the Node.js download page now"
+    if not errorlevel 2 start "" "https://nodejs.org/"
+    pause
+    exit /b 1
+)
+
 cd /d "%~dp0src\backend"
 
 if not exist ".env" (
