@@ -1,36 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM --- Prerequisite: Node.js (npm ships with it) ---
-where node >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo ============================================================
-    echo   Node.js was not found on this PC.
-    echo   PULSE-RTIP needs Node.js 18 or newer to run the server.
-    echo ============================================================
-    echo.
-    choice /C YN /M "Open the Node.js download page now"
-    if not errorlevel 2 start "" "https://nodejs.org/"
-    pause
-    exit /b 1
-)
-
-REM --- Prerequisite: Node.js version 18+ ---
-for /f "tokens=1 delims=v" %%v in ('node -v') do set "NODE_VER_STRING=%%v"
-for /f "tokens=1 delims=." %%v in ("!NODE_VER_STRING!") do set "NODE_MAJOR=%%v"
-if !NODE_MAJOR! LSS 18 (
-    echo.
-    echo ============================================================
-    echo   Node.js !NODE_VER_STRING! is installed, but PULSE-RTIP needs
-    echo   version 18 or newer.
-    echo ============================================================
-    echo.
-    choice /C YN /M "Open the Node.js download page now"
-    if not errorlevel 2 start "" "https://nodejs.org/"
-    pause
-    exit /b 1
-)
+call :EnsureNode
+if errorlevel 1 exit /b 1
 
 cd /d "%~dp0src\backend"
 
@@ -89,3 +61,85 @@ timeout /t 4 /nobreak >nul
 start "" "http://localhost:!PORT!"
 
 endlocal
+exit /b 0
+
+REM ============================================================
+REM Subroutines (only reached via "call", never by falling through)
+REM ============================================================
+
+REM --- Checks Node.js is present and is version 18+; offers a winget
+REM     install (with explicit consent) or a manual download page on
+REM     either problem. Returns errorlevel 1 if Node.js still isn't
+REM     usable by the time this returns. ---
+:EnsureNode
+where node >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo ============================================================
+    echo   Node.js was not found on this PC.
+    echo   PULSE-RTIP needs Node.js 18 or newer to run the server.
+    echo ============================================================
+    call :OfferInstall "OpenJS.NodeJS.LTS" "Node.js" "https://nodejs.org/"
+    if errorlevel 1 exit /b 1
+    where node >nul 2>&1
+    if errorlevel 1 (
+        echo.
+        echo Node.js was installed, but this window can't see it yet.
+        echo Close this window, open a new one, and re-run start.bat.
+        pause
+        exit /b 1
+    )
+)
+
+for /f "tokens=1 delims=v" %%v in ('node -v') do set "NODE_VER_STRING=%%v"
+for /f "tokens=1 delims=." %%v in ("!NODE_VER_STRING!") do set "NODE_MAJOR=%%v"
+if !NODE_MAJOR! LSS 18 (
+    echo.
+    echo ============================================================
+    echo   Node.js !NODE_VER_STRING! is installed, but PULSE-RTIP needs
+    echo   version 18 or newer.
+    echo ============================================================
+    call :OfferInstall "OpenJS.NodeJS.LTS" "Node.js" "https://nodejs.org/"
+    if errorlevel 1 exit /b 1
+    for /f "tokens=1 delims=v" %%v in ('node -v') do set "NODE_VER_STRING=%%v"
+    for /f "tokens=1 delims=." %%v in ("!NODE_VER_STRING!") do set "NODE_MAJOR=%%v"
+    if !NODE_MAJOR! LSS 18 (
+        echo.
+        echo Still on an old version after installing. Close this window,
+        echo open a new one, and re-run start.bat.
+        pause
+        exit /b 1
+    )
+)
+exit /b 0
+
+REM --- Asks to auto-install %~2 via winget (package id %~1); on decline
+REM     or on winget being unavailable, offers to open %~3 instead.
+REM     Returns errorlevel 1 if the caller should treat this as a hard
+REM     stop (declined and isn't going to fix it another way). ---
+:OfferInstall
+echo.
+choice /C YN /M "Install %~2 automatically now (via winget)"
+if errorlevel 2 goto :OfferInstall_Manual
+
+where winget >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo winget isn't available on this PC, so it can't install %~2
+    echo automatically.
+    goto :OfferInstall_Manual
+)
+
+echo.
+echo Installing %~2 via winget - this can take a few minutes...
+winget install --id %~1 -e --source winget --accept-package-agreements --accept-source-agreements
+echo.
+echo Refreshing this window's PATH...
+for /f "delims=" %%P in ('powershell -NoProfile -Command "[System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')"') do set "PATH=%%P"
+exit /b 0
+
+:OfferInstall_Manual
+choice /C YN /M "Open the download page for %~2 instead"
+if not errorlevel 2 start "" "%~3"
+pause
+exit /b 1

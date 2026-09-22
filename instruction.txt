@@ -19,9 +19,20 @@ Nothing else is required to run the backend — the default mode uses a local
 SQLite database file, so there's no separate database server to install.
 
 start.bat and install-on-phone.bat both check for these on their own before
-doing anything else. If something's missing, they tell you exactly what
-and offer to open the right download page — they don't just fail with a
-raw tool error.
+doing anything else. If something's missing, each one asks:
+
+  Install <thing> automatically now (via winget)? [Y,N]
+
+Answer Y and it installs it there and then (using Windows' built-in
+package manager, winget) and carries on. Answer N and it instead offers
+to just open the right download page so you can install it yourself.
+Either way, nothing gets installed without you being asked first.
+
+The one exception is the Android SDK itself: if that's missing, the
+script can install Android Studio for you, but finishing the SDK setup
+needs Android Studio's own first-run wizard (choosing components,
+accepting licenses) — that part has to be done by hand, once, after the
+install finishes.
 
 --------------------------------------------------------------------------------
 2. RUNNING THE SERVER (WEB + API)
@@ -114,11 +125,15 @@ bottom.
 6. TROUBLESHOOTING
 --------------------------------------------------------------------------------
 
-- "Node.js was not found" / "version too old" — the script offers to open
-  the Node.js download page for you; install the LTS version (18+) and
-  re-run.
-- "Java (JDK) was not found" — the script offers to open the Android Studio
-  download page; installing it also installs a bundled JDK.
+- "Node.js was not found" / "version too old" — accept the auto-install
+  prompt (needs winget, built into Windows 10/11), or install the LTS
+  version (18+) manually and re-run.
+- "Java (JDK) was not found" — accept the auto-install prompt (installs
+  Eclipse Temurin JDK 17), or install a JDK manually and re-run.
+- Auto-install says it finished but the script still can't see it — close
+  the window, open a new one, and re-run. A running window keeps the PATH
+  it started with, so a brand new install only becomes visible in a fresh
+  window.
 - "npm install failed" (after the above checks pass) — usually a network
   issue; check your internet connection and try again.
 - Server starts but the app can't reach it from a phone — check that both

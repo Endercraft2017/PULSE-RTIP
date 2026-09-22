@@ -14,30 +14,55 @@ echo [0/4] Checking prerequisites...
 where node >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo ERROR: Node.js was not found. Install it from https://nodejs.org/
-    echo ^(LTS version, 18 or newer^), then re-run this script.
-    echo.
-    choice /C YN /M "Open the Node.js download page now"
-    if not errorlevel 2 start "" "https://nodejs.org/"
-    pause
-    exit /b 1
+    echo Node.js was not found on this PC.
+    call :OfferInstall "OpenJS.NodeJS.LTS" "Node.js" "https://nodejs.org/"
+    if errorlevel 1 exit /b 1
+    where node >nul 2>&1
+    if errorlevel 1 (
+        echo.
+        echo Node.js was installed, but this window can't see it yet.
+        echo Close this window, open a new one, and re-run this script.
+        pause
+        exit /b 1
+    )
 )
 
 where java >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo ERROR: Java ^(JDK^) was not found. Gradle needs a JDK to build
-    echo the Android app - installing Android Studio also installs a
-    echo bundled JDK, so that's the easiest fix:
-    echo   https://developer.android.com/studio
+    echo Java ^(JDK^) was not found. Gradle needs a JDK to build the app.
+    call :OfferInstall "EclipseAdoptium.Temurin.17.JDK" "Eclipse Temurin JDK 17" "https://developer.android.com/studio"
+    if errorlevel 1 exit /b 1
+    where java >nul 2>&1
+    if errorlevel 1 (
+        echo.
+        echo Java was installed, but this window can't see it yet.
+        echo Close this window, open a new one, and re-run this script.
+        pause
+        exit /b 1
+    )
+)
+
+set SDK_OK=
+if exist "android\local.properties" set SDK_OK=1
+if not defined SDK_OK if defined ANDROID_HOME if exist "%ANDROID_HOME%\platform-tools" set SDK_OK=1
+if not defined SDK_OK if defined ANDROID_SDK_ROOT if exist "%ANDROID_SDK_ROOT%\platform-tools" set SDK_OK=1
+if not defined SDK_OK (
     echo.
-    choice /C YN /M "Open the Android Studio download page now"
-    if not errorlevel 2 start "" "https://developer.android.com/studio"
+    echo The Android SDK location isn't configured yet
+    echo ^(android\local.properties is missing^).
+    call :OfferInstall "Google.AndroidStudio" "Android Studio" "https://developer.android.com/studio"
+    if errorlevel 1 exit /b 1
+    echo.
+    echo Android Studio is installed. Open it once now, let its setup
+    echo wizard finish downloading the Android SDK ^(this needs its GUI -
+    echo it can't be scripted^), then close this window and re-run
+    echo install-on-phone.bat.
     pause
     exit /b 1
 )
 
-echo OK: Node.js and Java found.
+echo OK: Node.js, Java, and the Android SDK are all in place.
 echo.
 
 echo [1/4] Syncing Capacitor (web assets + plugins -^> android)...
@@ -166,3 +191,39 @@ echo.
 "%ADB%" logcat -c
 "%ADB%" logcat -s Capacitor:* CapacitorPlugins:* FirebaseMessaging:* FA:* chromium:* | findstr /I "push fcm token notification registration"
 endlocal
+exit /b 0
+
+REM ============================================================
+REM Subroutines (only reached via "call", never by falling through)
+REM ============================================================
+
+REM --- Asks to auto-install %~2 via winget (package id %~1); on decline
+REM     or on winget being unavailable, offers to open %~3 instead.
+REM     Returns errorlevel 1 if the caller should treat this as a hard
+REM     stop (declined and isn't going to fix it another way). ---
+:OfferInstall
+echo.
+choice /C YN /M "Install %~2 automatically now (via winget)"
+if errorlevel 2 goto :OfferInstall_Manual
+
+where winget >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo winget isn't available on this PC, so it can't install %~2
+    echo automatically.
+    goto :OfferInstall_Manual
+)
+
+echo.
+echo Installing %~2 via winget - this can take a few minutes...
+winget install --id %~1 -e --source winget --accept-package-agreements --accept-source-agreements
+echo.
+echo Refreshing this window's PATH...
+for /f "delims=" %%P in ('powershell -NoProfile -Command "[System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')"') do set "PATH=%%P"
+exit /b 0
+
+:OfferInstall_Manual
+choice /C YN /M "Open the download page for %~2 instead"
+if not errorlevel 2 start "" "%~3"
+pause
+exit /b 1
