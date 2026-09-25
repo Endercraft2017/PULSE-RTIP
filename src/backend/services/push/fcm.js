@@ -34,6 +34,18 @@ let _initialized = false; // Whether admin.initializeApp() has run successfully
 let _initFailed = false;  // Cache failure so we don't retry on every call
 
 function loadServiceAccount() {
+  const inline = config.push.serviceAccountJson.trim();
+  if (inline) {
+    try {
+      const text = inline.startsWith('{')
+        ? inline
+        : Buffer.from(inline, 'base64').toString('utf8');
+      return JSON.parse(text);
+    } catch (err) {
+      console.error('[push] failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', err.message);
+      return null;
+    }
+  }
   const p = config.push.serviceAccountPath;
   if (!p) return null;
   const abs = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p);

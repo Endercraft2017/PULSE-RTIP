@@ -47,6 +47,7 @@ process.on('uncaughtException', (err) => {
  * -------------------------------------------------------------------------- */
 
 const app = express();
+app.set('trust proxy', config.trustProxy);
 
 /* --------------------------------------------------------------------------
  * 3. Security Middleware

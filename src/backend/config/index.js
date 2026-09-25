@@ -48,8 +48,19 @@ const config = {
     database: process.env.MYSQL_DATABASE || 'pulse_rtip',
   },
 
-  /** SQLite file path (offline mode) */
-  sqlitePath: path.resolve(__dirname, '../../database/offline/pulse_rtip.db'),
+  /** SQLite file path (offline mode). SQLITE_PATH lets hosted deploys
+   *  (Railway) keep the DB on a persistent volume instead of the
+   *  container's ephemeral filesystem. */
+  sqlitePath: process.env.SQLITE_PATH
+    ? path.resolve(process.env.SQLITE_PATH)
+    : path.resolve(__dirname, '../../database/offline/pulse_rtip.db'),
+
+  /** Number of reverse-proxy hops in front of Express (nginx or Railway's
+   *  edge = 1). Needed so req.ip / rate limiting see the real client IP
+   *  instead of the proxy's. Set TRUST_PROXY=0 when running with no proxy. */
+  trustProxy: process.env.TRUST_PROXY !== undefined
+    ? parseInt(process.env.TRUST_PROXY, 10) || 0
+    : 1,
 
   /** Upload settings */
   upload: {
@@ -75,6 +86,10 @@ const config = {
    *  of sending so the broadcast pipeline runs end-to-end in dev. */
   push: {
     serviceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || '',
+    /** Alternative for hosts without a writable secrets dir (Railway):
+     *  the service-account JSON itself, raw or base64-encoded. Takes
+     *  precedence over the path when both are set. */
+    serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '',
   },
 
   /** SMTP / Email config. If SMTP_HOST is unset, the mailer logs to the
