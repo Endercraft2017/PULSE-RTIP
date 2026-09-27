@@ -60,6 +60,18 @@ npm run provision-admin -- --email "admin@mdrrmo.gov" --name "MDRRMO Admin" --ph
 
 Check it's up: `https://<service>.up.railway.app/api/health` should return 200.
 
+### Loading the demo accounts without SSH
+
+To load the demo data (`admin@mdrrmo.gov` / `admin123`,
+`ray.lopez@email.com` / `citizen123`, plus sample reports, hazards and
+posts), set the service variable `SEED_DEMO=1` and redeploy. The start
+script runs `npm run seed` only while the `users` table is empty, and
+otherwise logs `skipping seed`. The seed inserts rows with hard-coded user
+IDs, so it must never run against real accounts. Delete the variable once
+the deploy logs show `[Seed] Database seeded successfully.`
+
+Change the demo passwords before real people use the site.
+
 ### Bringing over the existing data instead
 
 To keep the current users and reports, copy the live
