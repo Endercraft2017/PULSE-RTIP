@@ -99,6 +99,7 @@ const AdminDashboardPage = {
                     </button>
                 </div>
 
+                <button type="button" class="btn btn--outline" onclick="AdminDashboardPage.setMainTab('operations')">Directories, calls &amp; road advisories</button>
                 <!-- Content area -->
                 <div id="dashboard-content">
                     <div class="loading-state">Loading...</div>
@@ -225,6 +226,9 @@ const AdminDashboardPage = {
         if (!container) return;
 
         switch (this.activeMainTab) {
+            case 'operations':
+                OperationsPanel.open();
+                break;
             case 'incidents':
                 container.innerHTML = this.renderIncidentsView();
                 break;
@@ -239,7 +243,7 @@ const AdminDashboardPage = {
                 this.loadSmsReports();
                 break;
             case 'bin':
-                container.innerHTML = '<div class="loading-state">Loading bin...</div>';
+                container.innerHTML = '<div class="loading-state">Loading archive...</div>';
                 this.loadBin();
                 break;
         }
@@ -323,16 +327,16 @@ const AdminDashboardPage = {
             <div class="incident-card incident-card--clickable" id="incident-${incident.id}"
                  onclick="DetailModal.showIncident(${incidentAttr})">
                 <div class="incident-card__header">
-                    <span class="incident-card__title">${incident.title}</span>
+                    <span class="incident-card__title">${this.escape(incident.title)}</span>
                     <span class="badge badge--${incident.status}">${this.statusLabel(incident.status)}</span>
                 </div>
-                <span class="badge badge--type" style="margin-bottom: 8px; display: inline-flex;">${incident.type}</span>
+                <span class="badge badge--type" style="margin-bottom: 8px; display: inline-flex;">${this.escape(incident.type)}</span>
 
-                ${incident.description ? '<div class="incident-card__description">' + incident.description + '</div>' : ''}
+                ${incident.description ? '<div class="incident-card__description">' + this.escape(incident.description) + '</div>' : ''}
 
                 <div class="incident-card__submitter">
                     <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                    Reported by ${incident.submitted_by_name || 'Unknown'}
+                    Reported by ${this.escape(incident.submitted_by_name || 'Unknown')}
                 </div>
 
                 <div class="card__meta">
@@ -341,7 +345,7 @@ const AdminDashboardPage = {
                             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                             <circle cx="12" cy="10" r="3"></circle>
                         </svg>
-                        ${incident.location || 'Unknown location'}
+                        ${this.escape(incident.location || 'Unknown location')}
                     </div>
                     <div class="card__meta-item">
                         <svg viewBox="0 0 24 24">
@@ -365,7 +369,7 @@ const AdminDashboardPage = {
                 ${showActions ? this._renderStatusActions(incident) : ''}
                 ${isTerminal ? `
                 <div class="incident-card__actions" onclick="event.stopPropagation()">
-                    <button type="button" class="btn btn--reject btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteIncident(${incident.id})">Delete</button>
+                    <button type="button" class="btn btn--reject btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteIncident(${incident.id})">Archive</button>
                 </div>
                 ` : ''}
             </div>
@@ -428,15 +432,15 @@ const AdminDashboardPage = {
             return `
             <div class="incident-card incident-card--clickable" onclick="DetailModal.showHazard(${hAttr})">
                 <div class="incident-card__header">
-                    <span class="incident-card__title">${h.title}</span>
+                    <span class="incident-card__title">${this.escape(h.title)}</span>
                     ${severityBadge[h.severity] || ''}
                 </div>
-                <div class="incident-card__location">${h.location || ''}</div>
-                <div class="incident-card__description">${h.description || ''}</div>
+                <div class="incident-card__location">${this.escape(h.location || '')}</div>
+                <div class="incident-card__description">${this.escape(h.description || '')}</div>
                 <div class="incident-card__footer" onclick="event.stopPropagation()">
                     <span>Updated ${this.formatDate(h.updated_at)}</span>
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <button type="button" class="btn btn--reject btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteHazard(${h.id})">Delete</button>
+                        <button type="button" class="btn btn--reject btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteHazard(${h.id})">Archive</button>
                         <button type="button" class="incident-card__details-link" onclick="event.stopPropagation(); DetailModal.showHazard(${hAttr})">
                             Details
                             <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -470,18 +474,18 @@ const AdminDashboardPage = {
             return `
             <div class="incident-card incident-card--clickable" onclick="DetailModal.showIncident(${rAttr})">
                 <div class="incident-card__header">
-                    <span class="incident-card__title">${r.title}</span>
+                    <span class="incident-card__title">${this.escape(r.title)}</span>
                     <span class="badge badge--${r.status}">${this.statusLabel(r.status)}</span>
                 </div>
-                <span class="badge badge--type" style="margin-bottom: 6px; display: inline-flex;">${r.type}</span>
+                <span class="badge badge--type" style="margin-bottom: 6px; display: inline-flex;">${this.escape(r.type)}</span>
                 <div class="incident-card__submitter">
                     <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                    ${r.submitted_by_name || 'Unknown'}
+                    ${this.escape(r.submitted_by_name || 'Unknown')}
                 </div>
                 <div class="card__meta">
                     <div class="card__meta-item">
                         <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                        ${r.location || 'Unknown'}
+                        ${this.escape(r.location || 'Unknown')}
                     </div>
                     <div class="card__meta-item">
                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -547,7 +551,7 @@ const AdminDashboardPage = {
 
     showStatusNoteModal(id, status, cfg) {
         const incident = this.incidents.find(i => i.id === id);
-        const title = incident ? incident.title : 'Report #' + id;
+        const title = this.escape(incident ? incident.title : 'Report #' + id);
         this._ensureRejectionContainer().innerHTML = `
             <div class="modal-overlay modal-overlay--centered" onclick="if(event.target===this) AdminDashboardPage.closeRejectModal()">
                 <div class="modal">
@@ -604,11 +608,11 @@ const AdminDashboardPage = {
      * 9b. Delete (terminal-status incidents and hazards)
      * -------------------------------------------------------- */
     async confirmDeleteIncident(id) {
-        if (!confirm('Delete this report? This cannot be undone.')) return;
+        if (!confirm('Archive this report? Its history and attachments will be retained.')) return;
         try {
             const res = await Store.apiFetch('/api/reports/' + id, { method: 'DELETE' });
             if (res.success) {
-                if (window.Toast) Toast.show('Report deleted.', { type: 'success', duration: 2500 });
+                if (window.Toast) Toast.show('Report archived.', { type: 'success', duration: 2500 });
                 this.loadData();
             } else {
                 alert(res.message || 'Failed to delete report.');
@@ -619,11 +623,11 @@ const AdminDashboardPage = {
     },
 
     async confirmDeleteHazard(id) {
-        if (!confirm('Delete this hazard? This cannot be undone.')) return;
+        if (!confirm('Archive this hazard? Its history will be retained.')) return;
         try {
             const res = await Store.apiFetch('/api/hazards/' + id, { method: 'DELETE' });
             if (res.success) {
-                if (window.Toast) Toast.show('Hazard deleted.', { type: 'success', duration: 2500 });
+                if (window.Toast) Toast.show('Hazard archived.', { type: 'success', duration: 2500 });
                 this.loadData();
             } else {
                 alert(res.message || 'Failed to delete hazard.');
@@ -648,7 +652,7 @@ const AdminDashboardPage = {
      * -------------------------------------------------------- */
     showRejectModal(id) {
         const incident = this.incidents.find(i => i.id === id);
-        const title = incident ? incident.title : 'Report #' + id;
+        const title = this.escape(incident ? incident.title : 'Report #' + id);
 
         this._ensureRejectionContainer().innerHTML = `
             <div class="modal-overlay modal-overlay--centered" onclick="if(event.target===this) AdminDashboardPage.closeRejectModal()">
@@ -696,7 +700,7 @@ const AdminDashboardPage = {
     timeAgo(dateStr) {
         if (!dateStr) return '';
         const now = new Date();
-        const date = new Date(dateStr);
+        const date = PhilippineTime.parse(dateStr);
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
 
@@ -710,9 +714,9 @@ const AdminDashboardPage = {
 
     formatDate(dateStr) {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
+        const date = PhilippineTime.parse(dateStr);
         return date.toLocaleDateString('en-US', {
-            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila',
         });
     },
 
@@ -915,9 +919,9 @@ const AdminDashboardPage = {
         if (totalCount === 0) {
             container.innerHTML = `
                 <div class="section-header">
-                    <div class="section-header__title">Recycle Bin</div>
+                    <div class="section-header__title">Recycle Archive</div>
                 </div>
-                <div class="empty-state">The bin is empty.</div>
+                <div class="empty-state">The archive is empty.</div>
             `;
             return;
         }
@@ -925,31 +929,31 @@ const AdminDashboardPage = {
         // Reports section
         const reportsSection = `
             <div class="section-header">
-                <div class="section-header__title">Deleted Reports</div>
+                <div class="section-header__title">Archived Reports</div>
                 <span class="badge badge--default">${this.binReports.length}</span>
             </div>
             ${this.binReports.length === 0
-                ? '<div class="empty-state">No deleted reports.</div>'
+                ? '<div class="empty-state">No archived reports.</div>'
                 : this.binReports.map(r => this._renderBinReportCard(r)).join('')}
         `;
 
         // Hazards section
         const hazardsSection = `
             <div class="section-header" style="margin-top: var(--spacing-lg)">
-                <div class="section-header__title">Deleted Hazards</div>
+                <div class="section-header__title">Archived Hazards</div>
                 <span class="badge badge--default">${this.binHazards.length}</span>
             </div>
             ${this.binHazards.length === 0
-                ? '<div class="empty-state">No deleted hazards.</div>'
+                ? '<div class="empty-state">No archived hazards.</div>'
                 : this.binHazards.map(h => this._renderBinHazardCard(h)).join('')}
         `;
 
         container.innerHTML = `
             <div class="section-header">
-                <div class="section-header__title">Recycle Bin</div>
+                <div class="section-header__title">Recycle Archive</div>
             </div>
             <div class="incident-card__description" style="margin-bottom: var(--spacing-md)">
-                Items here are hidden from citizens and dashboards. Restore them to put them back, or permanently delete to free space.
+                Items here are hidden from citizens and dashboards. Restore them to put them back, or retain them for a complete incident history.
             </div>
             ${reportsSection}
             ${hazardsSection}
@@ -972,12 +976,11 @@ const AdminDashboardPage = {
                 <div class="card__meta">
                     <div class="card__meta-item">
                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        Deleted ${this.formatDate(r.deleted_at)}
+                        Archived ${this.formatDate(r.deleted_at)}
                     </div>
                 </div>
                 <div class="incident-card__actions">
                     <button type="button" class="btn btn--outline btn--sm" onclick="AdminDashboardPage.restoreBinReport(${r.id})">Restore</button>
-                    <button type="button" class="btn btn--reject btn--sm" onclick="AdminDashboardPage.permanentDeleteBinReport(${r.id})">Delete Permanently</button>
                 </div>
             </div>
         `;
@@ -1000,12 +1003,11 @@ const AdminDashboardPage = {
                 <div class="card__meta">
                     <div class="card__meta-item">
                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        Deleted ${this.formatDate(h.deleted_at)}
+                        Archived ${this.formatDate(h.deleted_at)}
                     </div>
                 </div>
                 <div class="incident-card__actions">
                     <button type="button" class="btn btn--outline btn--sm" onclick="AdminDashboardPage.restoreBinHazard(${h.id})">Restore</button>
-                    <button type="button" class="btn btn--reject btn--sm" onclick="AdminDashboardPage.permanentDeleteBinHazard(${h.id})">Delete Permanently</button>
                 </div>
             </div>
         `;
@@ -1027,21 +1029,6 @@ const AdminDashboardPage = {
         }
     },
 
-    async permanentDeleteBinReport(id) {
-        if (!confirm('Permanently delete this report? This cannot be undone.')) return;
-        try {
-            const res = await Store.apiFetch('/api/reports/' + id + '/permanent', { method: 'DELETE' });
-            if (res && res.success) {
-                if (window.Toast) Toast.show('Report permanently deleted.', { type: 'success', duration: 2500 });
-                this.binReports = this.binReports.filter(r => r.id !== id);
-                this.renderBinView();
-            } else {
-                alert((res && res.message) || 'Failed to permanently delete report.');
-            }
-        } catch (err) {
-            alert('Network error. Please try again.');
-        }
-    },
 
     async restoreBinHazard(id) {
         try {
@@ -1058,19 +1045,4 @@ const AdminDashboardPage = {
         }
     },
 
-    async permanentDeleteBinHazard(id) {
-        if (!confirm('Permanently delete this hazard? This cannot be undone.')) return;
-        try {
-            const res = await Store.apiFetch('/api/hazards/' + id + '/permanent', { method: 'DELETE' });
-            if (res && res.success) {
-                if (window.Toast) Toast.show('Hazard permanently deleted.', { type: 'success', duration: 2500 });
-                this.binHazards = this.binHazards.filter(h => h.id !== id);
-                this.renderBinView();
-            } else {
-                alert((res && res.message) || 'Failed to permanently delete hazard.');
-            }
-        } catch (err) {
-            alert('Network error. Please try again.');
-        }
-    }
 };

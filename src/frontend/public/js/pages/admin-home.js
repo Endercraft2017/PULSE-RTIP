@@ -239,8 +239,8 @@ const AdminHomePage = {
         if (list && barangays.length) {
             list.innerHTML = barangays.map(b => `
                 <label style="display:flex; align-items:center; gap:8px; padding: 4px 0; font-size: var(--font-size-sm); cursor: pointer;">
-                    <input type="checkbox" class="ch-barangay-check" value="${b}">
-                    <span>${b}</span>
+                    <input type="checkbox" class="ch-barangay-check" value="${DetailModal._esc(b)}">
+                    <span>${DetailModal._esc(b)}</span>
                 </label>
             `).join('');
         }

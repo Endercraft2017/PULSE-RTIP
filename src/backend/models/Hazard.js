@@ -11,7 +11,7 @@
  * 5. findById / update
  * 6. remove           - Soft-delete (move to bin)
  * 7. restore          - Restore from bin
- * 8. permanentRemove  - Hard-delete
+ * 8. permanentRemove  - Reject legacy purge attempts
  * 9. findDeleted      - List binned hazards
  *
  * Data access layer for the hazard_alerts table.
@@ -19,6 +19,7 @@
  */
 
 const db = require('../config/database');
+const { assertLocation } = require('../services/geocode/territory');
 
 /* --------------------------------------------------------------------------
  * 2. findAll
@@ -57,6 +58,7 @@ async function findAll(filters = {}) {
  * @returns {Promise<object>} Created hazard alert
  */
 async function create(data) {
+  assertLocation(data);
   const { title, severity, location, description, latitude, longitude, resolved_address, created_by } = data;
   const result = await db.query(
     `INSERT INTO hazard_alerts
@@ -111,6 +113,10 @@ async function findById(id) {
  * Edits an existing hazard. Only the supplied fields are updated.
  */
 async function update(id, data) {
+  if (['location', 'latitude', 'longitude'].some(k => data[k] !== undefined)) {
+    const existing = await findById(id);
+    assertLocation({ ...existing, ...Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) });
+  }
   const fields = [];
   const values = [];
   const allowed = ['title', 'severity', 'location', 'description', 'latitude', 'longitude', 'resolved_address'];
@@ -162,15 +168,14 @@ async function restore(id) {
 }
 
 /* --------------------------------------------------------------------------
- * 8. permanentRemove (hard-delete)
+ * 8. permanentRemove (disabled legacy API)
  * -------------------------------------------------------------------------- */
 
-/**
- * Permanently deletes a hazard. hazard_alerts is a leaf table — no child
- * FKs to clean up, so a single DELETE is sufficient.
- */
-async function permanentRemove(id) {
-  await db.query('DELETE FROM hazard_alerts WHERE id = ?', [id]);
+/** Reject legacy callers; records and dependencies must be retained. */
+async function permanentRemove() {
+  const error = new Error('Permanent deletion is disabled. Archive records instead.');
+  error.statusCode = 405;
+  throw error;
 }
 
 /* --------------------------------------------------------------------------

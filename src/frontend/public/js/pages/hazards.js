@@ -318,7 +318,7 @@ const HazardsPage = {
 
     formatDate(dateStr) {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
+        const date = PhilippineTime.parse(dateStr);
         return date.toLocaleDateString('en-PH', {
             month: 'short',
             day: 'numeric',

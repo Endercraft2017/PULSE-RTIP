@@ -95,7 +95,7 @@ async function findByPhone(phone) {
  */
 async function findById(id) {
   const rows = await db.query(
-    'SELECT id, name, email, phone, address, barangay, avatar, role, admin_request_status, id_type, id_number, id_document_path, id_verified_at, id_verified_by, joined_date, created_at, updated_at FROM users WHERE id = ? AND deleted_at IS NULL',
+    'SELECT id, name, email, phone, address, barangay, avatar, role, department, admin_request_status, id_type, id_number, id_document_path, id_verified_at, id_verified_by, joined_date, created_at, updated_at FROM users WHERE id = ? AND deleted_at IS NULL',
     [id]
   );
   return rows[0] || null;
@@ -109,7 +109,7 @@ async function findById(id) {
  */
 async function findByIdIncludingDeleted(id) {
   const rows = await db.query(
-    'SELECT id, name, email, phone, address, barangay, avatar, role, admin_request_status, joined_date, created_at, updated_at, deleted_at FROM users WHERE id = ?',
+    'SELECT id, name, email, phone, address, barangay, avatar, role, department, admin_request_status, joined_date, created_at, updated_at, deleted_at FROM users WHERE id = ?',
     [id]
   );
   return rows[0] || null;

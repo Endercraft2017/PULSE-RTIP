@@ -1,28 +1,11 @@
-/**
- * =============================================================================
- * Audit Log Helper
- * =============================================================================
- *
- * Fire-and-forget wrapper around AuditLog.create. Call from controllers
- * after the underlying admin action has committed. Swallows all errors —
- * a failed audit write must never block or fail the parent request.
- * =============================================================================
- */
-
+/** Append an audit entry; callers await this inside the mutation transaction. */
 const AuditLog = require('../models/AuditLog');
-
-async function logAction(actorUserId, action, targetType, targetId, details) {
-  try {
-    await AuditLog.create({
-      actor_user_id: actorUserId,
-      action,
-      target_type: targetType || null,
-      target_id: targetId || null,
-      details: details || null,
-    });
-  } catch (e) {
-    console.error('[auditLog]', e.message);
-  }
+async function recordAction(actorUserId, action, targetType, targetId, details) {
+  return AuditLog.create({ actor_user_id: actorUserId, action,
+    target_type: targetType || null, target_id: targetId || null, details: details || null });
 }
-
-module.exports = { logAction };
+async function logAction(...args) {
+  try { return await recordAction(...args); }
+  catch (error) { console.error('[auditLog]', error.message); }
+}
+module.exports = { logAction, recordAction };

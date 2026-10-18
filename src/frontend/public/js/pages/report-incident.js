@@ -472,9 +472,9 @@ const ReportIncidentPage = {
      * 8. Build Review & Submit
      * -------------------------------------------------------- */
     buildReview() {
-        const title = document.getElementById('report-title').value.trim();
-        const desc = document.getElementById('report-description').value.trim();
-        const location = document.getElementById('report-location').value.trim();
+        const title = DetailModal._esc(document.getElementById('report-title').value.trim());
+        const desc = DetailModal._esc(document.getElementById('report-description').value.trim());
+        const location = DetailModal._esc(document.getElementById('report-location').value.trim());
         const imgCount = this.images.filter(Boolean).length;
 
         let attachments = '';

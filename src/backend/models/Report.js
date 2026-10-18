@@ -13,7 +13,7 @@
  * 7. getStats         - Get dashboard statistics counts
  * 8. remove           - Soft-delete (move to bin)
  * 9. restore          - Restore from bin
- * 10. permanentRemove - Hard-delete + cascade child rows
+ * 10. permanentRemove - Reject legacy purge attempts
  * 11. findDeleted     - List rows currently in the bin
  *
  * Data access layer for the reports table.
@@ -21,6 +21,7 @@
  */
 
 const db = require('../config/database');
+const { assertLocation } = require('../services/geocode/territory');
 
 /* --------------------------------------------------------------------------
  * 2. findAll
@@ -84,7 +85,7 @@ async function findAll(filters = {}) {
 /**
  * Finds a single report by ID, including the submitter's name. Soft-deleted
  * rows are intentionally still returned — the admin Bin view needs to inspect
- * them to render restore / permanent-delete actions.
+ * them to render restore actions.
  *
  * @param {number} id - Report ID
  * @returns {Promise<object|null>} Report object or null
@@ -154,6 +155,7 @@ async function findByUserId(userId, filters = {}) {
  * @returns {Promise<object>} Created report
  */
 async function create(data) {
+  assertLocation(data);
   const { title, type, description, location, latitude, longitude, video_path, submitted_by } = data;
 
   const result = await db.query(
@@ -188,6 +190,10 @@ async function updateStatus(id, status) {
  * Updates editable report fields. Only the supplied fields are touched.
  */
 async function update(id, data) {
+  if (['location', 'latitude', 'longitude'].some(k => data[k] !== undefined)) {
+    const existing = await findById(id);
+    assertLocation({ ...existing, ...Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) });
+  }
   const fields = [];
   const values = [];
   const allowed = ['title', 'type', 'description', 'location', 'latitude', 'longitude'];
@@ -246,8 +252,7 @@ async function getStats() {
 /**
  * Soft-deletes a report by stamping deleted_at. Child rows (images, events,
  * notifications, promoted posts) are intentionally left intact so a restore
- * brings the report back fully wired. To purge the row + cascade, use
- * permanentRemove.
+ * brings the report back fully wired. Permanent purging is disabled.
  *
  * @param {number} id - Report ID
  * @returns {Promise<void>}
@@ -276,27 +281,14 @@ async function restore(id) {
 }
 
 /* --------------------------------------------------------------------------
- * 10. permanentRemove (hard-delete)
+ * 10. permanentRemove (disabled legacy API)
  * -------------------------------------------------------------------------- */
 
-/**
- * Permanently deletes a report and its dependent rows. Order matters because
- * none of the child FKs declare ON DELETE CASCADE in the migration: clearing
- * them first prevents "FOREIGN KEY constraint failed".
- *
- * Note: a community_post that was promoted from this report is intentionally
- * preserved — published posts have their own life cycle. We just NULL out the
- * back-pointer so the post survives.
- *
- * @param {number} id - Report ID
- * @returns {Promise<void>}
- */
-async function permanentRemove(id) {
-  await db.query('UPDATE community_posts SET promoted_from_report_id = NULL WHERE promoted_from_report_id = ?', [id]);
-  await db.query('DELETE FROM report_images WHERE report_id = ?', [id]);
-  await db.query('DELETE FROM report_events WHERE report_id = ?', [id]);
-  await db.query('DELETE FROM notifications WHERE report_id = ?', [id]);
-  await db.query('DELETE FROM reports WHERE id = ?', [id]);
+/** Reject legacy callers; records and dependencies must be retained. */
+async function permanentRemove() {
+  const error = new Error('Permanent deletion is disabled. Archive records instead.');
+  error.statusCode = 405;
+  throw error;
 }
 
 /* --------------------------------------------------------------------------

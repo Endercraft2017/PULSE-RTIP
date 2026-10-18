@@ -280,7 +280,7 @@ const NotificationsPage = {
     timeAgo(dateStr) {
         if (!dateStr) return '';
         const now = new Date();
-        const date = new Date(dateStr);
+        const date = PhilippineTime.parse(dateStr);
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
 

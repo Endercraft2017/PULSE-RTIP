@@ -64,7 +64,7 @@ const SignupPage = {
 
         const barangays = (window.MorongBarangays || []);
         const barangayOptions = barangays.map(b => `
-            <option value="${b}" ${f.barangay === b ? 'selected' : ''}>${b}</option>
+            <option value="${DetailModal._esc(b)}" ${f.barangay === b ? 'selected' : ''}>${DetailModal._esc(b)}</option>
         `).join('');
 
         return `

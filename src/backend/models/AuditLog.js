@@ -29,10 +29,11 @@ async function create(data) {
     }
   }
 
+  const actors = await db.query('SELECT department FROM users WHERE id = ?', [actor_user_id]);
   const result = await db.query(
-    `INSERT INTO audit_log (actor_user_id, action, target_type, target_id, details)
-     VALUES (?, ?, ?, ?, ?)`,
-    [actor_user_id, action, target_type || null, target_id || null, detailsJson]
+    `INSERT INTO audit_log (actor_user_id, action, target_type, target_id, details, actor_department, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [actor_user_id, action, target_type || null, target_id || null, detailsJson, actors[0]?.department || null, new Date().toISOString()]
   );
 
   const insertId = result.insertId || result.lastInsertRowid;
@@ -63,7 +64,7 @@ async function findRecent(opts = {}) {
     sql += ' WHERE a.actor_user_id = ?';
     params.push(opts.actor_user_id);
   }
-  sql += ' ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?';
+  sql += ' ORDER BY a.id DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
   const rows = await db.query(sql, params);

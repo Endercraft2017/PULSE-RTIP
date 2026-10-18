@@ -43,6 +43,8 @@ async function convert(req, res, next) {
       return res.status(400).json({ success: false, message: 'Already converted.' });
     }
 
+    require('../services/geocode/territory').assertLocation({ latitude: smsReport.latitude, longitude: smsReport.longitude, location: smsReport.message });
+
     // Create a real report from the SMS data
     const result = await db.query(
       `INSERT INTO reports (title, type, description, location, latitude, longitude,

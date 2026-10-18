@@ -2,18 +2,17 @@
 # =============================================================================
 # Container entrypoint (Railway)
 # =============================================================================
-# Runs migrations ONLY when the SQLite file does not exist yet. Re-running
-# them against a live DB is unsafe: table-rebuild migrations such as 009
-# recreate `reports` from a fixed column list and would drop columns added
-# by later migrations (video_path, deleted_at, ...).
+# Runs ledger-protected migrations on startup, including upgrades of existing
+# SQLite databases. Take a database backup before deploying a schema upgrade.
 # SEED_DEMO=1 additionally loads the demo accounts/data into an empty DB.
 set -e
 
 DB_PATH="${SQLITE_PATH:-/app/src/database/offline/pulse_rtip.db}"
 
-if [ "${APP_MODE:-offline}" != "production" ] && [ ! -f "$DB_PATH" ]; then
-  echo "[start] No database at $DB_PATH - creating schema"
+if [ "${APP_MODE:-offline}" != "production" ]; then
   npm run migrate
+else
+  node ../database/migrations/migrate.js --upgrade-dispatch
 fi
 
 # Opt-in demo data (SEED_DEMO=1). The seed inserts with hard-coded user IDs,

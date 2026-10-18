@@ -1,0 +1,2 @@
+-- UTC fractional-second columns are upgraded for MySQL by migrate.js.
+-- SQLite event inserts already preserve ISO UTC strings with milliseconds.

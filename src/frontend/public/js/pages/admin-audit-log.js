@@ -182,7 +182,8 @@ const AdminAuditLogPage = {
     },
 
     renderRow(e) {
-        const when = this.formatPhDate(e.created_at);
+        const when = PhilippineTime.format(e.created_at);
+        e = { ...e, actor_name: [e.actor_name, e.actor_department].filter(Boolean).join(' · ') };
         const actorName = this.escape(e.actor_name || 'Unknown');
         const actorRole = e.actor_role || '';
         const roleChip = actorRole

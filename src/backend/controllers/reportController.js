@@ -14,6 +14,7 @@
  * =============================================================================
  */
 
+const db = require('../config/database');
 const Report = require('../models/Report');
 const ReportImage = require('../models/ReportImage');
 const ReportEvent = require('../models/ReportEvent');
@@ -21,7 +22,7 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const PushToken = require('../models/PushToken');
 const fcm = require('../services/push/fcm');
-const { logAction } = require('../middleware/auditLog');
+const { recordAction: logAction } = require('../middleware/auditLog');
 
 /* --------------------------------------------------------------------------
  * 2. getReports
@@ -121,23 +122,29 @@ async function createReport(req, res, next) {
     const videoFile  = (req.files && req.files.video && req.files.video[0]) || null;
     const video_path = videoFile ? `/uploads/${videoFile.filename}` : null;
 
-    const report = await Report.create({
-      title,
-      type,
-      description,
-      location,
-      latitude,
-      longitude,
-      video_path,
-      submitted_by: req.user.id,
-    });
+    const report = await db.transaction(async () => {
+      const createdReport = await Report.create({
+        title,
+        type,
+        description,
+        location,
+        latitude,
+        longitude,
+        video_path,
+        submitted_by: req.user.id,
+      });
 
-    if (imageFiles.length > 0) {
-      for (const file of imageFiles) {
-        await ReportImage.create(report.id, `/uploads/${file.filename}`);
+      if (imageFiles.length > 0) {
+        for (const file of imageFiles) {
+          await ReportImage.create(createdReport.id, `/uploads/${file.filename}`);
+        }
       }
-    }
 
+      await ReportEvent.create({ report_id: createdReport.id, actor_user_id: req.user.id,
+        actor_department: req.user.department, action: 'created', note: 'Incident report submitted.' });
+      await logAction(req.user.id, 'report_created', 'report', createdReport.id, { title, type, location, latitude, longitude });
+      return createdReport;
+    });
     const images = await ReportImage.findByReportId(report.id);
 
     // Notify all admin users about the new report (in-app inbox row).
@@ -235,50 +242,35 @@ async function updateReportStatus(req, res, next) {
       }
     }
 
-    const report = await Report.updateStatus(req.params.id, status);
-
-    // Record processing history (A-8). Best-effort, never blocks.
-    try {
-      await ReportEvent.create({
-        report_id: existing.id,
-        actor_user_id: req.user.id,
-        action: 'status_change',
-        from_status: existing.status || null,
-        to_status: status,
-        note: (req.body && req.body.note) || null,
-      });
-    } catch (histErr) {
-      console.error('[report-event]', histErr.message);
-    }
-
-    // Admin-initiated status changes get logged for MDRRMO accountability.
-    if (isAdmin) {
-      logAction(req.user.id, 'report_status_changed', 'report', existing.id, {
-        from: existing.status,
-        to: status,
-        title: existing.title,
-      });
-
-      // Clear the inbox: mark every unread notification tied to this
-      // report as read across all admins, so the bell badge counts
-      // only items that still need attention.
-      try {
-        await Notification.markReadByReportId(existing.id);
-      } catch (e) {
-        console.error('[updateReportStatus] failed to clear notifications:', e.message);
+    if (existing.deleted_at) return res.status(409).json({ success: false, message: 'Restore the archived report before updating it.' });
+    const note = String(req.body.note || '').trim();
+    if (status === 'resolved' && !note) return res.status(400).json({ success: false, message: 'A resolution note is required.' });
+    // Compare and update under one transaction: history, audit and inbox either
+    // commit together or roll back together. NULL owners are valid SMS reports.
+    const report = await db.transaction(async () => {
+      const result = await db.query(
+        'UPDATE reports SET status = ?, updated_at = ? WHERE id = ? AND status = ? AND deleted_at IS NULL',
+        [status, new Date().toISOString(), existing.id, existing.status]);
+      if (!result.affectedRows) {
+        const error = new Error('Report changed. Refresh and try again.');
+        error.statusCode = 409; throw error;
       }
-    }
+      await ReportEvent.create({ report_id: existing.id, actor_user_id: req.user.id,
+        actor_department: req.user.department, action: 'status_change',
+        from_status: existing.status, to_status: status, note });
+      await logAction(req.user.id, 'report_status_changed', 'report', existing.id,
+        { from: existing.status, to: status, title: existing.title, note });
+      if (isAdmin) {
+        await Notification.markReadByReportId(existing.id);
+        if (existing.submitted_by != null) await Notification.create({
+          user_id: existing.submitted_by, report_id: existing.id,
+          title: 'Report Status Update',
+          text: `Your report "${existing.title}" has been updated to: ${status.replace(/_/g, ' ')}.`, status });
+      }
+      return Report.findById(existing.id);
+    });
 
-    // Notify the report owner (only when admin changes status)
-    if (isAdmin) {
-      await Notification.create({
-        user_id: existing.submitted_by,
-        report_id: existing.id,
-        title: 'Report Status Update',
-        text: `Your report "${existing.title}" has been updated to: ${status.replace(/_/g, ' ')}.`,
-        status,
-      });
-
+    if (isAdmin && existing.submitted_by != null) {
       // U-5b: also push to the submitter's device(s). Best-effort —
       // never blocks or fails the status update.
       try {
@@ -367,13 +359,24 @@ async function updateReport(req, res, next) {
     }
 
     const { title, type, description, location, latitude, longitude } = req.body;
-    const updated = await Report.update(req.params.id, {
-      title,
-      type,
-      description,
-      location,
-      latitude: latitude != null && latitude !== '' ? Number(latitude) : undefined,
-      longitude: longitude != null && longitude !== '' ? Number(longitude) : undefined,
+    if (existing.deleted_at) return res.status(409).json({ success: false, message: 'Restore the archived report first.' });
+    const updated = await db.transaction(async () => {
+      const updated = await Report.update(req.params.id, {
+        title,
+        type,
+        description,
+        location,
+        latitude: latitude != null && latitude !== '' ? Number(latitude) : undefined,
+        longitude: longitude != null && longitude !== '' ? Number(longitude) : undefined,
+      });
+      const changes = {};
+      for (const key of ['title', 'type', 'description', 'location', 'latitude', 'longitude']) {
+        if (String(existing[key]) !== String(updated[key])) changes[key] = { from: existing[key], to: updated[key] };
+      }
+      await ReportEvent.create({ report_id: existing.id, actor_user_id: req.user.id,
+        actor_department: req.user.department, action: 'report_updated', note: req.body.note || 'Report details updated.' });
+      await logAction(req.user.id, 'report_updated', 'report', existing.id, { changes });
+      return updated;
     });
 
     res.json({ success: true, data: updated });
@@ -388,8 +391,8 @@ async function updateReport(req, res, next) {
 
 /**
  * Soft-deletes a report (moves it to the recycle bin). Admin-only. The row
- * is preserved with deleted_at stamped so it can be restored or purged
- * later from the Bin view. Citizen views and dashboard counters filter
+ * is preserved with deleted_at stamped so it can be restored
+ * later from the Archive view. Citizen views and dashboard counters filter
  * binned rows out automatically.
  *
  * @param {object} req - Express request (params: { id })
@@ -403,15 +406,18 @@ async function deleteReport(req, res, next) {
       return res.status(404).json({ success: false, message: 'Report not found.' });
     }
 
-    await Report.remove(existing.id);
+    await db.transaction(async () => {
+      await Report.remove(existing.id);
+      await ReportEvent.create({ report_id: existing.id, actor_user_id: req.user.id, actor_department: req.user.department, action: 'archived' });
 
-    logAction(req.user.id, 'report_binned', 'report', existing.id, {
-      title: existing.title,
-      status: existing.status,
-      type: existing.type,
+      await logAction(req.user.id, 'report_binned', 'report', existing.id, {
+        title: existing.title,
+        status: existing.status,
+        type: existing.type,
+      });
     });
 
-    res.json({ success: true, message: 'Report moved to bin.' });
+    res.json({ success: true, message: 'Report archived.' });
   } catch (err) {
     next(err);
   }
@@ -434,42 +440,16 @@ async function restoreReport(req, res, next) {
       return res.status(400).json({ success: false, message: 'Report is not in the bin.' });
     }
 
-    await Report.restore(existing.id);
+    await db.transaction(async () => {
+      await Report.restore(existing.id);
+      await ReportEvent.create({ report_id: existing.id, actor_user_id: req.user.id, actor_department: req.user.department, action: 'restored' });
 
-    logAction(req.user.id, 'report_restored', 'report', existing.id, {
-      title: existing.title,
+      await logAction(req.user.id, 'report_restored', 'report', existing.id, {
+        title: existing.title,
+      });
     });
 
     res.json({ success: true, message: 'Report restored.' });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/* --------------------------------------------------------------------------
- * 9. permanentDeleteReport — admin-only purge from bin
- * -------------------------------------------------------------------------- */
-
-/**
- * Permanently deletes a report and all its dependent rows. Admin-only.
- * Intended to be called from the Bin view after a confirm prompt.
- */
-async function permanentDeleteReport(req, res, next) {
-  try {
-    const existing = await Report.findById(req.params.id);
-    if (!existing) {
-      return res.status(404).json({ success: false, message: 'Report not found.' });
-    }
-
-    await Report.permanentRemove(existing.id);
-
-    logAction(req.user.id, 'report_permanently_deleted', 'report', existing.id, {
-      title: existing.title,
-      status: existing.status,
-      type: existing.type,
-    });
-
-    res.json({ success: true, message: 'Report permanently deleted.' });
   } catch (err) {
     next(err);
   }
@@ -498,7 +478,23 @@ async function getBinReports(req, res, next) {
   }
 }
 
+async function addReportNote(req, res, next) {
+  try {
+    const report = await Report.findById(req.params.id);
+    if (!report) return res.status(404).json({ success: false, message: 'Report not found.' });
+    if (report.deleted_at) return res.status(409).json({ success: false, message: 'Restore the archived report first.' });
+    const event = await db.transaction(async () => {
+      const event = await ReportEvent.create({ report_id: report.id, actor_user_id: req.user.id,
+        actor_department: req.user.department, action: 'note', note: req.body.note });
+      await logAction(req.user.id, 'report_note', 'report', report.id, { note: req.body.note });
+      return event;
+    });
+    res.status(201).json({ success: true, data: event });
+  } catch (error) { next(error); }
+}
+
 module.exports = {
+  addReportNote,
   getReports,
   getReport,
   createReport,
@@ -507,6 +503,5 @@ module.exports = {
   getReportEvents,
   deleteReport,
   restoreReport,
-  permanentDeleteReport,
   getBinReports,
 };

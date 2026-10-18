@@ -329,7 +329,7 @@ const MyReportsPage = {
 
     formatDate(dateStr) {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
+        const date = PhilippineTime.parse(dateStr);
         return date.toLocaleDateString('en-PH', {
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
             timeZone: 'Asia/Manila',

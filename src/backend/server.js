@@ -144,6 +144,7 @@ async function start() {
   try {
     await db.initialize();
     smsPoller.start();
+    require('./services/hazard/broadcast').start();
     app.listen(config.port, () => {
       console.log(`\n========================================`);
       console.log(`  PULSE-RTIP Server`);

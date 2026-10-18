@@ -122,3 +122,14 @@ function requireAdmin(req, res, next) {
 }
 
 module.exports = { authenticate, requireAdmin };
+
+/** Require a verified agency assignment for accountable operational changes.
+ * Citizen report submission/cancellation does not imply responder affiliation.
+ */
+function requireAgency(req, res, next) {
+  if (req.user?.role === 'admin' && !req.user.department) {
+    return res.status(409).json({ success: false, message: 'Assign your responder agency in Dispatch operations → Responders before making operational changes.' });
+  }
+  next();
+}
+module.exports.requireAgency = requireAgency;

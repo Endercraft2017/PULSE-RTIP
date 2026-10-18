@@ -25,6 +25,45 @@ const config = require('./index');
 
 let mysqlPool = null;
 let sqliteDb = null;
+const { AsyncLocalStorage } = require('node:async_hooks');
+const transactionContext = new AsyncLocalStorage();
+let sqliteQueue = Promise.resolve();
+function exclusive(work) {
+  const result = sqliteQueue.then(work, work);
+  sqliteQueue = result.catch(() => {});
+  return result;
+}
+
+// All queries within a transaction share one connection. SQLite work outside
+// it waits, preventing another request from being committed or rolled back.
+async function transaction(work) {
+  if (transactionContext.getStore()) return work();
+  if (config.appMode === 'production') {
+    if (!mysqlPool) initMySQL();
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const result = await transactionContext.run({ connection }, work);
+      await connection.commit();
+      return result;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally { connection.release(); }
+  }
+  return exclusive(async () => {
+    if (!sqliteDb) initSQLite();
+    sqliteDb.exec('BEGIN IMMEDIATE');
+    try {
+      const result = await transactionContext.run({ sqlite: true }, work);
+      sqliteDb.exec('COMMIT');
+      return result;
+    } catch (error) {
+      sqliteDb.exec('ROLLBACK');
+      throw error;
+    }
+  });
+}
 
 /* --------------------------------------------------------------------------
  * 2. MySQL Connection (Production)
@@ -50,6 +89,9 @@ function initMySQL() {
     // JS Date objects in the server's local TZ, which breaks expiry checks.
     dateStrings: true,
     timezone: 'Z',
+  });
+  mysqlPool.on('connection', connection => {
+    connection.query("SET time_zone = '+00:00'");
   });
   return mysqlPool;
 }
@@ -93,9 +135,13 @@ function initSQLite() {
  * @returns {Promise<Array>} Query results as an array of row objects
  */
 async function query(sql, params = []) {
+  const context = transactionContext.getStore();
+  if (config.appMode !== 'production' && !context) {
+    return exclusive(() => transactionContext.run({ sqlite: true }, () => query(sql, params)));
+  }
   if (config.appMode === 'production') {
     if (!mysqlPool) initMySQL();
-    const [rows] = await mysqlPool.execute(sql, params);
+    const [rows] = await (context?.connection || mysqlPool).execute(sql, params.map(value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) ? value.replace('T', ' ').replace('Z', '') : value));
     return rows;
   }
 
@@ -161,6 +207,7 @@ function getSQLiteDb() {
  * -------------------------------------------------------------------------- */
 
 module.exports = {
+  transaction,
   query,
   initialize,
   close,

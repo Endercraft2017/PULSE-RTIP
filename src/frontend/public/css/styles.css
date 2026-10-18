@@ -6056,3 +6056,17 @@ body.theme-dark .newsfeed-card__provenance {
 .incident-card--clickable:hover {
     box-shadow: var(--shadow-md);
 }
+
+/* Dispatch management tables keep long notes readable on narrow screens. */
+.operations-table { width: 100%; border-collapse: collapse; text-align: left; }
+.operations-table th, .operations-table td { padding: 12px; border-bottom: 1px solid var(--color-gray-200); max-width: 320px; overflow-wrap: anywhere; vertical-align: top; }
+.operations-panel .dashboard-subtabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.operations-panel .input-group { display: block; margin: 12px 0; }
+.operations-panel .card { margin: 16px 0; padding: 16px; }
+#incident-coordinate-form label { display: block; margin: 8px 0; }
+
+.incident-card__header { gap: 8px; }
+.incident-card__title { min-width: 0; overflow-wrap: anywhere; }
+.incident-card__header > .badge { flex-shrink: 0; }
+.detail-modal__title, .detail-modal__section-text { overflow-wrap: anywhere; }
+.operations-table { min-width: 680px; }

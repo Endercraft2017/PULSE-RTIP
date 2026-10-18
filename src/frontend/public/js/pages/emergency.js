@@ -132,7 +132,7 @@ const EmergencyPage = {
     render() {
         // Wire up slide-to-call once the HTML is attached. setTimeout
         // defers until after Router inserts the returned string.
-        setTimeout(() => this.initSlideToCall(), 0);
+        setTimeout(() => { this.initSlideToCall(); this.loadManagedContacts(); }, 0);
         return `
             <div class="page-padding emergency-page">
                 <div class="search-bar">
@@ -144,7 +144,8 @@ const EmergencyPage = {
                            oninput="EmergencyPage.handleSearch(this.value)">
                 </div>
 
-                ${this.renderMDRRMOCard()}
+                <div id="emergency-managed-contacts"></div>
+                <div id="emergency-fallback-contacts">${this.renderMDRRMOCard()}
 
                 <div class="emergency-tabs" id="emergency-tabs">
                     ${this.renderTabs()}
@@ -154,6 +155,7 @@ const EmergencyPage = {
                     ${this.renderCategoryDetails()}
                 </div>
 
+                </div>
                 <div class="emergency-banner">
                     <div class="emergency-banner__text">
                         <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
@@ -177,6 +179,24 @@ const EmergencyPage = {
                 </div>
             </div>
         `;
+    },
+
+    async loadManagedContacts() {
+        this.managedContacts = null;
+        try {
+            const response = await Store.apiFetch('/api/hotlines');
+            if (!response.success || !document.getElementById('emergency-managed-contacts')) return;
+            this.managedContacts = response.data;
+            document.getElementById('emergency-fallback-contacts').hidden = true;
+            this.renderManagedContacts();
+        } catch (_) { /* Static emergency contacts remain available offline. */ }
+    },
+    renderManagedContacts() {
+        const root = document.getElementById('emergency-managed-contacts');
+        if (!root) return;
+        const term = this.searchTerm.toLowerCase();
+        const rows = this.managedContacts.filter(h => [h.label,h.number,h.category].join(' ').toLowerCase().includes(term));
+        root.innerHTML = '<h2>Emergency contacts</h2>' + (rows.length ? rows.map(h => `<div class="card"><h3>${DetailModal._esc(h.label)}</h3><p>${DetailModal._esc(h.category || '')}</p><a class="btn btn--outline" href="tel:${String(h.number).replace(/[^+\d]/g,'')}">${DetailModal._esc(h.number)}</a></div>`).join('') : '<p>No contacts listed. For emergencies, call 911.</p>');
     },
 
     /* --------------------------------------------------------
@@ -367,6 +387,7 @@ const EmergencyPage = {
      * 6. Search handling
      * -------------------------------------------------------- */
     handleSearch(value) {
+        if (this.managedContacts) { this.searchTerm = value.trim(); this.renderManagedContacts(); return; }
         this.searchTerm = value.trim();
         document.getElementById('emergency-details').innerHTML = this.renderCategoryDetails();
     },

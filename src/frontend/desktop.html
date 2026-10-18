@@ -592,7 +592,9 @@
     iframe.src = `./?embed=1#/${route}`;
     currentLabel.textContent = label;
     sidebar.querySelectorAll('.sidebar__item').forEach(b => b.classList.remove('active'));
-    const active = sidebar.querySelector(`[data-route="${route}"]`);
+    const path = route.split('?')[0];
+    const sidebarRoute = ({ 'admin-dashboard': 'dashboard', 'admin-home': 'home', 'admin-profile': 'profile' })[path] || path;
+    const active = sidebar.querySelector(`[data-route="${sidebarRoute}"]`);
     if (active) active.classList.add('active');
 
     // Close overlay on mobile after selection
@@ -648,7 +650,12 @@
 
   /* --- Init --- */
   renderSidebar();
-  selectRoute('home', 'Home');
+  const requested = window.location.hash.replace(/^#\//, '') || 'home';
+  const initialRoute = /^[a-z][a-z0-9-]*(?:\?[^#]*)?$/.test(requested) ? requested : 'home';
+  const path = initialRoute.split('?')[0];
+  const sidebarRoute = ({ 'admin-dashboard': 'dashboard', 'admin-home': 'home', 'admin-profile': 'profile' })[path] || path;
+  const item = getGroups().flatMap(group => group.items).find(item => item.route === sidebarRoute);
+  selectRoute(initialRoute, item ? item.label : 'PULSE 911');
   </script>
 </body>
 </html>

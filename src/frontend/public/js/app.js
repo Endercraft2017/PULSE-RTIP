@@ -157,16 +157,16 @@
         // MUST run before the restored-session early-return below — otherwise
         // every reopen with a cached JWT skips push registration and the
         // device's FCM token never reaches the server.
-        try { fetch('https://pulse.afkcube.com/api/_beacon/app-bootstrap-reached-push', { method: 'GET', cache: 'no-store' }); } catch (_) {}
+        try { fetch('https://pulse.afkcube.com/api/_beacon/app-bootstrap-reached-push', { method: 'GET', cache: 'no-store' }).catch(() => {}); } catch (_) {}
         try {
             if (window.PushSetup && typeof PushSetup.init === 'function') {
-                try { fetch('https://pulse.afkcube.com/api/_beacon/calling-pushsetup-init', { method: 'GET', cache: 'no-store' }); } catch (_) {}
+                try { fetch('https://pulse.afkcube.com/api/_beacon/calling-pushsetup-init', { method: 'GET', cache: 'no-store' }).catch(() => {}); } catch (_) {}
                 PushSetup.init();
             } else {
-                try { fetch('https://pulse.afkcube.com/api/_beacon/pushsetup-missing', { method: 'GET', cache: 'no-store' }); } catch (_) {}
+                try { fetch('https://pulse.afkcube.com/api/_beacon/pushsetup-missing', { method: 'GET', cache: 'no-store' }).catch(() => {}); } catch (_) {}
             }
         } catch (_) {
-            try { fetch('https://pulse.afkcube.com/api/_beacon/pushsetup-init-threw', { method: 'GET', cache: 'no-store' }); } catch (_) {}
+            try { fetch('https://pulse.afkcube.com/api/_beacon/pushsetup-init-threw', { method: 'GET', cache: 'no-store' }).catch(() => {}); } catch (_) {}
         }
 
         // If a session was restored but the current hash points at an auth

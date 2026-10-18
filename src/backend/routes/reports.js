@@ -18,7 +18,7 @@
 const { Router } = require('express');
 const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireAgency } = require('../middleware/auth');
 const reportController = require('../controllers/reportController');
 const { upload } = require('../controllers/mediaController');
 
@@ -41,6 +41,7 @@ const createRules = [
 ];
 
 const statusRules = [
+  body('note').optional().isString().trim().isLength({ max: 5000 }),
   param('id').isInt().withMessage('Invalid report ID'),
   body('status').isIn(VALID_STATUSES).withMessage(`Status must be one of: ${VALID_STATUSES.join(', ')}`),
 ];
@@ -77,12 +78,13 @@ router.post(
 router.get('/bin', authenticate, requireAdmin, reportController.getBinReports);
 
 router.get('/:id', authenticate, reportController.getReport);
+router.post('/:id/events', authenticate, requireAdmin, requireAgency, validate([param('id').isInt({ min: 1 }), body('note').isString().trim().isLength({ min: 1, max: 5000 })]), reportController.addReportNote);
 router.get('/:id/events', authenticate, reportController.getReportEvents);
-router.put('/:id/status', authenticate, validate(statusRules), reportController.updateReportStatus);
-router.put('/:id', authenticate, validate(updateRules), reportController.updateReport);
-router.put('/:id/restore', authenticate, requireAdmin, reportController.restoreReport);
-router.delete('/:id/permanent', authenticate, requireAdmin, reportController.permanentDeleteReport);
-router.delete('/:id', authenticate, requireAdmin, reportController.deleteReport);
+router.put('/:id/status', authenticate, requireAgency, validate(statusRules), reportController.updateReportStatus);
+router.put('/:id', authenticate, requireAgency, validate(updateRules), reportController.updateReport);
+router.put('/:id/restore', authenticate, requireAdmin, requireAgency, reportController.restoreReport);
+router.delete('/:id/permanent', authenticate, requireAdmin, (req, res) => res.status(405).json({ success: false, message: 'Permanent deletion is disabled. Archive records instead.' }));
+router.delete('/:id', authenticate, requireAdmin, requireAgency, reportController.deleteReport);
 
 // A-14: admins can spin a report into a community post.
 router.post(

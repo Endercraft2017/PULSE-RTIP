@@ -17,16 +17,14 @@
     'use strict';
 
     // IIFE-level beacon: confirms push.js loaded and ran at all.
-    try { fetch('https://pulse.afkcube.com/api/_beacon/iife-loaded', { method: 'GET', cache: 'no-store' }); } catch (_) {}
+    try { fetch('https://pulse.afkcube.com/api/_beacon/iife-loaded', { method: 'GET', cache: 'no-store' }).catch(() => {}); } catch (_) {}
 
     // Evaluate lazily — when push.js's IIFE runs, the Capacitor bridge
     // might not yet have populated window.Capacitor.isNativePlatform.
     // Resolving at call-time avoids a stale '' base that would send fetches
     // to https://localhost (Capacitor's local server) instead of the backend.
     function resolveApiBase() {
-        return (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform())
-            ? 'https://pulse.afkcube.com'
-            : '';
+        return typeof API_BASE === 'string' ? API_BASE : '';
     }
     const TOKEN_CACHE_KEY = 'pulse_device_push_token';
 

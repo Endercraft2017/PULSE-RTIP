@@ -145,11 +145,10 @@ async function send(tokens, { title, body, data, sound } = {}) {
   // broadcasts skip them. Without this, every reinstall / app-data-clear
   // leaves an orphaned token that fails forever.
   const deadTokens = [];
+  const retryTokens = [];
   const DEAD_CODES = new Set([
     'messaging/registration-token-not-registered',
     'messaging/invalid-registration-token',
-    'messaging/invalid-argument',
-    'messaging/mismatched-credential',
   ]);
   const messaging = _admin.messaging();
 
@@ -176,7 +175,7 @@ async function send(tokens, { title, body, data, sound } = {}) {
         const code = r.error?.code || '';
         if (DEAD_CODES.has(code)) {
           deadTokens.push(batch[idx]);
-        }
+        } else { retryTokens.push(batch[idx]); }
         if (idx < 3) {
           console.warn('[push] token', batch[idx].slice(0, 16) + '...', 'failed:', r.error?.message, code);
         }
@@ -184,6 +183,7 @@ async function send(tokens, { title, body, data, sound } = {}) {
     } catch (err) {
       console.error('[push] batch failed:', err.message);
       failed += batch.length;
+      retryTokens.push(...batch);
     }
   }
 
@@ -199,7 +199,7 @@ async function send(tokens, { title, body, data, sound } = {}) {
   }
 
   console.log(`[push] FCM dispatch: sent=${sent} failed=${failed} batches=${batches} total=${list.length}`);
-  return { success: failed === 0, sent, failed, batches, pruned: deadTokens.length };
+  return { success: failed === 0, sent, failed, batches, pruned: deadTokens.length, retryTokens };
 }
 
 module.exports = { send, isConfigured };

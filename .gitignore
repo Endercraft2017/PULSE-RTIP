@@ -50,3 +50,9 @@ CLAUDE.md
 # Firebase service-account key — never commit.
 secrets/
 **/firebase-service-account*.json
+
+# Browser regression artifacts (synthetic accounts only)
+test-results/
+
+# Python test bytecode
+__pycache__/

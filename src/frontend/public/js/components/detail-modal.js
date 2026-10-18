@@ -122,7 +122,15 @@ const DetailModal = {
         `);
 
         // Fetch events lazily so we don't block the modal's first paint.
-        if (data && data.id) this._loadHistory(data.id);
+        if (data && data.id) {
+            this._historyKind = 'reports'; this._historyId = data.id;
+            this._loadHistory(data.id);
+            this._attachNoteForm('reports', data.id);
+            const map = document.createElement('section');
+            map.className = 'detail-modal__section';
+            document.querySelector('.detail-modal__body').appendChild(map);
+            IncidentMap.mount(map, data);
+        }
     },
 
     /**
@@ -130,16 +138,17 @@ const DetailModal = {
      * the current user can't view the report's history (403) the section
      * is hidden rather than shown empty.
      */
-    async _loadHistory(reportId) {
+    async _loadHistory(reportId, kind = 'reports') {
         const body = document.getElementById('detail-modal-history-body');
         if (!body) return;
         try {
-            const res = await Store.apiFetch(`/api/reports/${reportId}/events`);
+            const res = await Store.apiFetch(kind === 'reports' ? `/api/reports/${reportId}/events` : `/api/operations/hazards/${reportId}/events`);
             if (!res || !res.success) {
                 const section = document.getElementById('detail-modal-history');
                 if (section) section.style.display = 'none';
                 return;
             }
+            if (this._historyId !== reportId || this._historyKind !== kind || !body.isConnected) return;
             const events = Array.isArray(res.data) ? res.data : [];
             if (events.length === 0) {
                 body.innerHTML = '<em style="color: var(--color-gray-500);">No status changes yet.</em>';
@@ -172,14 +181,14 @@ const DetailModal = {
     },
 
     _renderEvent(ev) {
-        const actor = this._esc(ev.actor_name || 'Someone');
+        const actor = this._esc(ev.actor_name || 'Someone') + (ev.actor_department ? ' · ' + this._esc(ev.actor_department) : '');
         const from = this._esc((ev.from_status || '').replace(/_/g, ' ') || '—');
         const to   = this._esc((ev.to_status   || '').replace(/_/g, ' ') || '—');
         const when = this._formatDate(ev.created_at);
         const note = ev.note ? `<div style="margin-top:2px; color: var(--color-gray-500);"><em>${this._esc(ev.note)}</em></div>` : '';
         return `
             <div style="padding: 6px 0; border-bottom: 1px solid var(--color-gray-100);">
-                <strong>${actor}</strong> changed status from <strong>${from}</strong> &rarr; <strong>${to}</strong>
+                <strong>${actor}</strong> ${ev.action === 'status_change' ? `changed status from <strong>${from}</strong> &rarr; <strong>${to}</strong>` : this._esc((ev.action || 'activity').replace(/_/g, ' '))}
                 <div style="font-size: var(--font-size-xs); color: var(--color-gray-400);">${when}</div>
                 ${note}
             </div>
@@ -274,7 +283,13 @@ const DetailModal = {
                     ${this._getTipsFor(data.title).map(t => `<li>${this._esc(t)}</li>`).join('')}
                 </ul>
             </div>
+            <section class="detail-modal__section" id="detail-modal-history">
+                <h3>Hazard history</h3><div id="detail-modal-history-body">Loading history…</div>
+            </section>
         `);
+        this._historyKind = 'hazards'; this._historyId = data.id;
+        this._loadHistory(data.id, 'hazards');
+        this._attachNoteForm('hazards', data.id);
     },
 
     /**
@@ -337,6 +352,7 @@ const DetailModal = {
      * Core open / close
      * -------------------------------------------------------- */
     _open(bodyHtml) {
+        if (window.IncidentMap) IncidentMap.dispose();
         let container = document.getElementById('detail-modal-container');
         if (!container) {
             container = document.createElement('div');
@@ -363,6 +379,8 @@ const DetailModal = {
     },
 
     close() {
+        this._historyId = null;
+        if (window.IncidentMap) IncidentMap.dispose();
         const container = document.getElementById('detail-modal-container');
         if (container) container.innerHTML = '';
         document.body.style.overflow = '';
@@ -377,15 +395,28 @@ const DetailModal = {
     },
 
     _formatDate(dateStr) {
-        if (!dateStr) return 'N/A';
-        const d = new Date(dateStr);
-        // Backend timestamps are UTC — pin to Asia/Manila so users in
-        // other timezones (or on devices with wrong clocks) still see PH time.
-        return d.toLocaleDateString('en-PH', {
-            month: 'short', day: 'numeric', year: 'numeric',
-            hour: '2-digit', minute: '2-digit',
-            timeZone: 'Asia/Manila',
-        });
+        return PhilippineTime.format(dateStr);
+    },
+    _attachNoteForm(kind, id) {
+        if (Store.get('user')?.role !== 'admin') return;
+        const history = document.getElementById('detail-modal-history');
+        if (!history) return;
+        const form = document.createElement('form');
+        form.innerHTML = `<label class="input-group"><span class="input-group__label">Progress update / manual note (visible to citizens)</span><textarea class="form-input" name="note" maxlength="5000" required></textarea></label><button class="btn btn--primary" type="submit">Add to history</button><p role="alert"></p>`;
+        form.onsubmit = async event => {
+            event.preventDefault();
+            const button = form.querySelector('button'); button.disabled = true;
+            try {
+                const note = form.elements.note.value.trim();
+                if (!note) throw new Error('Enter a note.');
+                const url = kind === 'reports' ? `/api/reports/${id}/events` : `/api/operations/hazards/${id}/events`;
+                const response = await Store.apiFetch(url, { method: 'POST', body: JSON.stringify({ note }) });
+                if (!response.success) throw new Error(response.message);
+                form.reset(); await this._loadHistory(id, kind);
+            } catch (error) { form.querySelector('[role=alert]').textContent = error.message; }
+            finally { button.disabled = false; }
+        };
+        history.appendChild(form);
     },
 };
 

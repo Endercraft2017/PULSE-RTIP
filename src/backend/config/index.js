@@ -22,6 +22,9 @@ const dotenv = require('dotenv');
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
+// Civil time is Philippine time; persist instants in UTC in both databases.
+process.env.TZ = 'Asia/Manila';
+
 /* --------------------------------------------------------------------------
  * 2. Configuration Object
  * -------------------------------------------------------------------------- */

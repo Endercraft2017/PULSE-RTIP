@@ -23,11 +23,11 @@ const db = require('../config/database');
  * @returns {Promise<object>} Inserted row
  */
 async function create(data) {
-  const { report_id, actor_user_id, action, from_status, to_status, note } = data;
+  const { report_id, actor_user_id, action, from_status, to_status, note, actor_department } = data;
   const result = await db.query(
-    `INSERT INTO report_events (report_id, actor_user_id, action, from_status, to_status, note)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [report_id, actor_user_id, action, from_status || null, to_status || null, note || null]
+    `INSERT INTO report_events (report_id, actor_user_id, action, from_status, to_status, note, actor_department, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [report_id, actor_user_id, action, from_status || null, to_status || null, note || null, actor_department || null, new Date().toISOString()]
   );
 
   const insertId = result.insertId || result.lastInsertRowid;
@@ -47,7 +47,7 @@ async function findByReport(reportId) {
        FROM report_events e
        LEFT JOIN users u ON u.id = e.actor_user_id
       WHERE e.report_id = ?
-      ORDER BY e.created_at ASC, e.id ASC`,
+      ORDER BY e.id ASC`,
     [reportId]
   );
 }

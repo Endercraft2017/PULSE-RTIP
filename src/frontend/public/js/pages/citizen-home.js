@@ -17,7 +17,7 @@ const CitizenHomePage = {
         const user = Store.get('user');
         const userName = user ? user.name : 'Citizen';
         const today = new Date();
-        const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' });
 
         setTimeout(() => this.loadData(), 0);
 
@@ -380,7 +380,7 @@ const CitizenHomePage = {
 
     _formatManilaDateTime(dateStr) {
         try {
-            const d = new Date(dateStr);
+            const d = PhilippineTime.parse(dateStr);
             return d.toLocaleString('en-US', {
                 timeZone: 'Asia/Manila',
                 month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',

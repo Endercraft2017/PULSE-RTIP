@@ -1015,9 +1015,9 @@ const NewsUpdatesPage = {
      * -------------------------------------------------------- */
     formatDate(dateStr) {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
+        const date = PhilippineTime.parse(dateStr);
         return date.toLocaleDateString('en-US', {
-            month: 'short', day: 'numeric', year: 'numeric',
+            month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila',
         });
     },
 
@@ -1033,7 +1033,7 @@ const NewsUpdatesPage = {
     _formatManilaDateTime(dateStr) {
         if (!dateStr) return '';
         try {
-            const d = new Date(dateStr);
+            const d = PhilippineTime.parse(dateStr);
             return d.toLocaleString('en-US', {
                 timeZone: 'Asia/Manila',
                 month: 'short', day: 'numeric', year: 'numeric',

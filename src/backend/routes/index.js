@@ -32,6 +32,15 @@ const router = Router();
  * 2. Route Mounting
  * -------------------------------------------------------------------------- */
 
+// Active directory profiles are public so first-time signup can use current
+// names before authentication. Management remains admin-only in operations.
+router.get('/barangays', async (req, res, next) => {
+  try {
+    const data = await require('../config/database').query('SELECT id, name, description, active FROM barangays WHERE active = 1 ORDER BY name');
+    res.json({ success: true, data });
+  } catch (error) { next(error); }
+});
+router.use('/operations', require('./operations'));
 router.use('/auth', require('./auth'));
 router.use('/users', require('./users'));
 router.use('/reports', require('./reports'));

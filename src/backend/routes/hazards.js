@@ -16,7 +16,7 @@
 const { Router } = require('express');
 const { body } = require('express-validator');
 const validate = require('../middleware/validate');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireAgency } = require('../middleware/auth');
 const hazardController = require('../controllers/hazardController');
 
 const router = Router();
@@ -55,10 +55,10 @@ router.get('/', authenticate, hazardController.getHazards);
 // a numeric hazard id.
 router.get('/bin', authenticate, requireAdmin, hazardController.getBinHazards);
 
-router.post('/', authenticate, requireAdmin, validate(createRules), hazardController.createHazard);
-router.put('/:id', authenticate, requireAdmin, validate(createRules), hazardController.updateHazard);
-router.put('/:id/restore', authenticate, requireAdmin, hazardController.restoreHazard);
-router.delete('/:id/permanent', authenticate, requireAdmin, hazardController.permanentDeleteHazard);
-router.delete('/:id', authenticate, requireAdmin, hazardController.deleteHazard);
+router.post('/', authenticate, requireAdmin, requireAgency, validate(createRules), hazardController.createHazard);
+router.put('/:id', authenticate, requireAdmin, requireAgency, validate(createRules), hazardController.updateHazard);
+router.put('/:id/restore', authenticate, requireAdmin, requireAgency, hazardController.restoreHazard);
+router.delete('/:id/permanent', authenticate, requireAdmin, (req, res) => res.status(405).json({ success: false, message: 'Permanent deletion is disabled. Archive records instead.' }));
+router.delete('/:id', authenticate, requireAdmin, requireAgency, hazardController.deleteHazard);
 
 module.exports = router;
