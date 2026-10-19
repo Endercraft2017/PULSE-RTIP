@@ -67,7 +67,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager "platforms;android-36" "build-tools;35.0.0"
+          export ANDROID_HOME="$RUNNER_TEMP/android-sdk"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          curl --fail --location --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip --output "$RUNNER_TEMP/android-tools.zip"
+          # Checksum published in Google's signed-over-HTTPS SDK repository metadata.
+          printf '%s  %s\n' 5fdcc763663eefb86a5b8879697aa6088b041e70 "$RUNNER_TEMP/android-tools.zip" | sha1sum --check -
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          unzip -q "$RUNNER_TEMP/android-tools.zip" -d "$ANDROID_HOME/cmdline-tools"
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/19.0"
+          python3 - <<'PY'
+          import os, subprocess
+          sdk = os.environ['ANDROID_HOME']
+          subprocess.run([sdk + '/cmdline-tools/19.0/bin/sdkmanager',
+                          '--sdk_root=' + sdk, 'platforms;android-36',
+                          'build-tools;35.0.0'], input='y\n' * 100, text=True, check=True)
+          PY
 
       - name: Build debug APK
         working-directory: android
