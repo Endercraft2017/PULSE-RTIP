@@ -37,18 +37,18 @@ Service → **Variables**:
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | contents of the Firebase service-account JSON (paste as-is, or base64) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | if email is used |
 | `NEWSAPI_KEY` | optional |
+| `TERRITORY_GEOJSON_PATH` | `/data/territory.geojson`, only after the approved allow boundary and Morong exclusion boundary have been supplied |
 
 Do not set `PORT`. Railway injects it and the server reads it.
 
 ## 4. First deploy
 
-On first boot `scripts/railway-start.sh` sees there is no database at
-`SQLITE_PATH` and runs the migrations to create an empty schema. On later
-boots it skips them.
-
-> **Never run `npm run migrate` against an existing database.** Migrations
-> 009 and 013 rebuild tables from a fixed column list and would drop
-> columns added later (`video_path`, `deleted_at`, ...).
+The start script applies pending migrations on every boot. A migration ledger
+prevents re-running completed migrations, and the legacy report-table rebuild
+is skipped when its `source` column already exists. **Back up the database
+before deploying this upgrade.** Do not seed a database containing real users.
+See [dispatch and integrity configuration](dispatch-and-integrity.md) for the
+separate upgrade command for an existing MySQL installation.
 
 Create the first admin with the Railway CLI (`npm i -g @railway/cli`, `railway login`, `railway link`):
 
@@ -79,14 +79,14 @@ To keep the current users and reports, copy the live
 volume **before** the first real use. Stop the old backend first so the
 SQLite file is consistent (or run `sqlite3 pulse_rtip.db ".backup copy.db"`).
 Then place the file at `/data/pulse_rtip.db` and the images under
-`/data/uploads/`, and redeploy. Because the file now exists, no migrations
-run.
+`/data/uploads/`, and redeploy. On startup, pending migrations are applied to the copied database; take and
+retain a recoverable backup before performing the upgrade.
 
 ## 5. Domain (keeps the Android app working)
 
 The APK has `https://pulse.afkcube.com` hard-coded (`DEFAULT_SERVER_URL` in
 `src/frontend/public/js/utils/store.js`, `allowNavigation` in
-`capacitor.config.ts`). Keep that hostname so no new APK is needed:
+`capacitor.config.ts`). Keep that hostname so the existing API address continues working:
 
 1. Service → **Settings → Networking → Custom Domain** → `pulse.afkcube.com`.
 2. At the DNS provider for `afkcube.com`, replace the current `A` record for
@@ -102,3 +102,62 @@ Railway service is confirmed working.
   replicas. Keep the service at 1 instance.
 - The SMS poller runs inside the web process, so it moves to Railway with it.
 - Backups: Railway volumes support backups (service → Volumes → Backups). Turn on a schedule.
+
+
+## 6. Activate the interactive map
+
+Deploy the latest `dev/frontend-webapp` revision containing the Leaflet migration for the interactive
+Hazard Zones map and restored categorized Emergency screen. A Git push alone
+is not proof of deployment: verify the service source branch and deployment
+logs. The provided Dockerfile uses Node 22 and serves the API and web frontend
+in the same service; a separate map server is not needed.
+
+1. Leaflet 1.9.4 is bundled with the frontend. No Google API key, Google Cloud
+   account, billing setup or separate map service is required.
+2. Allow browser/WebView HTTPS image requests to `tile.openstreetmap.org`.
+   Standard OpenStreetMap tiles require visible attribution and compliance with
+   https://operations.osmfoundation.org/policies/tiles/ (no bulk downloads or
+   offline prefetching). The app keeps attribution visible and uses normal browser
+   caching. Public tiles have no SLA; review capacity before a large rollout.
+3. In **Dashboard → Directories, calls & road advisories → Responders**, assign
+   an agency to the admin who will save coordinate changes.
+4. To permit saves, supply the approved GeoJSON boundary file on the persistent
+   volume and set `TERRITORY_GEOJSON_PATH` to it. No production boundary is
+   provided because the allowed territory is still unknown. The file must
+   include an `allow` area and a Morong `deny` area. Do not use synthetic test
+   boundaries in production. Without this setting, the map can display with
+   an internet connection, but coordinate submissions intentionally remain blocked.
+
+The main Hazard Zones **Map** view should load Leaflet with OpenStreetMap tiles and show current
+hazards at their saved GPS positions. Admins drag a pin, enter a reason and
+save the correction; citizens can pan/view but cannot alter shared pins.
+If tiles cannot load, the app displays a connection message; pin and manual coordinate editing remain available.
+
+## 7. Update installed Android apps
+
+`capacitor.config.ts` has `webDir: 'src/frontend'` and no remote `server.url`.
+That means JavaScript, page layouts and map components are packaged in the APK.
+Updating the server or keeping the same domain does **not** update these assets
+inside an already installed app.
+
+From the updated checkout on a machine with Node, JDK and the Android SDK:
+
+```sh
+npm ci
+npx cap sync android
+cd android
+./gradlew assembleDebug
+```
+
+On Windows, `install-on-phone.bat` runs the sync, build and USB-install workflow;
+the direct Gradle command is `gradlew.bat assembleDebug`. Install the resulting
+`android/app/build/outputs/apk/debug/app-debug.apk` on test phones. Use the
+existing signing key for updates to a previously signed app; this debug build
+is for testing. Do not uninstall an app with unsynced data merely to bypass a
+signing mismatch. For release distribution, use the project's existing signing
+and release procedure.
+
+Confirm the installed version shows the categorized Emergency cards and the
+interactive Hazard Zones map, then verify a permitted coordinate correction is
+still present after reloading. Web-browser users need the updated server
+frontend rather than an APK rebuild.

@@ -105,32 +105,28 @@ no registered owner; they now resolve without trying to insert an invalid
 owner notification. Citizens retain the existing permission to cancel their
 own eligible reports; they cannot mark incidents resolved as an admin.
 
-## Google Maps and GPS editing
+## Leaflet maps and GPS editing
 
-Set `GOOGLE_MAPS_BROWSER_KEY` to a browser key with Maps JavaScript API enabled,
-billing configured, and HTTP-referrer restrictions for the deployed origins.
-This is a public browser key, not a private server credential. Permit access
-to `maps.googleapis.com` and the Google Maps asset hosts (including
-`maps.gstatic.com`) in the deployment's egress/browser policy as required.
-Never place service-account credentials in this variable.
+Leaflet 1.9.4 and its marker assets are bundled in `public/vendor/leaflet`
+under its BSD license. No Google API key or billing account is required.
+Basemap images use `https://tile.openstreetmap.org/{z}/{x}/{y}.png`;
+OpenStreetMap attribution stays visible. Follow the public tile
+[usage policy](https://operations.osmfoundation.org/policies/tiles/):
+no bulk downloads or offline prefetching, and preserve normal browser caching.
+Public tiles have no uptime guarantee; assess a suitable tile provider before
+large deployments. This app does not download tiles for offline use.
 
-The main Hazard Zones Map view now uses Google Maps rather than the static
-Morong image. Admins can drag a hazard pin, provide a correction reason and
-save or cancel the repositioning inline. Citizens can pan/view the map but
-cannot edit shared hazard locations. Hazard details also include an editable
-map for admins. Without a Google Maps key, the main view explains the missing
-configuration and links to Details for manual coordinate entry.
+The main Hazard Zones Map and report/hazard details use interactive Leaflet
+maps. Admins drag pins, enter correction reasons and save; citizens can pan and
+view shared locations. All saves still enforce admin permissions, agency
+assignment and the configured territory boundary, including the Morong exclusion.
+Manual coordinate fields remain available if basemap tiles are unavailable.
 
-Report details include a map. Admins can drag a report marker or enter
-coordinates, provide a correction reason and save. The API enforces admin
-permissions and territory validation. Coordinate fields remain usable when
-Google Maps is unavailable; the map panel explains the missing configuration.
-Active road advisories appear as labeled markers. Report/advisory updates are
-polled every five seconds while the dialog is open. Marker instances are
-updated with `setPosition`, not rebuilt. Unsaved or active drag edits are not
-overwritten by polling. Closing the dialog releases timers and listeners.
-Advisories represent staff-entered local road conditions, not an official
-Google road closure or traffic feed.
+Active road advisories appear as labeled markers with safe text tooltips and
+popups. Locations and advisories refresh every five seconds using existing
+marker instances and `setLatLng`. Polling does not overwrite unsaved drag edits.
+Closing the dialog or leaving the page releases timers, maps and listeners.
+Advisories are staff-entered road conditions, not an automatic traffic feed.
 
 ## SMS and push delivery
 
@@ -196,8 +192,8 @@ It uses synthetic boundary fixtures and creates no live messages.
 
 Chromium smoke checks cover directory/call forms, report/hazard notes,
 citizen history access and Philippine timestamps from another device timezone.
-Map marker identity and dragging were checked with a mocked Google SDK.
-Live Google Maps rendering, carrier/Firebase delivery, Android background
+Map identity, dragging and rendering are checked with bundled Leaflet in Chromium;
+external tile images are stubbed in tests. Live tile availability, carrier/Firebase delivery, Android background
 notifications and live MySQL remain deployment validation tasks.
 
 

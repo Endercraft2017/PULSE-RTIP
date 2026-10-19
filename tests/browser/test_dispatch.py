@@ -4,7 +4,7 @@ Run with Node 22 on PATH and Python Playwright installed:
     python3 -m unittest discover -s tests/browser -v
 CHROMIUM_EXECUTABLE may select a system browser; otherwise Playwright's Chromium
 is used. Every run creates its own SQLite DB, users, server and synthetic region.
-External browser requests are blocked; Google SDK behavior is mocked explicitly.
+External browser requests are blocked; Bundled Leaflet runs in Chromium; external tile requests are stubbed.
 """
 import json
 import os
@@ -24,18 +24,28 @@ from playwright.sync_api import sync_playwright, expect
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS = ROOT / 'test-results' / 'playwright'
 PASSWORD = 'Browser-test-only-2026!'
-MAP_MOCK = """() => {
+MAP_INSTRUMENT = """() => {
     window.mapStats = { created: 0, updates: 0, markers: [] };
-    class Marker {
-        constructor(opts) { Object.assign(this, opts); this.events = {}; mapStats.created++; mapStats.markers.push(this); }
-        setPosition(p) { this.position = p; mapStats.updates++; }
-        addListener(event, callback) { this.events[event] = callback; return { remove() {} }; }
-        setMap(map) { this.map = map; } setTitle(title) { this.title = title; }
-        getTitle() { return this.title; } setLabel(label) { this.label = label; }
-    }
-    window.google = { maps: { Map: class {}, Marker,
-        event: { clearInstanceListeners(marker) { marker.events = {}; } },
-        InfoWindow: class { setContent() {} open() {} close() {} } } };
+    const original = L.marker;
+    L.marker = function(position, options) {
+        const marker = original(position, options);
+        marker.draggable = !!options?.draggable;
+        marker.events = {};
+        const on = marker.on;
+        marker.on = function(event, callback, context) {
+            if (event === 'dragstart') this.events.dragstart = () => marker.fire('dragstart');
+            if (event === 'dragend') this.events.dragend = e => {
+                marker.setLatLng({lat:e.latLng.lat(),lng:e.latLng.lng()});
+                marker.fire('dragend');
+            };
+            return on.call(this, event, callback, context);
+        };
+        const move = marker.setLatLng;
+        marker.setLatLng = function(p) { mapStats.updates++; return move.call(this,p); };
+        Object.defineProperty(marker, 'position', {get:()=>marker.getLatLng()});
+        mapStats.created++; mapStats.markers.push(marker);
+        return marker;
+    };
 }"""
 
 
@@ -111,6 +121,9 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.context = self.browser.new_context(viewport={'width':390,'height':844},timezone_id='America/New_York',geolocation={'latitude':14.5,'longitude':120.5},permissions=['geolocation'])
         self.context.tracing.start(screenshots=True,snapshots=True,sources=True)
         self.context.route('**/*', lambda route: route.continue_() if urlparse(route.request.url).netloc==urlparse(self.base).netloc else route.abort())
+        self.context.route('https://tile.openstreetmap.org/**', lambda route: route.fulfill(
+            body=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000b49444154789c636000020000050001a5f645400000000049454e44ae426082'),
+            content_type='image/png'))
         self.page = self.context.new_page()
         self.page.set_default_timeout(5000)
         self.errors = []; self.dialogs = []
@@ -286,7 +299,7 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         expect(self.page.locator('#signup-barangay option').filter(has_text='Signup district')).to_have_count(1)
 
     def test_map_polling_reuses_marker_and_drag_edits_survive(self):
-        self.login();self.page.evaluate(MAP_MOCK);self.open_report()
+        self.login();self.page.evaluate(MAP_INSTRUMENT);self.open_report()
         self.page.wait_for_function('() => IncidentMap.session?.marker')
         self.page.evaluate('window.firstMarker=IncidentMap.session.marker')
         self.page.wait_for_timeout(5200)
@@ -301,17 +314,15 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
 
     def test_map_close_during_slow_load_has_no_async_errors(self):
         self.login()
-        pending = []
-        self.page.route('**/api/operations/map-config', lambda route: pending.append(route))
+        self.page.evaluate('() => { IncidentMap.loadLeaflet = () => new Promise(resolve => window.finishMapLoad=resolve); }')
         self.open_report()
-        self.assertTrue(pending)
         self.app.get_by_role('button',name='Close',exact=True).last.click()
-        pending[0].fulfill(json={'success':True,'data':{'googleMapsKey':''}})
+        self.page.evaluate('finishMapLoad()')
         self.page.wait_for_timeout(200)
 
     def test_map_new_coordinate_marker_is_draggable(self):
         with sqlite3.connect(self.database) as db: db.execute('UPDATE reports SET latitude=NULL,longitude=NULL WHERE id=?',[self.report_id])
-        self.login();self.page.evaluate(MAP_MOCK);self.open_report()
+        self.login();self.page.evaluate(MAP_INSTRUMENT);self.open_report()
         with sqlite3.connect(self.database) as db: db.execute('UPDATE reports SET latitude=14.5,longitude=120.5 WHERE id=?',[self.report_id])
         self.page.wait_for_function('() => IncidentMap.session?.marker',timeout=10000)
         self.assertTrue(self.page.evaluate('IncidentMap.session.marker.draggable'), 'Admin marker must remain draggable when GPS first arrives during polling')
@@ -342,14 +353,12 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.page.wait_for_timeout(300)
 
 
-    def test_google_sdk_load_is_allowed_by_csp(self):
+    def test_leaflet_loads_without_key_and_is_allowed_by_csp(self):
         self.login()
-        self.page.route('**/api/operations/map-config', lambda route: route.fulfill(json={'success':True,'data':{'googleMapsKey':'synthetic-browser-key'}}))
-        sdk = '(' + MAP_MOCK + ')();window.pulseMapsReady();'
-        self.page.route('https://maps.googleapis.com/maps/api/js?*', lambda route: route.fulfill(body=sdk,content_type='application/javascript'))
         self.open_report()
-        self.page.wait_for_function('() => !!IncidentMap.session?.map',timeout=5000)
-        self.assertEqual(self.page.locator('#incident-map-status').inner_text(),'')
+        self.page.wait_for_function('() => !!IncidentMap.session?.map')
+        self.assertTrue(self.page.evaluate('IncidentMap.session.map instanceof L.Map'))
+        expect(self.page.locator('.leaflet-control-attribution')).to_contain_text('OpenStreetMap')
 
     def test_stored_report_text_does_not_execute_on_admin_dashboard(self):
         payload='<img src=x onerror="window.storedXss=1">'
@@ -443,10 +452,10 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
 
     def main_hazard_map(self, role='admin'):
         self.login(role=role)
-        self.page.evaluate(MAP_MOCK)
+        self.page.evaluate(MAP_INSTRUMENT)
         self.page.evaluate("Router.navigate('hazards')")
         self.page.locator('.hazards-toggle').click()
-        self.page.wait_for_function('() => !!HazardMap.session?.map')
+        self.page.wait_for_function('() => !!HazardMap.session?.timer')
 
     def test_main_hazard_map_admin_drag_save_and_polling(self):
         self.main_hazard_map()
@@ -483,7 +492,7 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.assertEqual(self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker.position.lat',self.hazard_id),14.5)
 
     def test_hazard_details_marker_can_be_repositioned(self):
-        self.login();self.page.evaluate(MAP_MOCK)
+        self.login();self.page.evaluate(MAP_INSTRUMENT)
         self.page.locator('button[onclick*="setMainTab(\'hazards\')"]').click()
         self.page.locator('#dashboard-content .incident-card').filter(has_text=self._testMethodName).get_by_role('button',name='Details',exact=True).click()
         self.page.wait_for_function('() => !!IncidentMap.session?.marker')
@@ -508,14 +517,49 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         expect(self.page.locator('#emergency-details')).to_contain_text('Hospital')
 
 
-    def test_main_hazard_map_missing_key_shows_setup_error(self):
+    def test_main_hazard_map_without_key_supports_real_pointer_drag(self):
         self.login()
         self.page.evaluate("Router.navigate('hazards')")
         self.page.locator('.hazards-toggle').click()
-        expect(self.page.locator('.hazard-map-status')).to_contain_text('configured Google Maps browser key')
-        expect(self.page.locator('.hazard-live-map')).not_to_be_visible()
-        expect(self.page.locator('#hazards-map-view img')).to_have_count(0)
-        expect(self.page.locator('.hazard-map-unplaced button')).not_to_have_count(0)
+        self.page.wait_for_function('() => !!HazardMap.session?.map')
+        self.page.evaluate('(id)=>{window.realPin=HazardMap.session.markers.get(id).marker;realPin.getElement().dataset.testPin="target";}',self.hazard_id)
+        pin = self.page.locator('[data-test-pin=target]')
+        box = pin.bounding_box()
+        self.page.mouse.move(box['x']+box['width']/2, box['y']+box['height']/2)
+        self.page.mouse.down()
+        self.page.mouse.move(box['x']+box['width']/2+45, box['y']+box['height']/2-35, steps=12)
+        self.page.mouse.up()
+        expect(self.page.locator('.hazard-pin-form')).to_be_visible()
+        self.assertNotEqual(float(self.page.locator('.hazard-pin-form [name=latitude]').input_value()),14.5)
+        self.assertTrue(self.page.evaluate('HazardMap.session.map instanceof L.Map'))
+        expect(self.page.locator('.leaflet-control-attribution')).to_contain_text('OpenStreetMap')
+
+    def test_tile_failure_preserves_coordinate_editor(self):
+        self.context.route('https://tile.openstreetmap.org/**', lambda route: route.abort())
+        self.login()
+        self.open_report()
+        expect(self.page.locator('#incident-map-status')).to_contain_text('Map tiles unavailable')
+        expect(self.page.locator('#incident-coordinate-form')).to_be_visible()
+        self.assertTrue(self.page.evaluate('!!IncidentMap.session.marker'))
+
+    def test_advisory_labels_are_safe_and_markers_are_reused(self):
+        self.main_hazard_map()
+        self.page.evaluate("""() => {
+            const s=HazardMap.session;
+            const advisory={id:99999,active:1,latitude:14.51,longitude:120.51,
+                label:'<img src=x onerror="window.mapXss=1">',status:'not_passable'};
+            HazardMap.reconcileAdvisories(s,[advisory]);
+            window.advisoryPin=s.advisories.get(99999);
+            advisory.label='NOT PASSABLE - BINABAHA NA YUNG LUGAR';
+            advisory.latitude=14.52;
+            HazardMap.reconcileAdvisories(s,[advisory]);
+            advisoryPin.fire('click');
+        }""")
+        expect(self.page.locator('.leaflet-popup-content')).to_contain_text('NOT PASSABLE')
+        self.assertTrue(self.page.evaluate('HazardMap.session.advisories.get(99999)===advisoryPin'))
+        self.assertFalse(self.page.evaluate('!!window.mapXss'))
+        self.page.evaluate('HazardMap.reconcileAdvisories(HazardMap.session,[])')
+        self.assertTrue(self.page.evaluate('!HazardMap.session.map.hasLayer(advisoryPin)'))
 
     def test_emergency_offline_retains_original_cards(self):
         self.login(role='citizen')

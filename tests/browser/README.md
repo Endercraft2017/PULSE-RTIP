@@ -18,8 +18,9 @@ API/UI, starts its own server and removes those resources afterward. No demo
 seed or production database is used. Test boundaries are synthetic: the normal
 unconfigured-territory policy is unchanged. Browser requests to external hosts
 are blocked and SMS/Firebase credentials are empty; no real messages are sent.
-The Google Maps SDK is mocked for marker and loader/CSP tests, so these tests do
-not establish live Google Maps availability or API-key validity.
+Map tests run bundled Leaflet in Chromium, including real pointer dragging,
+marker identity, polling and save workflows. External tile images are stubbed;
+these tests do not establish live OpenStreetMap tile availability.
 
 Coverage includes mobile and desktop navigation, login/session restoration,
 report submission using browser GPS, Morong exclusion, resolution and archival,

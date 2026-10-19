@@ -6070,3 +6070,7 @@ body.theme-dark .newsfeed-card__provenance {
 .incident-card__header > .badge { flex-shrink: 0; }
 .detail-modal__title, .detail-modal__section-text { overflow-wrap: anywhere; }
 .operations-table { min-width: 680px; }
+
+/* Keep Leaflet panes and controls inside each map's stacking context. */
+.hazard-live-map, #incident-leaflet-map { isolation: isolate; z-index: 0; }
+.hazard-live-map .leaflet-tooltip, #incident-leaflet-map .leaflet-tooltip { max-width: 240px; white-space: normal; overflow-wrap: anywhere; }

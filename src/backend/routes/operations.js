@@ -114,7 +114,7 @@ router.put('/responders/:id', requireAdmin, validate([param('id').isInt({ min: 1
     res.json({ success: true });
   } catch (error) { next(error); }
 });
-router.get('/map-config', (req, res) => res.json({ success: true, data: { googleMapsKey: process.env.GOOGLE_MAPS_BROWSER_KEY || '', timezone: 'Asia/Manila' } }));
+router.get('/map-config', (req, res) => res.json({ success: true, data: { provider: 'leaflet', tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', timezone: 'Asia/Manila' } }));
 router.get('/broadcasts', requireAdmin, async (req, res, next) => {
   try { res.json({ success: true, data: await db.query('SELECT id, hazard_id, advisory_id, channel, status, attempts, last_error, created_at, updated_at FROM broadcast_jobs ORDER BY id DESC LIMIT 200') }); }
   catch (error) { next(error); }
