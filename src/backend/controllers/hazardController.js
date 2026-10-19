@@ -27,6 +27,16 @@ const { recordAction: logAction } = require('../middleware/auditLog');
  * 2. getHazards
  * -------------------------------------------------------------------------- */
 
+async function getHazard(req, res, next) {
+  try {
+    const hazard = await Hazard.findById(req.params.id);
+    if (!hazard || (hazard.deleted_at && req.user.role !== 'admin')) {
+      return res.status(404).json({ success: false, message: 'Hazard not found.' });
+    }
+    res.json({ success: true, data: hazard });
+  } catch (error) { next(error); }
+}
+
 async function getHazards(req, res, next) {
   try {
     const hazards = await Hazard.findAll();
@@ -358,6 +368,7 @@ async function getBinHazards(req, res, next) {
 }
 
 module.exports = {
+  getHazard,
   getHazards,
   createHazard,
   updateHazard,

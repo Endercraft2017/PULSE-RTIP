@@ -25,7 +25,9 @@ Coverage includes mobile and desktop navigation, login/session restoration,
 report submission using browser GPS, Morong exclusion, resolution and archival,
 agency assignments and notes, citizen history, contacts and calls, road
 advisories, broadcast status, directory refresh, unsafe text rendering, marker
-identity/dragging, and navigation during pending requests. Browser time is set
+identity/dragging, main Hazard Zones pin saving/cancellation and citizen
+read-only permissions, the original categorized Emergency layout with managed
+contacts, and navigation during pending requests. Browser time is set
 to New York to verify that incident timelines still use Philippine time.
 
 The runner checks for unhandled browser exceptions. Results are recorded in

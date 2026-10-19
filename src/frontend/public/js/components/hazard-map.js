@@ -1,0 +1,164 @@
+/** Live hazard map: one stable marker per hazard, admin drag corrections,
+ * explicit save/cancel, advisory overlays and five-second reconciliation.
+ * Uses the configured Google Maps JavaScript SDK; citizens are read-only.
+ */
+window.HazardMap = {
+    async mount(container, hazards) {
+        this.dispose();
+        const admin = Store.get('role') === 'admin';
+        const session = this.session = { container, markers: new Map(), advisories: new Map(), admin, pending: null };
+        container.innerHTML = `<div class="hazard-live-map" style="height:420px;border-radius:12px" aria-label="Live hazard map"></div>
+            <p class="hazard-map-status" role="status">Loading Google Maps…</p>
+            <div class="hazard-map-editor"></div><div class="hazard-map-unplaced"></div>`;
+        const current = () => this.session === session && container.isConnected;
+        session.status = container.querySelector('.hazard-map-status');
+        try {
+            await IncidentMap.loadGoogle();
+            if (!current()) return;
+            const located = hazards.find(h => h.latitude != null && h.longitude != null);
+            session.map = new google.maps.Map(container.querySelector('.hazard-live-map'), {
+                center: located ? { lat: Number(located.latitude), lng: Number(located.longitude) } : { lat: 12.8797, lng: 121.7740 },
+                zoom: located ? 13 : 6,
+            });
+            this.reconcile(session, hazards);
+            session.status.textContent = admin
+                ? 'Drag a hazard pin to reposition it, then save the correction. Updates refresh every 5 seconds.'
+                : 'Live hazard locations and road advisories. Updates refresh every 5 seconds.';
+            const refresh = async () => {
+                if (!current()) { if (this.session === session) this.dispose(); return; }
+                if (session.refreshing) return;
+                session.refreshing = true;
+                const revision = session.revision || 0;
+                try {
+                    const [response, advisories] = await Promise.all([Store.apiFetch('/api/hazards'), Store.apiFetch('/api/operations/advisories')]);
+                    if (!current() || revision !== (session.revision || 0)) return;
+                    if (!response.success) throw new Error(response.message);
+                    this.reconcile(session, response.data);
+                    if (advisories.success) this.reconcileAdvisories(session, advisories.data);
+                    HazardCache._save(response.data);
+                    HazardsPage._hazards = response.data;
+                } catch (error) { if (current()) session.status.textContent = 'Live updates interrupted; retrying. ' + (error.message || ''); }
+                finally { session.refreshing = false; }
+            };
+            await refresh();
+            if (current()) session.timer = setInterval(refresh, 5000);
+        } catch (error) {
+            if (!current()) return;
+            session.status.textContent = error.message + ' The live map requires a configured Google Maps browser key. Open Details to enter coordinates manually.';
+            container.querySelector('.hazard-live-map').hidden = true;
+            this.renderUnplaced(session, hazards);
+        }
+    },
+    reconcile(session, hazards) {
+        const ids = new Set();
+        for (const hazard of hazards) {
+            if (hazard.latitude == null || hazard.longitude == null) continue;
+            ids.add(hazard.id);
+            let entry = session.markers.get(hazard.id);
+            if (!entry) {
+                const marker = new google.maps.Marker({ map: session.map, position: { lat: Number(hazard.latitude), lng: Number(hazard.longitude) }, draggable: session.admin, title: hazard.title });
+                entry = { marker, hazard, dragging: false };
+                session.markers.set(hazard.id, entry);
+                marker.addListener('click', () => DetailModal.showHazard(entry.hazard));
+                if (session.admin) {
+                    marker.addListener('dragstart', () => {
+                        if (session.pending && session.pending !== entry) this.cancel(session);
+                        entry.dragging = true;
+                    });
+                    marker.addListener('dragend', event => {
+                        entry.dragging = false;
+                        if (this.session !== session || !session.container.isConnected) return;
+                        session.pending = entry;
+                        this.edit(session, entry, { lat: event.latLng.lat(), lng: event.latLng.lng() });
+                    });
+                }
+            }
+            entry.hazard = hazard;
+            if (!entry.dragging && session.pending !== entry) entry.marker.setPosition({ lat: Number(hazard.latitude), lng: Number(hazard.longitude) });
+            entry.marker.setTitle(hazard.title);
+        }
+        for (const [id, entry] of session.markers) if (!ids.has(id)) {
+            if (session.pending === entry) this.cancel(session);
+            google.maps.event.clearInstanceListeners(entry.marker); entry.marker.setMap(null); session.markers.delete(id);
+        }
+        this.renderUnplaced(session, hazards.filter(h => h.latitude == null || h.longitude == null));
+    },
+    renderUnplaced(session, hazards) {
+        const root = session.container.querySelector('.hazard-map-unplaced');
+        root.replaceChildren();
+        for (const hazard of hazards) {
+            const button = document.createElement('button');
+            button.className = 'btn btn--outline btn--sm'; button.type = 'button';
+            button.textContent = hazard.title + ' — Details';
+            button.onclick = () => DetailModal.showHazard(hazard);
+            root.appendChild(button);
+        }
+    },
+    reconcileAdvisories(session, advisories) {
+        const active = new Set();
+        for (const advisory of advisories.filter(a => a.active)) {
+            active.add(advisory.id);
+            let marker = session.advisories.get(advisory.id);
+            if (!marker) {
+                marker = new google.maps.Marker({ map: session.map, position: { lat: Number(advisory.latitude), lng: Number(advisory.longitude) } });
+                marker.addListener('click', () => {
+                    if (!session.info) session.info = new google.maps.InfoWindow();
+                    const label = document.createElement('div'); label.textContent = marker.getTitle();
+                    session.info.setContent(label); session.info.open(session.map, marker);
+                });
+                session.advisories.set(advisory.id, marker);
+            }
+            marker.setPosition({ lat: Number(advisory.latitude), lng: Number(advisory.longitude) });
+            marker.setTitle(advisory.label);
+            marker.setLabel({ text: advisory.status === 'not_passable' ? '!' : advisory.status === 'clear' ? '✓' : '?', color: '#b91c1c' });
+        }
+        for (const [id, marker] of session.advisories) if (!active.has(id)) {
+            google.maps.event.clearInstanceListeners(marker); marker.setMap(null); session.advisories.delete(id);
+        }
+    },
+    edit(session, entry, position) {
+        const root = session.container.querySelector('.hazard-map-editor');
+        root.innerHTML = `<form class="hazard-pin-form card"><h3>Reposition hazard</h3><p class="hazard-pin-title"></p>
+            <label>Latitude<input class="form-input" name="latitude" type="number" min="-90" max="90" step="any" required></label>
+            <label>Longitude<input class="form-input" name="longitude" type="number" min="-180" max="180" step="any" required></label>
+            <label>Correction reason<textarea class="form-input" name="note" maxlength="5000" required></textarea></label>
+            <button class="btn btn--primary" type="submit">Save pin location</button>
+            <button class="btn btn--outline hazard-pin-cancel" type="button">Cancel repositioning</button><p class="hazard-pin-error" role="alert"></p></form>`;
+        root.querySelector('.hazard-pin-title').textContent = entry.hazard.title;
+        const form = root.querySelector('form');
+        form.elements.latitude.value = position.lat; form.elements.longitude.value = position.lng;
+        root.querySelector('.hazard-pin-cancel').onclick = () => this.cancel(session);
+        form.onsubmit = async event => {
+            event.preventDefault();
+            const button = form.querySelector('[type=submit]'); button.disabled = true;
+            try {
+                const note = form.elements.note.value.trim();
+                if (!note) throw new Error('Enter a correction reason.');
+                const response = await Store.apiFetch(`/api/hazards/${entry.hazard.id}/location`, { method: 'PUT', body: JSON.stringify({ latitude: Number(form.elements.latitude.value), longitude: Number(form.elements.longitude.value), note }) });
+                if (this.session !== session || !form.isConnected) return;
+                if (!response.success) throw new Error(response.message || 'Unable to save pin.');
+                session.revision = (session.revision || 0) + 1;
+                entry.hazard = response.data;
+                entry.marker.setPosition({ lat: Number(response.data.latitude), lng: Number(response.data.longitude) });
+                session.pending = null; root.replaceChildren();
+                session.status.textContent = 'Hazard pin location saved and audited.';
+            } catch (error) { if (form.isConnected) form.querySelector('.hazard-pin-error').textContent = error.message; }
+            finally { button.disabled = false; }
+        };
+        form.elements.note.focus();
+    },
+    cancel(session) {
+        const entry = session.pending;
+        if (entry) entry.marker.setPosition({ lat: Number(entry.hazard.latitude), lng: Number(entry.hazard.longitude) });
+        session.pending = null;
+        session.container.querySelector('.hazard-map-editor')?.replaceChildren();
+    },
+    dispose() {
+        const session = this.session;
+        if (!session) return;
+        clearInterval(session.timer);
+        for (const entry of session.markers.values()) { google.maps.event.clearInstanceListeners(entry.marker); entry.marker.setMap(null); }
+        for (const marker of session.advisories.values()) { google.maps.event.clearInstanceListeners(marker); marker.setMap(null); }
+        session.info?.close(); this.session = null;
+    },
+};

@@ -24,9 +24,11 @@ window.IncidentMap = {
         })().catch(error => { this.loading = null; throw error; });
         return this.loading;
     },
-    async mount(container, report) {
+    async mount(container, report, options = {}) {
         if (!container) return;
         this.dispose();
+        const kind = options.kind === 'hazards' ? 'hazards' : 'reports';
+        const url = `/api/${kind}/${report.id}`;
         const session = this.session = { container, report, markers: new Map(), dirty: false, dragging: false };
         const admin = Store.get('user')?.role === 'admin';
         container.innerHTML = `<div id="incident-google-map" style="height:300px;border-radius:12px"></div><p id="incident-map-status" role="status"></p>${admin ? `<form id="incident-coordinate-form"><label>Latitude <input class="form-input" id="incident-lat" type="number" step="any" min="-90" max="90" required></label><label>Longitude <input class="form-input" id="incident-lng" type="number" step="any" min="-180" max="180" required></label><label>Reason for GPS correction <input class="form-input" id="incident-gps-note" maxlength="5000" required></label><button class="btn btn--primary" type="submit">Save coordinates</button></form>` : ''}`;
@@ -43,13 +45,14 @@ window.IncidentMap = {
                     const latitude = Number(container.querySelector('#incident-lat').value);
                     const longitude = Number(container.querySelector('#incident-lng').value);
                     const note = container.querySelector('#incident-gps-note').value.trim();
-                    const response = await Store.apiFetch(`/api/reports/${report.id}`, { method: 'PUT', body: JSON.stringify({ latitude, longitude, note }) });
+                    if (!note) throw new Error('Enter a reason for the GPS correction.');
+                    const response = await Store.apiFetch(kind === 'hazards' ? url + '/location' : url, { method: 'PUT', body: JSON.stringify({ latitude, longitude, note }) });
                     if (!container.isConnected || this.session !== session) return;
                     if (!response.success) throw new Error(response.message);
                     session.dirty = false;
                     if (session.marker) session.marker.setPosition({ lat: latitude, lng: longitude });
                     container.querySelector('#incident-map-status').textContent = 'GPS correction saved and audited.';
-                    if (window.DetailModal) DetailModal._loadHistory(report.id);
+                    if (window.DetailModal) DetailModal._loadHistory(report.id, kind);
                 } catch (error) { if (container.isConnected && this.session === session) container.querySelector('#incident-map-status').textContent = error.message; }
                 finally { button.disabled = false; }
             };
@@ -60,7 +63,7 @@ window.IncidentMap = {
             session.map = new google.maps.Map(container.querySelector('#incident-google-map'), { center: position || { lat: 14.5, lng: 121.2 }, zoom: position ? 16 : 10 });
             const ensureMarker = p => {
                 if (session.marker) { session.marker.setPosition(p); return; }
-                session.marker = new google.maps.Marker({ map: session.map, position: p, draggable: admin, title: 'Report location' });
+                session.marker = new google.maps.Marker({ map: session.map, position: p, draggable: admin, title: kind === 'hazards' ? 'Hazard location' : 'Report location' });
                 if (admin) {
                     session.marker.addListener('dragstart', () => { session.dragging = true; });
                     session.marker.addListener('dragend', event => {
@@ -73,7 +76,7 @@ window.IncidentMap = {
             const refresh = async () => {
                 if (!container.isConnected || this.session !== session) { if (this.session === session) this.dispose(); return; }
                 try {
-                    const [latest, advisories] = await Promise.all([Store.apiFetch(`/api/reports/${report.id}`), Store.apiFetch('/api/operations/advisories')]);
+                    const [latest, advisories] = await Promise.all([Store.apiFetch(url), Store.apiFetch('/api/operations/advisories')]);
                     if (!container.isConnected || this.session !== session) return;
                     if (!session.dirty && !session.dragging && latest.success && latest.data.latitude != null && latest.data.longitude != null) {
                         const p = { lat: Number(latest.data.latitude), lng: Number(latest.data.longitude) };

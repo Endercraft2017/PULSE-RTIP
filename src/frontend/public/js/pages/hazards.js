@@ -24,31 +24,14 @@ const HazardsPage = {
     _fromCache: false,
     _cachedAt: null,
 
-    // Approximate (x%, y%) positions of known Morong barangays on
-    // morong-map.png (a static satellite crop of the municipality).
-    // Values are eyeballed from the reference image and good enough
-    // to place pins near the right area without a real geocoder.
-    _barangayMap: {
-        'morong':        { x: 32, y: 45 },
-        'lagundi':       { x: 48, y: 38 },
-        'san pedro':     { x: 28, y: 58 },
-        'san guillermo': { x: 42, y: 30 },
-        'san jose':      { x: 58, y: 42 },
-        'san juan':      { x: 52, y: 52 },
-        'cailero':       { x: 55, y: 28 },
-        'calero':        { x: 55, y: 28 },
-        'caingin':       { x: 22, y: 38 },
-        'bombongan':     { x: 38, y: 48 },
-        'maybancal':     { x: 62, y: 35 },
-    },
-
     /* --------------------------------------------------------
        2. Render
        -------------------------------------------------------- */
     render() {
+        if (window.HazardMap) HazardMap.dispose();
         setTimeout(() => this.loadData(), 0);
 
-        const toggleLabel = this._view === 'map' ? 'Map' : 'List';
+        const toggleLabel = this._view === 'map' ? 'List' : 'Map';
         const viewContent = this._view === 'map'
             ? `<div id="hazards-map-view"><div class="loading-state">Loading map...</div></div>`
             : `<div id="hazards-list"><div class="loading-state">Loading hazards...</div></div>`;
@@ -176,66 +159,8 @@ const HazardsPage = {
         const container = document.getElementById('hazards-map-view');
         if (!container) return;
 
-        const severityClass = {
-            high: 'hazard-map__marker--high',
-            medium: 'hazard-map__marker--medium',
-            low: 'hazard-map__marker--low'
-        };
-
-        // Build markers for hazards whose location matches a known barangay
-        const markers = hazards.map(h => {
-            const pos = this.lookupPosition(h.location);
-            if (!pos) return null;
-            const cls = severityClass[h.severity] || 'hazard-map__marker--medium';
-            return `
-                <button type="button"
-                        class="hazard-map__marker ${cls}"
-                        style="left: ${pos.x}%; top: ${pos.y}%;"
-                        title="${this.escape(h.title)} — ${this.escape(h.location)}"
-                        onclick="HazardsPage.openDetail(${h.id})">
-                    <span class="hazard-map__marker-dot"></span>
-                </button>
-            `;
-        }).filter(Boolean).join('');
-
-        // Hazards that couldn't be placed on the map fall back to a chip list
-        const unplaced = hazards.filter(h => !this.lookupPosition(h.location));
-
-        container.innerHTML = `
-            ${this._cacheBanner()}
-            <div class="hazard-map">
-                <div class="hazard-map__image">
-                    <img src="public/assets/images/morong-map.png" alt="Morong, Rizal satellite map">
-                    ${markers}
-                </div>
-                <div class="hazard-map__legend">
-                    <span class="hazard-map__legend-item"><span class="hazard-map__dot hazard-map__dot--high"></span>High</span>
-                    <span class="hazard-map__legend-item"><span class="hazard-map__dot hazard-map__dot--medium"></span>Medium</span>
-                    <span class="hazard-map__legend-item"><span class="hazard-map__dot hazard-map__dot--low"></span>Low</span>
-                    <span class="hazard-map__count">${hazards.length} active</span>
-                </div>
-                ${unplaced.length > 0 ? `
-                    <div class="hazard-map__unplaced">
-                        <div class="hazard-map__unplaced-label">Other active hazards</div>
-                        ${unplaced.map(h => `
-                            <button type="button" class="hazard-map__chip" onclick="HazardsPage.openDetail(${h.id})">
-                                ${this.escape(h.title)} — ${this.escape(h.location || 'Location unknown')}
-                            </button>
-                        `).join('')}
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    },
-
-    lookupPosition(location) {
-        if (!location) return null;
-        const key = String(location).toLowerCase();
-        // Match the first barangay name that appears in the location string
-        for (const name in this._barangayMap) {
-            if (key.includes(name)) return this._barangayMap[name];
-        }
-        return null;
+        if (HazardMap.session?.container === container) return;
+        HazardMap.mount(container, hazards);
     },
 
     /* --------------------------------------------------------

@@ -14,7 +14,7 @@
  */
 
 const { Router } = require('express');
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
 const { authenticate, requireAdmin, requireAgency } = require('../middleware/auth');
 const hazardController = require('../controllers/hazardController');
@@ -54,6 +54,14 @@ router.get('/', authenticate, hazardController.getHazards);
 // so Express matches the literal "/bin" segment instead of treating it as
 // a numeric hazard id.
 router.get('/bin', authenticate, requireAdmin, hazardController.getBinHazards);
+
+router.get('/:id', authenticate, validate([param('id').isInt({ min: 1 })]), hazardController.getHazard);
+router.put('/:id/location', authenticate, requireAdmin, requireAgency, validate([
+  param('id').isInt({ min: 1 }),
+  body('latitude').isFloat({ min: -90, max: 90 }),
+  body('longitude').isFloat({ min: -180, max: 180 }),
+  body('note').isString().trim().isLength({ min: 1, max: 5000 }),
+]), hazardController.updateHazard);
 
 router.post('/', authenticate, requireAdmin, requireAgency, validate(createRules), hazardController.createHazard);
 router.put('/:id', authenticate, requireAdmin, requireAgency, validate(createRules), hazardController.updateHazard);

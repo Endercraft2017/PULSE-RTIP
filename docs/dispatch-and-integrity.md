@@ -74,8 +74,9 @@ Open **Dashboard → Directories, calls & road advisories**:
   Free-text historical report addresses are preserved. Online forms refresh
   the directory; offline use retains the last successful directory cache.
 - **Emergency contacts:** add or correct hotline numbers. The citizen Emergency
-  page reads this directory, with static emergency contacts as an offline
-  fallback. Call 911 remains available.
+  page keeps its original MDRRMO hotline card, category tabs, carrier badges
+  and contact-card layout. Managed numbers update their matching categories;
+  unconfigured categories retain the original fallback contacts. Call 911 remains available.
 - **Calls:** create a call record, add missing contact details, edit notes and
   move between received, dispatched and closed. Call details are admin-only.
 - **Advisories:** publish a coordinate, label and road status (not_passable,
@@ -112,6 +113,13 @@ This is a public browser key, not a private server credential. Permit access
 to `maps.googleapis.com` and the Google Maps asset hosts (including
 `maps.gstatic.com`) in the deployment's egress/browser policy as required.
 Never place service-account credentials in this variable.
+
+The main Hazard Zones Map view now uses Google Maps rather than the static
+Morong image. Admins can drag a hazard pin, provide a correction reason and
+save or cancel the repositioning inline. Citizens can pan/view the map but
+cannot edit shared hazard locations. Hazard details also include an editable
+map for admins. Without a Google Maps key, the main view explains the missing
+configuration and links to Details for manual coordinate entry.
 
 Report details include a map. Admins can drag a report marker or enter
 coordinates, provide a correction reason and save. The API enforces admin

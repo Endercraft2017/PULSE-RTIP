@@ -130,6 +130,13 @@ const EmergencyPage = {
      * 2. Render
      * -------------------------------------------------------- */
     render() {
+        if (!this._defaultHotlines) {
+            this._defaultHotlines = structuredClone(this.mdrrmoHotlines);
+            this._defaultCategories = structuredClone(this.categories);
+        }
+        this.mdrrmoHotlines = structuredClone(this._defaultHotlines);
+        this.categories = structuredClone(this._defaultCategories);
+        this.searchTerm = '';
         // Wire up slide-to-call once the HTML is attached. setTimeout
         // defers until after Router inserts the returned string.
         setTimeout(() => { this.initSlideToCall(); this.loadManagedContacts(); }, 0);
@@ -144,8 +151,7 @@ const EmergencyPage = {
                            oninput="EmergencyPage.handleSearch(this.value)">
                 </div>
 
-                <div id="emergency-managed-contacts"></div>
-                <div id="emergency-fallback-contacts">${this.renderMDRRMOCard()}
+                <div id="emergency-mdrrmo">${this.renderMDRRMOCard()}</div>
 
                 <div class="emergency-tabs" id="emergency-tabs">
                     ${this.renderTabs()}
@@ -155,7 +161,6 @@ const EmergencyPage = {
                     ${this.renderCategoryDetails()}
                 </div>
 
-                </div>
                 <div class="emergency-banner">
                     <div class="emergency-banner__text">
                         <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
@@ -182,21 +187,33 @@ const EmergencyPage = {
     },
 
     async loadManagedContacts() {
-        this.managedContacts = null;
+        const root = document.querySelector('.emergency-page');
         try {
             const response = await Store.apiFetch('/api/hotlines');
-            if (!response.success || !document.getElementById('emergency-managed-contacts')) return;
-            this.managedContacts = response.data;
-            document.getElementById('emergency-fallback-contacts').hidden = true;
-            this.renderManagedContacts();
-        } catch (_) { /* Static emergency contacts remain available offline. */ }
-    },
-    renderManagedContacts() {
-        const root = document.getElementById('emergency-managed-contacts');
-        if (!root) return;
-        const term = this.searchTerm.toLowerCase();
-        const rows = this.managedContacts.filter(h => [h.label,h.number,h.category].join(' ').toLowerCase().includes(term));
-        root.innerHTML = '<h2>Emergency contacts</h2>' + (rows.length ? rows.map(h => `<div class="card"><h3>${DetailModal._esc(h.label)}</h3><p>${DetailModal._esc(h.category || '')}</p><a class="btn btn--outline" href="tel:${String(h.number).replace(/[^+\d]/g,'')}">${DetailModal._esc(h.number)}</a></div>`).join('') : '<p>No contacts listed. For emergencies, call 911.</p>');
+            if (!response.success || !root?.isConnected) return;
+            const rows = Array.isArray(response.data) ? response.data : [];
+            // Preserve the familiar cards and category tabs. A configured group
+            // replaces that group's fallback numbers; absent groups stay usable.
+            const groups = new Map();
+            for (const row of rows) {
+                const text = String(row.category || '').toLowerCase();
+                const key = /police|pnp|ppo/.test(text) ? 'police'
+                    : /hospital|health|medical/.test(text) ? 'hospitals'
+                    : /fire|bfp/.test(text) ? 'fire'
+                    : /red.?cross/.test(text) ? 'redcross' : 'mdrrmo';
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(row);
+            }
+            for (const [key, contacts] of groups) {
+                if (key === 'mdrrmo') this.mdrrmoHotlines = contacts;
+                else this.categories[key].contacts = contacts.map(row => ({
+                    title: row.label, subtitle: row.category || '',
+                    numbers: [{ number: row.number }],
+                }));
+            }
+            root.querySelector('#emergency-mdrrmo').innerHTML = this.renderMDRRMOCard();
+            root.querySelector('#emergency-details').innerHTML = this.renderCategoryDetails();
+        } catch (_) { /* Keep the original emergency cards available offline. */ }
     },
 
     /* --------------------------------------------------------
@@ -282,9 +299,9 @@ const EmergencyPage = {
                     <div class="hotlines-section__subtitle">Morong Disaster Risk Reduction and Management Office</div>
                     ${this.mdrrmoHotlines.map(h => `
                         <div class="hotline-item">
-                            <span class="hotline-item__label">${h.label}:</span>
+                            <span class="hotline-item__label">${DetailModal._esc(h.label)}:</span>
                             <a href="tel:${this.cleanPhone(h.number)}" class="hotline-item__number">
-                                ${h.number}
+                                ${DetailModal._esc(h.number)}
                                 ${this.carrierBadge(h.number)}
                                 <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-left:4px;vertical-align:middle;">
                                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -355,19 +372,19 @@ const EmergencyPage = {
             </div>
             ${contacts.map(c => `
                 <div class="contact-card">
-                    <div class="contact-card__title">${c.title}</div>
-                    <div class="contact-card__subtitle">${c.subtitle || ''}</div>
+                    <div class="contact-card__title">${DetailModal._esc(c.title)}</div>
+                    <div class="contact-card__subtitle">${DetailModal._esc(c.subtitle || '')}</div>
                     <div class="contact-card__numbers">
                         ${c.numbers.map(n => `
                             <a href="tel:${this.cleanPhone(n.number)}" class="contact-number">
                                 <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                                ${n.label ? `<span class="contact-number__tag">${n.label}:</span>` : ''}
-                                <span class="contact-number__value">${n.number}</span>
+                                ${n.label ? `<span class="contact-number__tag">${DetailModal._esc(n.label)}:</span>` : ''}
+                                <span class="contact-number__value">${DetailModal._esc(n.number)}</span>
                                 ${this.carrierBadge(n.number)}
                             </a>
                         `).join('')}
                     </div>
-                    ${c.note ? `<div class="contact-card__note">${c.note}</div>` : ''}
+                    ${c.note ? `<div class="contact-card__note">${DetailModal._esc(c.note)}</div>` : ''}
                 </div>
             `).join('')}
         `;
@@ -387,7 +404,6 @@ const EmergencyPage = {
      * 6. Search handling
      * -------------------------------------------------------- */
     handleSearch(value) {
-        if (this.managedContacts) { this.searchTerm = value.trim(); this.renderManagedContacts(); return; }
         this.searchTerm = value.trim();
         document.getElementById('emergency-details').innerHTML = this.renderCategoryDetails();
     },

@@ -290,6 +290,10 @@ const DetailModal = {
         this._historyKind = 'hazards'; this._historyId = data.id;
         this._loadHistory(data.id, 'hazards');
         this._attachNoteForm('hazards', data.id);
+        const map = document.createElement('section');
+        map.className = 'detail-modal__section';
+        document.querySelector('.detail-modal__body').appendChild(map);
+        IncidentMap.mount(map, data, { kind: 'hazards' });
     },
 
     /**

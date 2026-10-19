@@ -87,6 +87,7 @@ const Router = {
         const authRoots = ['login', 'signup', 'forgot-password', 'login-offline'];
         if (authRoots.includes(path)) this._stack = [];
 
+        if (window.HazardMap) HazardMap.dispose();
         if (window.DetailModal) DetailModal.close();
         if (window.refreshBarangays) window.refreshBarangays();
         this.currentRoute = path;

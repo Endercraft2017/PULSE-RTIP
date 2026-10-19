@@ -215,3 +215,18 @@ test('blocked SMS batches do not starve later push batches', async () => {
     fcm.isConfigured = originalConfigured; fcm.send = originalSend;
   }
 });
+
+test('hazard pin corrections require admin permission, a reason and approved GPS', async () => {
+  const url = `/hazards/${hazardId}/location`;
+  const correction = { latitude: 14.6, longitude: 120.6, note: 'Main map pin correction' };
+  assert.equal((await api('PUT', url, correction, 'citizen')).status, 403);
+  assert.equal((await api('PUT', url, { latitude: 14.6, longitude: 120.6 })).status, 400);
+  const response = await api('PUT', url, correction);
+  assert.equal(response.status, 200, JSON.stringify(response));
+  assert.equal(Number(response.data.latitude), 14.6);
+  const event = (await api('GET', `/operations/hazards/${hazardId}/events`)).data.at(-1);
+  assert.equal(event.note, correction.note);
+  assert.equal(event.actor_department, 'Health Unit');
+  assert.equal((await api('PUT', url, { ...correction, longitude: 121.6 })).status, 422);
+  assert.equal(Number((await api('GET', `/hazards/${hazardId}`)).data.longitude), 120.6);
+});

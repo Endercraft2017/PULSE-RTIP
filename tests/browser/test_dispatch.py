@@ -231,8 +231,11 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         citizen=self.context.request.post(self.base+'/api/auth/login',data={'email':'citizen@browser.test','password':PASSWORD}).json()
         self.page.evaluate('(token)=>localStorage.setItem("pulse_token",token)',citizen['data']['token'])
         self.page.reload(); self.page.wait_for_function("() => Store.get('user')?.role === 'citizen'"); self.page.evaluate("Router.navigate('emergency')")
-        expect(self.page.locator('#emergency-managed-contacts')).to_contain_text('Dispatch "A" <safe>')
-        expect(self.page.locator('#emergency-managed-contacts a').filter(has_text='09170000009')).to_have_attribute('href','tel:09170000009')
+        expect(self.page.locator('#emergency-mdrrmo')).to_contain_text('Dispatch "A" <safe>')
+        expect(self.page.locator('#emergency-tabs')).to_be_visible()
+        expect(self.page.locator('.hotlines-section__title')).to_have_text('MDRRMO Hotlines')
+        expect(self.page.locator('#slide-to-call')).to_have_attribute('data-tel','911')
+        expect(self.page.locator('#emergency-mdrrmo a').filter(has_text='09170000009')).to_have_attribute('href','tel:09170000009')
 
     def test_call_missing_phone_edit_and_validation(self):
         self.login();self.operations('calls')
@@ -436,6 +439,92 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.page.locator('#incident-'+str(self.report_id)).get_by_role('button',name='Details',exact=True).click()
         expect(self.page.locator('#detail-modal-history-body')).to_contain_text('08:30:00.123')
         self.assertEqual(self.page.evaluate('Intl.DateTimeFormat().resolvedOptions().timeZone'),'America/New_York')
+
+
+    def main_hazard_map(self, role='admin'):
+        self.login(role=role)
+        self.page.evaluate(MAP_MOCK)
+        self.page.evaluate("Router.navigate('hazards')")
+        self.page.locator('.hazards-toggle').click()
+        self.page.wait_for_function('() => !!HazardMap.session?.map')
+
+    def test_main_hazard_map_admin_drag_save_and_polling(self):
+        self.main_hazard_map()
+        self.page.evaluate('(id)=>{window.hazardPin=HazardMap.session.markers.get(id).marker;hazardPin.events.dragstart();hazardPin.events.dragend({latLng:{lat:()=>14.6,lng:()=>120.6}});}',self.hazard_id)
+        expect(self.page.locator('.hazard-pin-form [name=latitude]')).to_have_value('14.6')
+        self.page.wait_for_timeout(5200)
+        self.assertTrue(self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker===hazardPin',self.hazard_id))
+        expect(self.page.locator('.hazard-pin-form [name=latitude]')).to_have_value('14.6')
+        self.page.locator('.hazard-pin-form [name=note]').fill('Reposition main hazard map pin')
+        self.page.get_by_role('button',name='Save pin location',exact=True).click()
+        expect(self.page.locator('.hazard-map-status')).to_contain_text('saved and audited')
+        with sqlite3.connect(self.database) as db:
+            location=db.execute('SELECT latitude,longitude FROM hazard_alerts WHERE id=?',[self.hazard_id]).fetchone()
+            event=db.execute('SELECT note,actor_department FROM hazard_events WHERE hazard_id=? ORDER BY id DESC LIMIT 1',[self.hazard_id]).fetchone()
+        self.assertEqual(location,(14.6,120.6))
+        self.assertEqual(event,('Reposition main hazard map pin','MDRRMO'))
+
+    def test_main_hazard_map_citizen_is_read_only_and_disposes(self):
+        self.main_hazard_map(role='citizen')
+        self.assertTrue(self.page.evaluate('Array.from(HazardMap.session.markers.values()).every(e=>!e.marker.draggable && !e.marker.events.dragend)'))
+        expect(self.page.locator('.hazard-pin-form')).to_have_count(0)
+        self.page.evaluate("Router.navigate('my-reports')")
+        self.assertTrue(self.page.evaluate('HazardMap.session===null'))
+
+    def test_main_hazard_map_blocked_save_keeps_pin_editor(self):
+        self.main_hazard_map()
+        self.boundary.unlink()
+        self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker.events.dragend({latLng:{lat:()=>14.6,lng:()=>120.6}})',self.hazard_id)
+        self.page.locator('.hazard-pin-form [name=note]').fill('Blocked correction')
+        self.page.get_by_role('button',name='Save pin location',exact=True).click()
+        expect(self.page.locator('.hazard-pin-error')).to_contain_text('configuration')
+        expect(self.page.locator('.hazard-pin-form')).to_be_visible()
+        self.page.get_by_role('button',name='Cancel repositioning',exact=True).click()
+        self.assertEqual(self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker.position.lat',self.hazard_id),14.5)
+
+    def test_hazard_details_marker_can_be_repositioned(self):
+        self.login();self.page.evaluate(MAP_MOCK)
+        self.page.locator('button[onclick*="setMainTab(\'hazards\')"]').click()
+        self.page.locator('#dashboard-content .incident-card').filter(has_text=self._testMethodName).get_by_role('button',name='Details',exact=True).click()
+        self.page.wait_for_function('() => !!IncidentMap.session?.marker')
+        self.page.evaluate('IncidentMap.session.marker.events.dragend({latLng:{lat:()=>14.7,lng:()=>120.7}})')
+        self.page.locator('#incident-gps-note').fill('Hazard detail pin correction')
+        self.page.get_by_role('button',name='Save coordinates',exact=True).click()
+        expect(self.page.locator('#incident-map-status')).to_contain_text('saved and audited')
+        with sqlite3.connect(self.database) as db:
+            self.assertEqual(db.execute('SELECT latitude FROM hazard_alerts WHERE id=?',[self.hazard_id]).fetchone()[0],14.7)
+
+    def test_emergency_preserves_category_cards_for_managed_numbers(self):
+        with sqlite3.connect(self.database) as db:
+            db.execute("INSERT INTO emergency_hotlines(category,label,number) VALUES ('Police','Updated police contact','09981234567')")
+        self.login(role='citizen');self.page.evaluate("Router.navigate('emergency')")
+        expect(self.page.locator('#emergency-tabs')).to_be_visible()
+        expect(self.page.locator('#emergency-mdrrmo .hotline-item')).not_to_have_count(0)
+        expect(self.page.locator('#emergency-details')).to_contain_text('Updated police contact')
+        expect(self.page.locator('#emergency-details .contact-number')).to_have_attribute('href','tel:09981234567')
+        expect(self.page.locator('#emergency-details .carrier-badge')).to_have_count(1)
+        self.page.screenshot(path=str(ARTIFACTS/'emergency-restored.png'),full_page=True)
+        self.page.locator('.emergency-tab').filter(has_text='Hospitals').click()
+        expect(self.page.locator('#emergency-details')).to_contain_text('Hospital')
+
+
+    def test_main_hazard_map_missing_key_shows_setup_error(self):
+        self.login()
+        self.page.evaluate("Router.navigate('hazards')")
+        self.page.locator('.hazards-toggle').click()
+        expect(self.page.locator('.hazard-map-status')).to_contain_text('configured Google Maps browser key')
+        expect(self.page.locator('.hazard-live-map')).not_to_be_visible()
+        expect(self.page.locator('#hazards-map-view img')).to_have_count(0)
+        expect(self.page.locator('.hazard-map-unplaced button')).not_to_have_count(0)
+
+    def test_emergency_offline_retains_original_cards(self):
+        self.login(role='citizen')
+        self.page.route('**/api/hotlines',lambda route: route.abort())
+        self.page.evaluate("Router.navigate('emergency')")
+        expect(self.page.locator('#emergency-mdrrmo')).to_contain_text('MDRRMO Hotlines')
+        expect(self.page.locator('#emergency-tabs .emergency-tab')).to_have_count(4)
+        expect(self.page.locator('#emergency-details .contact-card')).not_to_have_count(0)
+        expect(self.page.locator('#slide-to-call')).to_have_attribute('data-tel','911')
 
 
 
