@@ -278,20 +278,25 @@ const MyReportsPage = {
     },
 
     async cancelReport(id) {
-        if (!confirm('Cancel this report? You cannot undo this.')) return;
-        try {
-            const res = await Store.apiFetch('/api/reports/' + id + '/status', {
-                method: 'PUT',
-                body: JSON.stringify({ status: 'cancelled' }),
-            });
-            if (res.success) {
-                this.loadData();
-            } else {
-                alert(res.message || 'Failed to cancel report.');
-            }
-        } catch (err) {
-            alert('Network error. Please try again.');
-        }
+        document.getElementById('cancel-report-modal')?.remove();
+        const overlay=document.createElement('div');overlay.id='cancel-report-modal';overlay.className='modal-overlay modal-overlay--centered active';
+        overlay.innerHTML=`<section class="modal" role="dialog" aria-modal="true" aria-labelledby="cancel-report-title"><h2 id="cancel-report-title">Cancel report</h2><form><label for="cancel-report-reason">Cancellation reason (required)</label><textarea class="form-input" id="cancel-report-reason" required maxlength="5000"></textarea><p role="alert"></p><button class="btn btn--primary" type="submit">Confirm cancellation</button><button class="btn btn--outline" type="button">Keep report</button></form></section>`;
+        document.body.appendChild(overlay);
+        const form=overlay.querySelector('form');
+        form.querySelector('[type=button]').onclick=()=>overlay.remove();
+        form.onsubmit=async event=>{
+            event.preventDefault();const note=form.querySelector('textarea').value.trim();
+            if(!note){form.querySelector('[role=alert]').textContent='Enter a cancellation reason.';return;}
+            const button=form.querySelector('[type=submit]');button.disabled=true;
+            try {
+                const res=await Store.apiFetch('/api/reports/'+id+'/status',{method:'PUT',body:JSON.stringify({status:'cancelled',note})});
+                if(!overlay.isConnected) return;
+                if(!res.success) throw new Error(res.message||'Unable to cancel report.');
+                overlay.remove();this.loadData();
+            }catch(error){if(overlay.isConnected)form.querySelector('[role=alert]').textContent=error.message;}
+            finally{button.disabled=false;}
+        };
+        form.querySelector('textarea').focus();
     },
 
     /* --------------------------------------------------------

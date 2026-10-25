@@ -147,8 +147,8 @@ async function update(id, data) {
  * @returns {Promise<void>}
  */
 async function remove(id) {
-  await db.query(
-    'UPDATE hazard_alerts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?',
+  return db.query(
+    'UPDATE hazard_alerts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
     [id]
   );
 }
@@ -161,8 +161,8 @@ async function remove(id) {
  * Restores a soft-deleted hazard by clearing deleted_at.
  */
 async function restore(id) {
-  await db.query(
-    'UPDATE hazard_alerts SET deleted_at = NULL WHERE id = ?',
+  return db.query(
+    'UPDATE hazard_alerts SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL',
     [id]
   );
 }

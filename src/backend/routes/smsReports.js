@@ -10,13 +10,13 @@
  */
 
 const { Router } = require('express');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireAgency } = require('../middleware/auth');
 const smsReportController = require('../controllers/smsReportController');
 
 const router = Router();
 
 router.get('/', authenticate, requireAdmin, smsReportController.list);
-router.post('/:id/convert', authenticate, requireAdmin, smsReportController.convert);
+router.post('/:id/convert', authenticate, requireAdmin, requireAgency, smsReportController.convert);
 router.post('/:id/dismiss', authenticate, requireAdmin, smsReportController.dismiss);
 
 module.exports = router;

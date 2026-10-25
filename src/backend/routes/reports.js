@@ -48,6 +48,7 @@ const statusRules = [
 
 const updateRules = [
   param('id').isInt().withMessage('Invalid report ID'),
+  body('note').optional().isString().trim().isLength({max:5000}),
   body('title').optional().trim().notEmpty().withMessage('Title cannot be empty'),
   body('type').optional().isIn(VALID_TYPES).withMessage(`Type must be one of: ${VALID_TYPES.join(', ')}`),
   body('description').optional({ nullable: true }).trim(),
@@ -80,6 +81,21 @@ router.get('/bin', authenticate, requireAdmin, reportController.getBinReports);
 router.get('/:id', authenticate, reportController.getReport);
 router.post('/:id/events', authenticate, requireAdmin, requireAgency, validate([param('id').isInt({ min: 1 }), body('note').isString().trim().isLength({ min: 1, max: 5000 })]), reportController.addReportNote);
 router.get('/:id/events', authenticate, reportController.getReportEvents);
+router.put('/:id/priority', authenticate, requireAdmin, requireAgency, validate([param('id').isInt({min:1}),body('priority').isIn(['low','medium','high','critical']),body('note').isString().trim().isLength({min:1,max:5000})]), async (req,res,next)=>{
+  const db=require('../config/database');
+  try {
+    const report=await db.transaction(async()=>{
+      const old=(await db.query('SELECT * FROM reports WHERE id=?',[req.params.id]))[0];
+      if(!old || old.deleted_at) throw Object.assign(new Error('Active report not found.'),{statusCode:404});
+      if(old.priority===req.body.priority) throw Object.assign(new Error('This priority is already saved.'),{statusCode:409});
+      const changed=await db.query('UPDATE reports SET priority=?,updated_at=? WHERE id=? AND priority=? AND deleted_at IS NULL',[req.body.priority,new Date().toISOString(),old.id,old.priority]);
+      if(!changed.affectedRows) throw Object.assign(new Error('Report changed. Refresh and retry.'),{statusCode:409});
+      await require('../models/ReportEvent').create({report_id:old.id,actor_user_id:req.user.id,actor_department:req.user.department,action:'priority_changed',note:`Priority ${old.priority} → ${req.body.priority}: ${req.body.note}`});
+      await require('../middleware/auditLog').recordAction(req.user.id,'report_priority_changed','report',old.id,{from:old.priority,to:req.body.priority,note:req.body.note});
+      return require('../models/Report').findById(old.id);
+    });res.json({success:true,data:report});
+  }catch(e){next(e);}
+});
 router.put('/:id/status', authenticate, requireAgency, validate(statusRules), reportController.updateReportStatus);
 router.put('/:id', authenticate, requireAgency, validate(updateRules), reportController.updateReport);
 router.put('/:id/restore', authenticate, requireAdmin, requireAgency, reportController.restoreReport);

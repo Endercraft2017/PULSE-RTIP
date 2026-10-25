@@ -189,7 +189,7 @@ async function createHazard(req, res, next) {
       await db.query('INSERT INTO hazard_events (hazard_id, actor_user_id, actor_department, action, note, created_at) VALUES (?, ?, ?, ?, ?, ?)',
         [hazard.id, req.user.id, req.user.department || null, 'created', description || null, new Date().toISOString()]);
       await broadcast.enqueue({ hazard_id: hazard.id, title: hazard.title, message: buildAlertMessage(hazard),
-        audience_type, audience_barangays, critical: hazard.severity === 'high' });
+        audience_type, audience_barangays, critical: ['high','critical'].includes(hazard.severity) });
       return hazard;
     });
     broadcast.dispatch().catch(error => console.error('[broadcast]', error.message));
@@ -235,6 +235,9 @@ async function updateHazard(req, res, next) {
     }
 
     const final = await db.transaction(async () => {
+      await db.lockRow('hazard_alerts',id);
+      const current=await Hazard.findById(id);
+      if(current.deleted_at)throw Object.assign(new Error('Restore the archived hazard first.'),{statusCode:409});
       const updated = await Hazard.update(id, {
         title,
         severity,
@@ -273,10 +276,10 @@ async function updateHazard(req, res, next) {
       }
 
       const final = await Hazard.findById(id);
-      await logAction(req.user.id, 'hazard_updated', 'hazard', id, { before: existing, after: final });
+      await logAction(req.user.id, 'hazard_updated', 'hazard', id, { before: current, after: final });
 
       await db.query('INSERT INTO hazard_events (hazard_id, actor_user_id, actor_department, action, note, created_at) VALUES (?, ?, ?, ?, ?, ?)', [id, req.user.id, req.user.department || null, 'updated', req.body.note || null, new Date().toISOString()]);
-      if (final.severity === 'high' && existing.severity !== 'high') await broadcast.enqueue({ hazard_id: id, title: final.title, message: buildAlertMessage(final), critical: true });
+      if (['high','critical'].includes(final.severity) && !['high','critical'].includes(current.severity)) await broadcast.enqueue({ hazard_id: id, title: final.title, message: buildAlertMessage(final), critical: true });
       return final;
     });
 
@@ -306,7 +309,8 @@ async function deleteHazard(req, res, next) {
     }
 
     await db.transaction(async () => {
-      await Hazard.remove(id);
+      const archiveChange=await Hazard.remove(id);
+      if(!archiveChange.affectedRows)throw Object.assign(new Error('Archive state changed. Refresh and retry.'),{statusCode:409});
 
       await logAction(req.user.id, 'hazard_binned', 'hazard', id, {
         title: existing.title,
@@ -339,7 +343,8 @@ async function restoreHazard(req, res, next) {
     }
 
     await db.transaction(async () => {
-      await Hazard.restore(id);
+      const archiveChange=await Hazard.restore(id);
+      if(!archiveChange.affectedRows)throw Object.assign(new Error('Archive state changed. Refresh and retry.'),{statusCode:409});
 
       await logAction(req.user.id, 'hazard_restored', 'hazard', id, {
         title: existing.title,

@@ -134,7 +134,7 @@ async function findTokensForAudience({ audience_type = 'all', audience_barangays
       `SELECT pt.token, pt.user_id, pt.barangay
          FROM push_tokens pt
     LEFT JOIN users u ON u.id = pt.user_id
-        WHERE (pt.user_id IS NULL OR u.deleted_at IS NULL)`
+        WHERE (u.deleted_at IS NULL AND u.account_status='active' AND pt.user_id IS NOT NULL)`
     );
     return rows || [];
   }
@@ -146,7 +146,7 @@ async function findTokensForAudience({ audience_type = 'all', audience_barangays
     `SELECT pt.token, pt.user_id, pt.barangay
        FROM push_tokens pt
   LEFT JOIN users u ON u.id = pt.user_id
-      WHERE (u.deleted_at IS NULL OR pt.user_id IS NULL)
+      WHERE (u.deleted_at IS NULL AND u.account_status='active' AND pt.user_id IS NOT NULL)
         AND (
               pt.barangay IN (${placeholders})
            OR u.barangay IN (${placeholders})
@@ -174,7 +174,7 @@ async function findByUserId(user_id) {
        FROM push_tokens pt
   LEFT JOIN users u ON u.id = pt.user_id
       WHERE pt.user_id = ?
-        AND (u.deleted_at IS NULL)`,
+        AND (u.deleted_at IS NULL AND u.account_status='active')`,
     [user_id]
   );
   return rows || [];

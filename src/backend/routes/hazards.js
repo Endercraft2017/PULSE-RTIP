@@ -27,7 +27,7 @@ const router = Router();
 
 const createRules = [
   body('title').trim().notEmpty().withMessage('Title is required'),
-  body('severity').isIn(['high', 'medium', 'low']).withMessage('Severity must be high, medium, or low'),
+  body('severity').isIn(['critical', 'high', 'medium', 'low']).withMessage('Severity must be critical, high, medium, or low'),
   body('location').optional({ nullable: true, checkFalsy: true }).trim(),
   body('description').optional({ nullable: true, checkFalsy: true }).trim(),
   body('latitude').optional({ nullable: true, checkFalsy: true })

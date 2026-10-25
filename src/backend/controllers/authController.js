@@ -94,7 +94,7 @@ function handleIdUpload(req, res, next) {
  */
 function generateToken(user) {
   return jwt.sign(
-    { sub: user.id, role: user.role },
+    { sub: user.id, role: user.role, version: user.auth_version || 0 },
     config.jwt.secret,
     { expiresIn: config.jwt.expiresIn }
   );
@@ -148,6 +148,8 @@ async function login(req, res, next) {
         message: 'Incorrect email or password. Check for typos, or tap "Forgot password?" to reset.',
       });
     }
+
+    if (user.account_status && user.account_status !== 'active') return res.status(403).json({success:false,code:'ACCOUNT_RESTRICTED',message:'This account is ' + user.account_status + '. Contact MDRRMO support.'});
 
     // Every new account — citizen or admin — is now queued for MDRRMO
     // review before first login. Block until the status is approved (or null,

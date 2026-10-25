@@ -206,7 +206,13 @@ function getSQLiteDb() {
  * 6. Exports
  * -------------------------------------------------------------------------- */
 
+async function lockRow(table,id) {
+  if(!['reports','hazard_alerts','barangays','emergency_hotlines','emergency_calls','road_advisories','users'].includes(table))throw new Error('Invalid row lock');
+  return query(`SELECT id FROM ${table} WHERE id=?${config.appMode==='production'?' FOR UPDATE':''}`,[id]);
+}
+
 module.exports = {
+  lockRow,
   transaction,
   query,
   initialize,

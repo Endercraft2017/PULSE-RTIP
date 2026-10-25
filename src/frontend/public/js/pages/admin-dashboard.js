@@ -92,10 +92,10 @@ const AdminDashboardPage = {
                         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                         SMS
                     </button>
-                    <button type="button" class="dash-main-tab ${this.activeMainTab === 'bin' ? 'active' : ''}"
+                    <button type="button" class="dash-main-tab dash-main-tab--archive ${this.activeMainTab === 'bin' ? 'active' : ''}"
                             onclick="AdminDashboardPage.setMainTab('bin')">
                         <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>
-                        Bin
+                        Archive
                     </button>
                 </div>
 
@@ -324,7 +324,7 @@ const AdminDashboardPage = {
         const incidentAttr = this._escAttr(JSON.stringify(incident));
 
         return `
-            <div class="incident-card incident-card--clickable" id="incident-${incident.id}"
+            <div class="incident-card incident-card--clickable ${incident.priority==='critical'?'incident-card--critical':''}" id="incident-${incident.id}"
                  onclick="DetailModal.showIncident(${incidentAttr})">
                 <div class="incident-card__header">
                     <span class="incident-card__title">${this.escape(incident.title)}</span>
@@ -367,13 +367,23 @@ const AdminDashboardPage = {
                 </div>
 
                 ${showActions ? this._renderStatusActions(incident) : ''}
-                ${isTerminal ? `
+                ${this.renderPriority(incident)}
+                ${`
                 <div class="incident-card__actions" onclick="event.stopPropagation()">
-                    <button type="button" class="btn btn--reject btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteIncident(${incident.id})">Archive</button>
+                    <button type="button" class="btn archive-bar" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteIncident(${incident.id})">Archive</button>
                 </div>
-                ` : ''}
+                `}
             </div>
         `;
+    },
+
+    renderPriority(incident) {
+        return `<div class="incident-status-box" role="status">Current status: ${this.escape(this.statusLabel(incident.status))} · Priority: ${this.escape(incident.priority||'medium')}</div><form class="incident-priority-form" data-report-priority="${incident.id}" onclick="event.stopPropagation()" onsubmit="event.preventDefault(); AdminDashboardPage.savePriority(this,${incident.id})"><label>Priority<select class="form-input" name="priority">${['low','medium','high','critical'].map(p=>`<option value="${p}" ${p===(incident.priority||'medium')?'selected':''}>${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}</select></label><label>Priority reason<input class="form-input" name="note" required maxlength="5000"></label><button class="btn btn--outline btn--sm" type="submit">Save priority</button><p role="alert"></p></form>`;
+    },
+    async savePriority(form,id) {
+        const button=form.querySelector('button');button.disabled=true;
+        try{const response=await Store.apiFetch('/api/reports/'+id+'/priority',{method:'PUT',body:JSON.stringify({priority:form.elements.priority.value,note:form.elements.note.value.trim()})});if(!form.isConnected)return;if(!response.success)throw new Error(response.message);await this.loadData();}
+        catch(error){if(form.isConnected)form.querySelector('[role=alert]').textContent=error.message;}finally{button.disabled=false;}
     },
 
     _renderStatusActions(incident) {
@@ -422,6 +432,7 @@ const AdminDashboardPage = {
         }
 
         const severityBadge = {
+            critical: '<span class="badge badge--high">Critical</span>',
             high: '<span class="badge badge--high">High</span>',
             medium: '<span class="badge badge--warning">Medium</span>',
             low: '<span class="badge badge--info">Low</span>',
@@ -440,7 +451,7 @@ const AdminDashboardPage = {
                 <div class="incident-card__footer" onclick="event.stopPropagation()">
                     <span>Updated ${this.formatDate(h.updated_at)}</span>
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <button type="button" class="btn btn--reject btn--sm" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteHazard(${h.id})">Archive</button>
+                        <button type="button" class="btn archive-bar" onclick="event.stopPropagation(); AdminDashboardPage.confirmDeleteHazard(${h.id})">Archive</button>
                         <button type="button" class="incident-card__details-link" onclick="event.stopPropagation(); DetailModal.showHazard(${hAttr})">
                             Details
                             <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -605,7 +616,7 @@ const AdminDashboardPage = {
     },
 
     /* --------------------------------------------------------
-     * 9b. Delete (terminal-status incidents and hazards)
+     * 9b. Archive reports and hazards
      * -------------------------------------------------------- */
     async confirmDeleteIncident(id) {
         if (!confirm('Archive this report? Its history and attachments will be retained.')) return;
@@ -615,7 +626,7 @@ const AdminDashboardPage = {
                 if (window.Toast) Toast.show('Report archived.', { type: 'success', duration: 2500 });
                 this.loadData();
             } else {
-                alert(res.message || 'Failed to delete report.');
+                alert(res.message || 'Failed to archive report.');
             }
         } catch (err) {
             alert('Network error. Please try again.');
@@ -630,7 +641,7 @@ const AdminDashboardPage = {
                 if (window.Toast) Toast.show('Hazard archived.', { type: 'success', duration: 2500 });
                 this.loadData();
             } else {
-                alert(res.message || 'Failed to delete hazard.');
+                alert(res.message || 'Failed to archive hazard.');
             }
         } catch (err) {
             alert('Network error. Please try again.');
@@ -988,6 +999,7 @@ const AdminDashboardPage = {
 
     _renderBinHazardCard(h) {
         const severityBadge = {
+            critical: '<span class="badge badge--high">Critical</span>',
             high: '<span class="badge badge--high">High</span>',
             medium: '<span class="badge badge--warning">Medium</span>',
             low: '<span class="badge badge--info">Low</span>',

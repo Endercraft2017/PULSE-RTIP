@@ -163,6 +163,7 @@ const AdminHomePage = {
                         <div class="category-chips" id="ch-severity-chips">
                             <button type="button" class="category-chip" data-severity="low" onclick="AdminHomePage._selectSeverity('low', this)">Low</button>
                             <button type="button" class="category-chip selected" data-severity="medium" onclick="AdminHomePage._selectSeverity('medium', this)">Medium</button>
+                            <button type="button" class="category-chip" data-severity="critical" onclick="AdminHomePage._selectSeverity('critical', this)">Critical</button>
                             <button type="button" class="category-chip" data-severity="high" onclick="AdminHomePage._selectSeverity('high', this)">High</button>
                         </div>
                     </div>

@@ -1,0 +1,13 @@
+{
+  "inspected_at_utc": "2026-10-25T10:44:43.544945+00:00",
+  "catalog": "https://www.geoportal.gov.ph/",
+  "capabilities_url": "https://geoserver.geoportal.gov.ph/geoserver/geoportal/wms?service=WMS&request=GetCapabilities",
+  "layer_name": "municipalbndry_20210504",
+  "published_title": "Municipal Boundary (APPROXIMATE)",
+  "published_abstract": "Uploaded and updated as of 2021-05-04",
+  "capabilities_response_sha256": "b9ba62927eddad64756caaa8f8a77a38c3a6bb12ca1f1d066be63d296f28b1dc",
+  "feature_schema_request_status": 401,
+  "certified_for_this_application": false,
+  "production_geometry_installed": false,
+  "decision": "Reference catalog only; require certified Morong LGU boundary before enforcement is enabled."
+}

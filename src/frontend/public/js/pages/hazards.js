@@ -127,8 +127,8 @@ const HazardsPage = {
             return;
         }
 
-        const badgeMap = { high: 'high', medium: 'warning', low: 'info' };
-        const labelMap = { high: 'High', medium: 'Medium', low: 'Low' };
+        const badgeMap = { critical:'high', high: 'high', medium: 'warning', low: 'info' };
+        const labelMap = { critical:'Critical', high: 'High', medium: 'Medium', low: 'Low' };
 
         container.innerHTML = banner + hazards.map(h => `
             <div class="incident-card">

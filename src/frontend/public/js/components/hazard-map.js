@@ -51,7 +51,7 @@ window.HazardMap = {
     reconcile(session, hazards) {
         const ids = new Set();
         for (const hazard of hazards) {
-            if (hazard.latitude == null || hazard.longitude == null) continue;
+            if (hazard.latitude == null || hazard.longitude == null || !IncidentMap.allows({lat:hazard.latitude,lng:hazard.longitude})) continue;
             ids.add(hazard.id);
             let entry = session.markers.get(hazard.id);
             if (!entry) {
@@ -95,7 +95,7 @@ window.HazardMap = {
     },
     reconcileAdvisories(session, advisories) {
         const active = new Set();
-        for (const advisory of advisories.filter(a => a.active)) {
+        for (const advisory of advisories.filter(a => a.active && IncidentMap.allows({lat:a.latitude,lng:a.longitude}))) {
             active.add(advisory.id);
             let marker = session.advisories.get(advisory.id);
             if (!marker) {

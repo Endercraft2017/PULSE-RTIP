@@ -146,6 +146,7 @@ async function send(tokens, { title, body, data, sound } = {}) {
   // leaves an orphaned token that fails forever.
   const deadTokens = [];
   const retryTokens = [];
+  const outcomes = [];
   const DEAD_CODES = new Set([
     'messaging/registration-token-not-registered',
     'messaging/invalid-registration-token',
@@ -171,8 +172,9 @@ async function send(tokens, { title, body, data, sound } = {}) {
       sent += res.successCount;
       failed += res.failureCount;
       res.responses.forEach((r, idx) => {
-        if (r.success) return;
+        if (r.success) { outcomes.push({recipient:batch[idx],status:'accepted',provider_id:r.messageId||null}); return; }
         const code = r.error?.code || '';
+        outcomes.push({recipient:batch[idx],status:DEAD_CODES.has(code)?'failed':'retry',error:code||'Provider rejected token'});
         if (DEAD_CODES.has(code)) {
           deadTokens.push(batch[idx]);
         } else { retryTokens.push(batch[idx]); }
@@ -183,7 +185,7 @@ async function send(tokens, { title, body, data, sound } = {}) {
     } catch (err) {
       console.error('[push] batch failed:', err.message);
       failed += batch.length;
-      retryTokens.push(...batch);
+      outcomes.push(...batch.map(recipient=>({recipient,status:'uncertain',error:err.message})));
     }
   }
 
@@ -199,7 +201,7 @@ async function send(tokens, { title, body, data, sound } = {}) {
   }
 
   console.log(`[push] FCM dispatch: sent=${sent} failed=${failed} batches=${batches} total=${list.length}`);
-  return { success: failed === 0, sent, failed, batches, pruned: deadTokens.length, retryTokens };
+  return { success: failed === 0, sent, failed, batches, pruned: deadTokens.length, retryTokens, outcomes };
 }
 
 module.exports = { send, isConfigured };

@@ -6074,3 +6074,11 @@ body.theme-dark .newsfeed-card__provenance {
 /* Keep Leaflet panes and controls inside each map's stacking context. */
 .hazard-live-map, #incident-leaflet-map { isolation: isolate; z-index: 0; }
 .hazard-live-map .leaflet-tooltip, #incident-leaflet-map .leaflet-tooltip { max-width: 240px; white-space: normal; overflow-wrap: anywhere; }
+
+.archive-bar { width:100%; background:#e2e8f0; color:#334155; border:1px solid #94a3b8; font-weight:700; padding:12px; }
+.incident-card--critical { border:3px solid #b91c1c; background:#fff1f2; }
+.incident-status-box { background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:10px; margin:10px 0; font-weight:600; }
+.incident-priority-form { display:grid; gap:8px; margin:10px 0; }
+.incident-priority-form label { display:block; }
+
+.dash-main-tab--archive { background:#e2e8f0; color:#334155; }

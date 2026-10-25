@@ -1,5 +1,15 @@
 # PULSE-RTIP Manual Testing Guide
 
+> Morong-only policy update (25 October 2026): location writes require numeric
+> latitude/longitude inside an approved, versioned Morong, Rizal GeoJSON boundary.
+> A typed address alone never authorizes a submission. Install the boundary using
+> [the territory contract](../config/territory/README.md) before exercising any
+> location-write examples below; older address-only examples are incomplete.
+> Reports/hazards are archived, never purged. See the
+> [current verification report](verification-2026-10-25.md) for new account,
+> priority, cancellation-reason, retention, and provider-outcome behavior.
+
+
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)

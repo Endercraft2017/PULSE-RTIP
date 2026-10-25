@@ -49,6 +49,15 @@ async function runMigrations() {
       }
     }
 
+    if(file==='035_append_only_history.sql') {
+      for(const table of ['report_events','hazard_events','audit_log']) for(const action of ['UPDATE','DELETE']) {
+        const name=`retain_${table}_${action.toLowerCase()}`;
+        if(config.appMode==='production') {
+          try{await db.query(`CREATE TRIGGER ${name} BEFORE ${action} ON ${table} FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'History is append-only'`);}catch(e){if(!/already exists/i.test(e.message))throw e;}
+        }else db.getSQLiteDb().exec(`CREATE TRIGGER IF NOT EXISTS ${name} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT, 'History is append-only'); END`);
+      }
+      await db.query('INSERT INTO schema_migrations (name) VALUES (?)',[file]);continue;
+    }
     if (file === '032_archive_guards.sql') {
       for (const table of ['reports', 'hazard_alerts']) {
         if (config.appMode === 'production') {

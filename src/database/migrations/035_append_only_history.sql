@@ -1,0 +1,2 @@
+-- Engine-specific triggers are installed by the migration runner.
+-- Timeline and audit entries cannot be updated or deleted through SQL.

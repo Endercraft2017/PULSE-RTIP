@@ -244,6 +244,9 @@ async function updateReportStatus(req, res, next) {
 
     if (existing.deleted_at) return res.status(409).json({ success: false, message: 'Restore the archived report before updating it.' });
     const note = String(req.body.note || '').trim();
+    if (status === 'rejected' && !note) return res.status(400).json({success:false,message:'A rejection reason is required.'});
+    if (status === 'cancelled' && !note) return res.status(400).json({success:false,message:'A cancellation reason is required.'});
+    if (existing.status === status) return res.status(409).json({success:false,message:'This status is already saved.'});
     if (status === 'resolved' && !note) return res.status(400).json({ success: false, message: 'A resolution note is required.' });
     // Compare and update under one transaction: history, audit and inbox either
     // commit together or roll back together. NULL owners are valid SMS reports.
@@ -359,8 +362,12 @@ async function updateReport(req, res, next) {
     }
 
     const { title, type, description, location, latitude, longitude } = req.body;
+    if (isAdmin && ['latitude','longitude'].some(k=>req.body[k]!==undefined) && !String(req.body.note||'').trim()) return res.status(400).json({success:false,message:'A GPS correction reason is required.'});
     if (existing.deleted_at) return res.status(409).json({ success: false, message: 'Restore the archived report first.' });
     const updated = await db.transaction(async () => {
+      await db.lockRow('reports',existing.id);
+      const current=await Report.findById(existing.id);
+      if(current.deleted_at || (!isAdmin && !['submitted','pending','investigating'].includes(current.status)))throw Object.assign(new Error('Report changed. Refresh and retry.'),{statusCode:409});
       const updated = await Report.update(req.params.id, {
         title,
         type,
@@ -371,7 +378,7 @@ async function updateReport(req, res, next) {
       });
       const changes = {};
       for (const key of ['title', 'type', 'description', 'location', 'latitude', 'longitude']) {
-        if (String(existing[key]) !== String(updated[key])) changes[key] = { from: existing[key], to: updated[key] };
+        if (String(current[key]) !== String(updated[key])) changes[key] = { from: current[key], to: updated[key] };
       }
       await ReportEvent.create({ report_id: existing.id, actor_user_id: req.user.id,
         actor_department: req.user.department, action: 'report_updated', note: req.body.note || 'Report details updated.' });
@@ -407,7 +414,8 @@ async function deleteReport(req, res, next) {
     }
 
     await db.transaction(async () => {
-      await Report.remove(existing.id);
+      const archiveChange=await Report.remove(existing.id);
+      if(!archiveChange.affectedRows)throw Object.assign(new Error('Archive state changed. Refresh and retry.'),{statusCode:409});
       await ReportEvent.create({ report_id: existing.id, actor_user_id: req.user.id, actor_department: req.user.department, action: 'archived' });
 
       await logAction(req.user.id, 'report_binned', 'report', existing.id, {
@@ -441,7 +449,8 @@ async function restoreReport(req, res, next) {
     }
 
     await db.transaction(async () => {
-      await Report.restore(existing.id);
+      const archiveChange=await Report.restore(existing.id);
+      if(!archiveChange.affectedRows)throw Object.assign(new Error('Archive state changed. Refresh and retry.'),{statusCode:409});
       await ReportEvent.create({ report_id: existing.id, actor_user_id: req.user.id, actor_department: req.user.department, action: 'restored' });
 
       await logAction(req.user.id, 'report_restored', 'report', existing.id, {

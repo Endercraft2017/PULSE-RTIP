@@ -59,9 +59,9 @@ class DispatchBrowserTests(unittest.TestCase):
         cls.database = cls.folder / 'browser.db'
         cls.boundary = cls.folder / 'territory.json'
         polygon = lambda x1,y1,x2,y2: {'type':'Polygon','coordinates':[[[x1,y1],[x2,y1],[x2,y2],[x1,y2],[x1,y1]]]}
-        cls.policy = {'type':'FeatureCollection','features':[
-            {'type':'Feature','properties':{'mode':'allow','name':'Synthetic browser territory'},'geometry':polygon(120,13,123,16)},
-            {'type':'Feature','properties':{'mode':'deny','name':'Morong test exclusion'},'geometry':polygon(121,14,122,15)}]}
+        cls.policy = {'type':'FeatureCollection','properties':{'jurisdiction':'PH-RIZ-MORONG','source':'synthetic test fixture, not for deployment','approved_by':'TEST ONLY','approved_at':'2026-10-25','version':'test-1'},'features':[
+            {'type':'Feature','properties':{'mode':'allow','name':'Morong synthetic browser territory'},'geometry':polygon(120,13,123,16)},
+            {'type':'Feature','properties':{'mode':'deny','name':'Excluded synthetic area'},'geometry':polygon(121,14,122,15)}]}
         cls.boundary.write_text(json.dumps(cls.policy))
         cls.node = shutil.which('node')
         if not cls.node or not subprocess.check_output([cls.node,'--version'],text=True).startswith('v22.'):
@@ -116,6 +116,7 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.boundary.write_text(json.dumps(self.policy))
         with sqlite3.connect(self.database) as db:
             db.execute("UPDATE users SET department='MDRRMO' WHERE id=1")
+            db.execute("UPDATE users SET account_status='active',account_reason=NULL,auth_version=0")
             self.report_id = db.execute("INSERT INTO reports (title,type,status,location,latitude,longitude,submitted_by) VALUES (?, 'Flood','pending_confirmation','Accepted test area',14.5,120.5,2)",[self._testMethodName]).lastrowid
             self.hazard_id = db.execute("INSERT INTO hazard_alerts (title,severity,location,latitude,longitude,created_by) VALUES (?, 'low','Accepted test area',14.5,120.5,1)",[self._testMethodName]).lastrowid
         self.context = self.browser.new_context(viewport={'width':390,'height':844},timezone_id='America/New_York',geolocation={'latitude':14.5,'longitude':120.5},permissions=['geolocation'])
@@ -409,7 +410,7 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.assertEqual(submitted.value.status,201,submitted.value.text())
         expect(self.page.locator('#form-step-success')).to_be_visible()
 
-    def test_morong_gps_report_rejected_without_losing_form(self):
+    def test_outside_morong_gps_rejected_without_losing_form(self):
         self.context.set_geolocation({'latitude':14.5,'longitude':121.5})
         self.report_form(self._testMethodName)
         with self.page.expect_response(lambda response: response.url.endswith('/api/reports') and response.request.method=='POST') as submitted:
@@ -570,6 +571,107 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         expect(self.page.locator('#emergency-details .contact-card')).not_to_have_count(0)
         expect(self.page.locator('#slide-to-call')).to_have_attribute('data-tel','911')
 
+
+    def test_required_cancellation_reason_and_persistent_history(self):
+        with sqlite3.connect(self.database) as db: db.execute("UPDATE reports SET status='submitted' WHERE id=?",[self.report_id])
+        self.login(role='citizen')
+        card=self.page.locator('.incident-card').filter(has_text=self._testMethodName)
+        card.get_by_role('button',name='Cancel Report',exact=True).click()
+        self.page.locator('#cancel-report-reason').fill('   ')
+        self.page.get_by_role('button',name='Confirm cancellation',exact=True).click()
+        expect(self.page.locator('#cancel-report-modal [role=alert]')).to_contain_text('Enter a cancellation reason')
+        with sqlite3.connect(self.database) as db:self.assertEqual(db.execute('SELECT status FROM reports WHERE id=?',[self.report_id]).fetchone()[0],'submitted')
+        self.page.locator('#cancel-report-reason').fill('Already reported by my household')
+        self.page.get_by_role('button',name='Confirm cancellation',exact=True).click()
+        expect(self.page.locator('#cancel-report-modal')).to_have_count(0)
+        with sqlite3.connect(self.database) as db:
+            self.assertEqual(db.execute('SELECT status FROM reports WHERE id=?',[self.report_id]).fetchone()[0],'cancelled')
+            self.assertEqual(db.execute('SELECT note FROM report_events WHERE report_id=? ORDER BY id DESC LIMIT 1',[self.report_id]).fetchone()[0],'Already reported by my household')
+
+    def test_admin_priority_highlight_status_box_and_archive_bar(self):
+        self.login()
+        form=self.page.locator('[data-report-priority="'+str(self.report_id)+'"]')
+        form.locator('[name=priority]').select_option('critical')
+        form.locator('[name=note]').fill('Rescue boat needed immediately')
+        form.get_by_role('button',name='Save priority',exact=True).click()
+        card=self.page.locator('#incident-'+str(self.report_id))
+        expect(card).to_have_class(__import__('re').compile('incident-card--critical'))
+        expect(card.locator('.incident-status-box')).to_contain_text('Current status:')
+        expect(card.locator('.incident-status-box')).to_contain_text('critical')
+        expect(card.locator('.archive-bar')).to_have_text('Archive')
+        with sqlite3.connect(self.database) as db:
+            self.assertEqual(db.execute('SELECT priority FROM reports WHERE id=?',[self.report_id]).fetchone()[0],'critical')
+            self.assertIn('Rescue boat',db.execute('SELECT note FROM report_events WHERE report_id=? ORDER BY id DESC LIMIT 1',[self.report_id]).fetchone()[0])
+        self.page.screenshot(path=str(ARTIFACTS/'critical-priority-and-archive.png'),full_page=True)
+
+    def test_account_suspension_controls_existing_token_and_login(self):
+        response=self.context.request.post(self.base+'/api/auth/login',data={'email':'other@browser.test','password':PASSWORD})
+        other_token=response.json()['data']['token']
+        self.login();self.operations('users')
+        row=self.page.locator('#operations-list tr').filter(has_text='other@browser.test')
+        row.get_by_role('button',name='Edit',exact=True).click()
+        form=self.page.locator('#operation-editor')
+        form.locator('[name=account_status]').select_option('suspended')
+        form.locator('[name=account_reason]').fill('Repeated misleading reports under review')
+        form.get_by_role('button',name='Save',exact=True).click()
+        expect(self.page.locator('#operations-list tr').filter(has_text='other@browser.test')).to_contain_text('suspended')
+        self.assertEqual(self.context.request.get(self.base+'/api/users/me',headers={'Authorization':'Bearer '+other_token}).status,403)
+        self.assertEqual(self.context.request.post(self.base+'/api/auth/login',data={'email':'other@browser.test','password':PASSWORD}).status,403)
+        with sqlite3.connect(self.database) as db:self.assertIsNotNone(db.execute('SELECT id FROM users WHERE id=3').fetchone())
+
+    def test_morong_viewport_is_constrained_and_boundary_unavailable_fails_closed(self):
+        self.main_hazard_map()
+        self.assertTrue(self.page.evaluate('!!HazardMap.session.map.options.maxBounds'))
+        self.page.evaluate('HazardMap.session.map.panTo([0,0],{animate:false})')
+        self.page.wait_for_function('()=>L.latLngBounds(HazardMap.session.map.options.maxBounds).contains(HazardMap.session.map.getCenter())')
+        self.page.evaluate("Router.navigate('my-reports')")
+        self.boundary.unlink()
+        self.page.evaluate("Router.navigate('hazards')")
+        if self.page.locator('.hazards-toggle').inner_text()=='Map': self.page.locator('.hazards-toggle').click()
+        expect(self.page.locator('.hazard-map-status')).to_contain_text('boundary')
+        expect(self.page.locator('.hazard-live-map')).not_to_be_visible()
+
+    def test_report_coordinates_manual_save_and_actual_pointer_drag(self):
+        self.login();self.open_report()
+        self.page.wait_for_function('()=>!!IncidentMap.session?.marker')
+        self.page.locator('#incident-lat').fill('14.6')
+        self.page.locator('#incident-lng').fill('120.6')
+        self.page.locator('#incident-gps-note').fill('Verified GPS correction')
+        self.page.get_by_role('button',name='Save coordinates',exact=True).click()
+        expect(self.page.locator('#incident-map-status')).to_contain_text('saved and audited')
+        self.page.locator('#incident-leaflet-map').scroll_into_view_if_needed()
+        self.page.evaluate("IncidentMap.session.map.setView(IncidentMap.session.marker.getLatLng(),16,{animate:false});IncidentMap.session.marker.getElement().dataset.reportDrag='target'")
+        pin=self.page.locator('[data-report-drag=target]');box=pin.bounding_box()
+        self.page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
+        self.page.mouse.down();self.page.mouse.move(box['x']+box['width']/2+30,box['y']+box['height']/2-20,steps=10);self.page.mouse.up()
+        self.assertNotEqual(float(self.page.locator('#incident-lat').input_value()),14.6)
+        self.page.locator('#incident-gps-note').fill('Dragged to verified incident entrance')
+        self.page.get_by_role('button',name='Save coordinates',exact=True).click()
+        expect(self.page.locator('#incident-map-status')).to_contain_text('saved and audited')
+        with sqlite3.connect(self.database) as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM report_events WHERE report_id=?',[self.report_id]).fetchone()[0],2)
+
+    def test_hotline_updates_while_screen_open_and_cached_numbers_survive_offline(self):
+        with sqlite3.connect(self.database) as db:
+            contact=db.execute("INSERT INTO emergency_hotlines(category,label,number) VALUES ('Police','Live police fixture','09981230001')").lastrowid
+        self.login(role='citizen');self.page.evaluate("Router.navigate('emergency')")
+        expect(self.page.locator('#emergency-details')).to_contain_text('09981230001')
+        with sqlite3.connect(self.database) as db:db.execute("UPDATE emergency_hotlines SET number='09981230002' WHERE id=?",[contact])
+        expect(self.page.locator('#emergency-details')).to_contain_text('09981230002',timeout=10000)
+        self.page.route('**/api/hotlines',lambda route:route.abort())
+        self.page.evaluate("Router.navigate('my-reports')")
+        self.page.evaluate("Router.navigate('emergency')")
+        expect(self.page.locator('#emergency-details')).to_contain_text('09981230002')
+        expect(self.page.locator('#emergency-contact-status')).to_contain_text('may be outdated')
+        expect(self.page.locator('#emergency-tabs .emergency-tab')).to_have_count(4)
+
+    def test_critical_hazard_severity_is_selectable_and_never_labelled_medium(self):
+        self.login()
+        self.page.evaluate('AdminHomePage.openCreateHazardModal()')
+        self.page.locator('#ch-severity-chips').get_by_role('button',name='Critical',exact=True).click()
+        self.assertEqual(self.page.evaluate('AdminHomePage._selectedSeverity'),'critical')
+        self.page.evaluate("AdminHomePage.closeCreateHazardModal()")
+        self.page.evaluate('(id)=>DetailModal.showHazard({id,title:"Critical fixture",severity:"critical",latitude:14.5,longitude:120.5})',self.hazard_id)
+        expect(self.page.locator('#detail-modal-container')).to_contain_text('Critical Severity')
 
 
 if __name__=='__main__': unittest.main(verbosity=2)

@@ -258,8 +258,8 @@ async function getStats() {
  * @returns {Promise<void>}
  */
 async function remove(id) {
-  await db.query(
-    'UPDATE reports SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?',
+  return db.query(
+    'UPDATE reports SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
     [id]
   );
 }
@@ -274,8 +274,8 @@ async function remove(id) {
  * @returns {Promise<void>}
  */
 async function restore(id) {
-  await db.query(
-    'UPDATE reports SET deleted_at = NULL WHERE id = ?',
+  return db.query(
+    'UPDATE reports SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL',
     [id]
   );
 }

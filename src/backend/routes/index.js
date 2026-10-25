@@ -68,6 +68,7 @@ router.get('/health', (req, res) => {
   res.json({
     success: true,
     message: 'PULSE-RTIP API is running',
+    commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || null,
     timestamp: new Date().toISOString(),
   });
 });

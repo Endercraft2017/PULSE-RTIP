@@ -137,9 +137,11 @@ const EmergencyPage = {
         this.mdrrmoHotlines = structuredClone(this._defaultHotlines);
         this.categories = structuredClone(this._defaultCategories);
         this.searchTerm = '';
+        this.dispose();this.signature=null;
+        try{const cached=JSON.parse(localStorage.getItem('pulse_hotline_directory_v1'));if(Array.isArray(cached?.rows))this.applyManagedContacts(cached.rows);}catch(_){}
         // Wire up slide-to-call once the HTML is attached. setTimeout
         // defers until after Router inserts the returned string.
-        setTimeout(() => { this.initSlideToCall(); this.loadManagedContacts(); }, 0);
+        setTimeout(() => { if(!document.querySelector('.emergency-page'))return; this.initSlideToCall(); this.loadManagedContacts(); this.timer=setInterval(()=>this.loadManagedContacts(),5000); }, 0);
         return `
             <div class="page-padding emergency-page">
                 <div class="search-bar">
@@ -151,6 +153,7 @@ const EmergencyPage = {
                            oninput="EmergencyPage.handleSearch(this.value)">
                 </div>
 
+                <p id="emergency-contact-status" role="status">Checking current emergency contacts…</p>
                 <div id="emergency-mdrrmo">${this.renderMDRRMOCard()}</div>
 
                 <div class="emergency-tabs" id="emergency-tabs">
@@ -186,34 +189,41 @@ const EmergencyPage = {
         `;
     },
 
+    dispose() { clearInterval(this.timer); this.timer=null; },
+    applyManagedContacts(rows) {
+        this.mdrrmoHotlines=structuredClone(this._defaultHotlines);
+        this.categories=structuredClone(this._defaultCategories);
+        const groups=new Map();
+        for(const row of rows) {
+            const text=String(row.category||'').toLowerCase();
+            const key=/police|pnp|ppo/.test(text)?'police':/hospital|health|medical/.test(text)?'hospitals':/fire|bfp/.test(text)?'fire':/red.?cross/.test(text)?'redcross':'mdrrmo';
+            if(!groups.has(key))groups.set(key,[]);groups.get(key).push(row);
+        }
+        for(const [key,contacts] of groups) {
+            if(key==='mdrrmo')this.mdrrmoHotlines=contacts;
+            else this.categories[key].contacts=contacts.map(row=>({title:row.label,subtitle:row.category||'',numbers:[{number:row.number}]}));
+        }
+    },
     async loadManagedContacts() {
-        const root = document.querySelector('.emergency-page');
+        const root=document.querySelector('.emergency-page');
+        if(!root){this.dispose();return;}
+        if(this.loading)return;this.loading=true;
         try {
-            const response = await Store.apiFetch('/api/hotlines');
-            if (!response.success || !root?.isConnected) return;
-            const rows = Array.isArray(response.data) ? response.data : [];
-            // Preserve the familiar cards and category tabs. A configured group
-            // replaces that group's fallback numbers; absent groups stay usable.
-            const groups = new Map();
-            for (const row of rows) {
-                const text = String(row.category || '').toLowerCase();
-                const key = /police|pnp|ppo/.test(text) ? 'police'
-                    : /hospital|health|medical/.test(text) ? 'hospitals'
-                    : /fire|bfp/.test(text) ? 'fire'
-                    : /red.?cross/.test(text) ? 'redcross' : 'mdrrmo';
-                if (!groups.has(key)) groups.set(key, []);
-                groups.get(key).push(row);
+            const response=await Store.apiFetch('/api/hotlines');
+            if(!root.isConnected)return;
+            if(!response.success)throw new Error(response.message);
+            const rows=Array.isArray(response.data)?response.data:[];
+            const signature=JSON.stringify(rows);
+            if(signature!==this.signature) {
+                this.applyManagedContacts(rows);this.signature=signature;
+                root.querySelector('#emergency-mdrrmo').innerHTML=this.renderMDRRMOCard();
+                root.querySelector('#emergency-details').innerHTML=this.renderCategoryDetails();
             }
-            for (const [key, contacts] of groups) {
-                if (key === 'mdrrmo') this.mdrrmoHotlines = contacts;
-                else this.categories[key].contacts = contacts.map(row => ({
-                    title: row.label, subtitle: row.category || '',
-                    numbers: [{ number: row.number }],
-                }));
-            }
-            root.querySelector('#emergency-mdrrmo').innerHTML = this.renderMDRRMOCard();
-            root.querySelector('#emergency-details').innerHTML = this.renderCategoryDetails();
-        } catch (_) { /* Keep the original emergency cards available offline. */ }
+            try{localStorage.setItem('pulse_hotline_directory_v1',JSON.stringify({rows,saved_at:new Date().toISOString()}));}catch(_){}
+            root.querySelector('#emergency-contact-status').textContent='Emergency contacts checked. Updates refresh every 5 seconds.';
+        }catch(_) {
+            if(root.isConnected)root.querySelector('#emergency-contact-status').textContent='Unable to check updates. Showing saved or built-in contacts; numbers may be outdated.';
+        }finally{this.loading=false;}
     },
 
     /* --------------------------------------------------------

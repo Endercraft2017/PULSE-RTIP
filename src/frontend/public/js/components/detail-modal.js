@@ -202,6 +202,7 @@ const DetailModal = {
         if (typeof data === 'string') data = JSON.parse(data);
 
         const severityMap = {
+            critical: {label:'Critical',cls:'high'},
             high:   { label: 'High',   cls: 'high' },
             medium: { label: 'Medium', cls: 'warning' },
             low:    { label: 'Low',    cls: 'info' },

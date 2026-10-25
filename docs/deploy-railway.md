@@ -37,7 +37,7 @@ Service → **Variables**:
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | contents of the Firebase service-account JSON (paste as-is, or base64) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | if email is used |
 | `NEWSAPI_KEY` | optional |
-| `TERRITORY_GEOJSON_PATH` | `/data/territory.geojson`, only after the approved allow boundary and Morong exclusion boundary have been supplied |
+| `TERRITORY_GEOJSON_PATH` | `/data/territory.geojson`, only after the approved Morong, Rizal boundary and approval provenance have been supplied |
 
 Do not set `PORT`. Railway injects it and the server reads it.
 
@@ -123,10 +123,10 @@ in the same service; a separate map server is not needed.
    an agency to the admin who will save coordinate changes.
 4. To permit saves, supply the approved GeoJSON boundary file on the persistent
    volume and set `TERRITORY_GEOJSON_PATH` to it. No production boundary is
-   provided because the allowed territory is still unknown. The file must
-   include an `allow` area and a Morong `deny` area. Do not use synthetic test
-   boundaries in production. Without this setting, the map can display with
-   an internet connection, but coordinate submissions intentionally remain blocked.
+   bundled because an LGU-approved Morong boundary is not yet available. The file must
+   follow [the approved Morong boundary contract](../config/territory/README.md). Do not use synthetic test
+   boundaries in production. Without this setting, the map stays unavailable
+   with a configuration message, and coordinate submissions remain blocked.
 
 The main Hazard Zones **Map** view should load Leaflet with OpenStreetMap tiles and show current
 hazards at their saved GPS positions. Admins drag a pin, enter a reason and

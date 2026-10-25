@@ -36,6 +36,7 @@ for (const [resource, def] of Object.entries(definitions)) {
     try {
       const id = req.params.id;
       const result = await db.transaction(async () => {
+        if(id)await db.lockRow(def.table,id);
         const old = id ? (await db.query(`SELECT * FROM ${def.table} WHERE id = ?`, [id]))[0] : null;
         if (id && !old) throw Object.assign(new Error('Record not found.'), { statusCode: 404 });
         if (['advisories', 'calls'].includes(resource)) {
@@ -114,9 +115,37 @@ router.put('/responders/:id', requireAdmin, validate([param('id').isInt({ min: 1
     res.json({ success: true });
   } catch (error) { next(error); }
 });
-router.get('/map-config', (req, res) => res.json({ success: true, data: { provider: 'leaflet', tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', timezone: 'Asia/Manila' } }));
+router.get('/clock',requireAdmin,async(req,res,next)=>{
+  try {
+    const mysql=require('../config').appMode==='production';
+    const rows=await db.query(mysql?"SELECT UTC_TIMESTAMP(3) AS utc_now, @@session.time_zone AS session_timezone":"SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS utc_now");
+    res.json({success:true,data:{serverTime:new Date().toISOString(),databaseTime:rows[0].utc_now,databaseTimezone:mysql?rows[0].session_timezone:'UTC',displayTimezone:'Asia/Manila',processTimezone:process.env.TZ,sequence:'event id',clockSynchronization:'not verified by this endpoint'}});
+  }catch(e){next(e);}
+});
+router.get('/map-config', (req,res,next)=>{
+  try { const territory=require('../services/geocode/territory').loadPolicy(); res.json({success:true,data:{provider:'leaflet',timezone:'Asia/Manila',configured:true,territory}}); }
+  catch(error) { if(error.statusCode!==503) return next(error); res.json({success:true,data:{provider:'leaflet',configured:false,message:error.message}}); }
+});
+router.get('/users',requireAdmin,async(req,res,next)=>{
+  try{res.json({success:true,data:await db.query('SELECT id,name,email,role,account_status,account_reason FROM users WHERE deleted_at IS NULL ORDER BY id')});}catch(e){next(e);}
+});
+router.put('/users/:id',requireAdmin,requireAgency,validate([param('id').isInt({min:1}),body('account_status').isIn(['active','suspended','deactivated']),text('account_reason',5000,true)]),async(req,res,next)=>{
+  try {
+    const result=await db.transaction(async()=>{
+      const old=(await db.query('SELECT id,role,account_status,account_reason FROM users WHERE id=? AND deleted_at IS NULL',[req.params.id]))[0];
+      if(!old) throw Object.assign(new Error('Account not found.'),{statusCode:404});
+      if(old.role!=='citizen') throw Object.assign(new Error('Account controls apply to citizen accounts only.'),{statusCode:403});
+      if(old.account_status===req.body.account_status) throw Object.assign(new Error('This account state is already saved.'),{statusCode:409});
+      const changed=await db.query('UPDATE users SET account_status=?,account_reason=?,auth_version=auth_version+1 WHERE id=? AND account_status=?',[req.body.account_status,req.body.account_reason,old.id,old.account_status]);
+      if(!changed.affectedRows) throw Object.assign(new Error('Account changed. Refresh and retry.'),{statusCode:409});
+      await recordAction(req.user.id,'account_status_changed','user',old.id,{from:old.account_status,to:req.body.account_status,reason:req.body.account_reason});
+      return {id:old.id,account_status:req.body.account_status};
+    });res.json({success:true,data:result});
+  }catch(e){next(e);}
+});
+router.get('/broadcasts/:id/recipients', requireAdmin, validate([param('id').isInt({min:1})]),async(req,res,next)=>{try{res.json({success:true,data:await db.query('SELECT id,user_id,recipient,status,provider_id,last_error,updated_at FROM broadcast_recipients WHERE job_id=? ORDER BY id',[req.params.id])});}catch(e){next(e);}});
 router.get('/broadcasts', requireAdmin, async (req, res, next) => {
-  try { res.json({ success: true, data: await db.query('SELECT id, hazard_id, advisory_id, channel, status, attempts, last_error, created_at, updated_at FROM broadcast_jobs ORDER BY id DESC LIMIT 200') }); }
+  try { res.json({ success: true, data: await db.query('SELECT j.id,j.hazard_id,j.advisory_id,j.channel,j.status,j.attempts,j.last_error,j.created_at,j.updated_at,(SELECT COUNT(*) FROM broadcast_recipients r WHERE r.job_id=j.id) AS recipients FROM broadcast_jobs j ORDER BY j.id DESC LIMIT 200') }); }
   catch (error) { next(error); }
 });
 module.exports = router;

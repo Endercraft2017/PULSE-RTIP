@@ -68,6 +68,8 @@ async function authenticate(req, res, next) {
       });
     }
 
+    if (user.account_status && user.account_status !== 'active') return res.status(403).json({success:false, code:'ACCOUNT_RESTRICTED', message:'This account is ' + user.account_status + '. Contact MDRRMO support.'});
+    if(Number(decoded.version||0)!==Number(user.auth_version||0))return res.status(401).json({success:false,code:'SESSION_REVOKED',message:'This session was revoked. Please log in again.'});
     req.user = user;
 
     // Presence tracking: bump users.last_seen_at, throttled to one write per

@@ -1,50 +1,48 @@
-/** Server-side territory policy.
- * A configured GeoJSON FeatureCollection must include an allowed Polygon /
- * MultiPolygon and a denied Polygon / MultiPolygon named Morong (mode=deny).
- * No external reverse-geocoder is trusted to approve a location. Text never
- * overrides GPS. Missing boundaries fail closed until an administrator supplies
- * the designated territory and an authoritative Morong exclusion boundary.
+/** Morong, Rizal policy. An operator must supply an approved, versioned GeoJSON.
+ * GPS is authoritative; outer edges are included, hole/deny edges excluded.
+ * An old Morong-deny configuration deliberately fails closed.
  */
 const fs = require('fs');
+const crypto = require('crypto');
 function error(message, statusCode = 422) { return Object.assign(new Error(message), { statusCode }); }
-function ringContains(point, ring) {
-  let inside = false;
-  const [x, y] = point;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i], [xj, yj] = ring[j];
-    const cross = (x - xi) * (yj - yi) - (y - yi) * (xj - xi);
-    if (Math.abs(cross) < 1e-10 && x >= Math.min(xi, xj) && x <= Math.max(xi, xj) && y >= Math.min(yi, yj) && y <= Math.max(yi, yj)) return true;
-    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+function ringContains([x,y], ring) {
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++) {
+    const [xi,yi]=ring[i], [xj,yj]=ring[j];
+    const cross=(x-xi)*(yj-yi)-(y-yi)*(xj-xi);
+    if(Math.abs(cross)<1e-10 && x>=Math.min(xi,xj) && x<=Math.max(xi,xj) && y>=Math.min(yi,yj) && y<=Math.max(yi,yj)) return true;
+    if((yi>y)!==(yj>y) && x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
   }
   return inside;
 }
 function contains(geometry, point) {
-  const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
-  return polygons.some(rings => ringContains(point, rings[0]) && !rings.slice(1).some(r => ringContains(point, r)));
+  const polygons=geometry.type==='Polygon'?[geometry.coordinates]:geometry.coordinates;
+  return polygons.some(rings=>ringContains(point,rings[0])&&!rings.slice(1).some(r=>ringContains(point,r)));
 }
 function loadPolicy() {
-  const path = process.env.TERRITORY_GEOJSON_PATH;
-  if (!path) throw error('Location submissions are disabled until the designated territory and Morong exclusion boundaries are configured.', 503);
-  let features;
+  if(!process.env.TERRITORY_GEOJSON_PATH) throw error('Morong location submissions are disabled until an approved Morong, Rizal boundary is configured.',503);
   try {
-    features = JSON.parse(fs.readFileSync(path, 'utf8')).features;
-    if (!Array.isArray(features) || !features.length || !features.every(f =>
-      ['allow', 'deny'].includes(f.properties?.mode) && ['Polygon', 'MultiPolygon'].includes(f.geometry?.type))) throw new Error('Invalid boundary features');
-    for (const feature of features) {
-      const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
-      if (!polygons.length || !polygons.every(p => p.length && p.every(r => r.length >= 4 && r.every(c => c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]) && Math.abs(c[0]) <= 180 && Math.abs(c[1]) <= 90) && JSON.stringify(r[0]) === JSON.stringify(r[r.length - 1])))) throw new Error('Invalid polygon');
+    const raw=fs.readFileSync(process.env.TERRITORY_GEOJSON_PATH,'utf8');
+    const policy=JSON.parse(raw), p=policy.properties;
+    if(policy.type!=='FeatureCollection' || p?.jurisdiction!=='PH-RIZ-MORONG' || !['source','approved_by','approved_at','version'].every(k=>typeof p[k]==='string'&&p[k].trim()) || !Number.isFinite(Date.parse(p.approved_at))) throw Error('Missing provenance');
+    const features=policy.features;
+    if(!Array.isArray(features)||!features.length) throw Error('No features');
+    for(const f of features) {
+      if(!['allow','deny'].includes(f.properties?.mode)||!['Polygon','MultiPolygon'].includes(f.geometry?.type)) throw Error('Invalid feature');
+      if(f.properties.mode==='allow' && !/\bmorong\b/i.test(f.properties.name||'')) throw Error('Only Morong allow features accepted');
+      if(f.properties.mode==='deny' && /\bmorong\b/i.test(f.properties.name||'')) throw Error('Obsolete exclusion policy');
+      const polygons=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;
+      if(!Array.isArray(polygons)||!polygons.length||!polygons.every(poly=>Array.isArray(poly)&&poly.length&&poly.every(r=>Array.isArray(r)&&r.length>=4&&r.every(c=>Array.isArray(c)&&c.length>=2&&Number.isFinite(c[0])&&Number.isFinite(c[1])&&Math.abs(c[0])<=180&&Math.abs(c[1])<=90)&&JSON.stringify(r[0])===JSON.stringify(r.at(-1))&&Math.abs(r.slice(1).reduce((a,c,i)=>a+r[i][0]*c[1]-c[0]*r[i][1],0))>1e-12))) throw Error('Invalid rings');
     }
-    if (!features.some(f => f.properties.mode === 'allow') || !features.some(f => f.properties.mode === 'deny' && /\bmorong\b/i.test(f.properties.name || ''))) throw new Error('Required boundaries missing');
-  } catch (_) { throw error('Territory boundary configuration is invalid. Contact an administrator.', 503); }
-  return features;
+    if(!features.some(f=>f.properties.mode==='allow')) throw Error('No Morong boundary');
+    return {...policy, sha256:crypto.createHash('sha256').update(raw).digest('hex')};
+  } catch (_) { throw error('Morong territory boundary configuration is invalid or lacks approval provenance. Contact an administrator.',503); }
 }
 function assertLocation(data) {
-  if (/\bmorong\b/i.test(String(data.location || ''))) throw error('Reports and locations originating from Morong are not accepted.');
-  if (data.latitude == null || data.longitude == null || data.latitude === '' || data.longitude === '' || !Number.isFinite(Number(data.latitude)) || !Number.isFinite(Number(data.longitude))) throw error('A valid GPS coordinate pair is required.');
-  const point = [Number(data.longitude), Number(data.latitude)];
-  if (Math.abs(point[0]) > 180 || Math.abs(point[1]) > 90) throw error('Invalid GPS coordinates.');
-  const features = loadPolicy();
-  if (features.some(f => f.properties.mode === 'deny' && contains(f.geometry, point))) throw error('This location is excluded. Morong reports are not accepted.');
-  if (!features.some(f => f.properties.mode === 'allow' && contains(f.geometry, point))) throw error('The location is outside the designated territory.');
+  for(const key of ['latitude','longitude']) if(!['number','string'].includes(typeof data[key]) || String(data[key]).trim()==='' || !Number.isFinite(Number(data[key]))) throw error('A valid GPS coordinate pair is required.');
+  const point=[Number(data.longitude),Number(data.latitude)];
+  if(Math.abs(point[0])>180||Math.abs(point[1])>90) throw error('Invalid GPS coordinates.');
+  const {features}=loadPolicy();
+  if(features.some(f=>f.properties.mode==='deny'&&contains(f.geometry,point))||!features.some(f=>f.properties.mode==='allow'&&contains(f.geometry,point))) throw error('Only locations inside the approved Morong, Rizal territory are accepted.');
 }
-module.exports = { assertLocation, contains };
+module.exports={assertLocation,contains,loadPolicy};

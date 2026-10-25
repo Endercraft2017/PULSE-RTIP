@@ -5,9 +5,24 @@
 window.IncidentMap = {
     async loadLeaflet() {
         if (!window.L) throw new Error('Unable to load the map library. Coordinates can still be edited below.');
+        const response=await Store.apiFetch('/api/operations/map-config');
+        if(!response.success || !response.data?.configured) throw new Error(response.data?.message || 'Approved Morong boundary is unavailable.');
+        this.territory=response.data.territory;
     },
     createMap(element, position, zoom) {
-        const map = L.map(element).setView(position, zoom);
+        if(!this.territory) throw new Error('Approved Morong boundary is unavailable.');
+        const allowed=this.territory.features.filter(f=>f.properties.mode==='allow');
+        const outline=L.geoJSON({type:'FeatureCollection',features:allowed},{interactive:false,style:{color:'#166534',weight:2,fillOpacity:0}});
+        const bounds=outline.getBounds();
+        const map=L.map(element,{maxBounds:bounds,maxBoundsViscosity:1}).fitBounds(bounds,{maxZoom:zoom});
+        map.setMinZoom(map.getBoundsZoom(bounds));
+        if(this.allows(position)) map.setView(position,Math.max(map.getMinZoom(),zoom));
+        outline.addTo(map);
+        const polygons=allowed.flatMap(f=>f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates);
+        const latlng=ring=>ring.map(([lng,lat])=>[lat,lng]);
+        L.polygon([[[-90,-180],[-90,180],[90,180],[90,-180]],...polygons.map(poly=>latlng(poly[0]))],{interactive:false,stroke:false,fillColor:'#e2e8f0',fillOpacity:1}).addTo(map);
+        for(const poly of polygons) for(const hole of poly.slice(1)) L.polygon(latlng(hole),{interactive:false,stroke:false,fillColor:'#e2e8f0',fillOpacity:1}).addTo(map);
+        for(const feature of this.territory.features.filter(f=>f.properties.mode==='deny')) L.geoJSON(feature,{interactive:false,style:{stroke:false,fillColor:'#e2e8f0',fillOpacity:1}}).addTo(map);
         const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -17,6 +32,19 @@ window.IncidentMap = {
             if (status) status.textContent = 'Map tiles unavailable. Check your connection; location pins and coordinate editing remain available.';
         });
         return map;
+    },
+    allows(position) {
+        if(!this.territory || !position) return false;
+        const ringContains=(ring)=>{
+            let inside=false; const x=Number(position.lng),y=Number(position.lat);
+            for(let i=0,j=ring.length-1;i<ring.length;j=i++) {
+                const [xi,yi]=ring[i],[xj,yj]=ring[j];
+                if(Math.abs((x-xi)*(yj-yi)-(y-yi)*(xj-xi))<1e-10&&x>=Math.min(xi,xj)&&x<=Math.max(xi,xj)&&y>=Math.min(yi,yj)&&y<=Math.max(yi,yj)) return true;
+                if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
+            }return inside;
+        };
+        const contains=f=>(f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).some(p=>ringContains(p[0])&&!p.slice(1).some(ringContains));
+        return this.territory.features.some(f=>f.properties.mode==='allow'&&contains(f))&&!this.territory.features.some(f=>f.properties.mode==='deny'&&contains(f));
     },
     setTitle(marker, title) {
         if (marker.getElement()) marker.getElement().title = title || '';
@@ -68,6 +96,7 @@ window.IncidentMap = {
             if (!container.isConnected || this.session !== session) return;
             session.map = this.createMap(container.querySelector('#incident-leaflet-map'), position || { lat: 12.8797, lng: 121.7740 }, position ? 16 : 6);
             const ensureMarker = p => {
+                if(!this.allows(p)) return;
                 if (session.marker) { session.marker.setLatLng(p); return; }
                 session.marker = L.marker(p, { draggable: admin, title: kind === 'hazards' ? 'Hazard location' : 'Report location' }).addTo(session.map);
                 if (admin) {
@@ -92,7 +121,7 @@ window.IncidentMap = {
                     }
                     if (advisories.success) {
                         const active = new Set();
-                        for (const advisory of advisories.data.filter(a => a.active)) {
+                        for (const advisory of advisories.data.filter(a => a.active && this.allows({lat:a.latitude,lng:a.longitude}))) {
                             active.add(advisory.id);
                             let marker = session.markers.get(advisory.id);
                             const p = { lat: Number(advisory.latitude), lng: Number(advisory.longitude) };
