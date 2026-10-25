@@ -37,7 +37,7 @@ Service → **Variables**:
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | contents of the Firebase service-account JSON (paste as-is, or base64) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | if email is used |
 | `NEWSAPI_KEY` | optional |
-| `TERRITORY_GEOJSON_PATH` | `/data/territory.geojson`, only after the approved Morong, Rizal boundary and approval provenance have been supplied |
+| `TERRITORY_GEOJSON_PATH` | Optional custom boundary file; leave unset to use the bundled, user-authorized published Morong polygon |
 
 Do not set `PORT`. Railway injects it and the server reads it.
 
@@ -121,13 +121,14 @@ in the same service; a separate map server is not needed.
    caching. Public tiles have no SLA; review capacity before a large rollout.
 3. In **Dashboard → Directories, calls & road advisories → Responders**, assign
    an agency to the admin who will save coordinate changes.
-4. To permit saves, supply the approved GeoJSON boundary file on the persistent
-   volume and set `TERRITORY_GEOJSON_PATH` to it. No production boundary is
-   bundled because an LGU-approved Morong boundary is not yet available. The file must
-   follow [the approved Morong boundary contract](../config/territory/README.md). Do not use synthetic test
-   boundaries in production. Without this setting, the map remains visible with
-   existing pins and a boundary-validation notice. Admins can preview corrections;
-   saving coordinates remains blocked until the approved boundary is available.
+4. The Morong, Rizal operational boundary is bundled with the backend. Leave
+   `TERRITORY_GEOJSON_PATH` unset to use it. Its NAMRIA/PSA/OCHA/HDX provenance
+   and non-LGU-certified status are displayed accurately. No GIS server, extra
+   download, or separate certificate is required for operational saves.
+   An explicit custom override still takes precedence and must be valid; remove
+   a stale override to use the bundled default. See the
+   [boundary contract](../config/territory/README.md). Every location save is
+   validated server-side; outside-Morong GPS remains rejected.
 
 The main Hazard Zones **Map** view should load Leaflet with OpenStreetMap tiles and show current
 hazards at their saved GPS positions. Admins drag a pin, enter a reason and

@@ -1,5 +1,12 @@
 # Morong dispatch correctness review — 25 October 2026
 
+## Follow-up
+
+The initial boundary blocker described below was subsequently resolved with
+the application owner's explicit authorization to use published operational
+data. See verification-operational-boundary.md for the activated data, tests
+and deployment evidence. The earlier matrix is a historical baseline.
+
 ## Scope and interpretation
 
 Work is on `dev/frontend-webapp`, based on `554128078fba1c112d0065afc91bd283ad0e226f`.

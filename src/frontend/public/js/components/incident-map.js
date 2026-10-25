@@ -20,33 +20,43 @@ window.IncidentMap = {
     },
     boundaryNotice(container,territory) {
         const notice=container.querySelector('.map-boundary-warning');
-        notice.hidden=!!territory;
-        notice.textContent=territory?'':'Morong boundary validation is unavailable. Existing pins are shown for reference. Admins can preview GPS corrections; saving is blocked until the approved boundary is configured.';
+        const operational=territory?.properties?.approval_kind==='published-operational';
+        notice.hidden=!!territory && !operational;
+        notice.textContent=operational?'Morong boundary: published NAMRIA/PSA data via OCHA/HDX. Operational use; not LGU-certified.':territory?'':'The map boundary could not be loaded. Existing pins are shown for reference. Every saved correction is checked against Morong by the server; unavailable validation will prevent saving.';
     },
     canDisplay(position,territory=this.territory) {
         if(!position || [position.lat,position.lng].some(v=>v==null||String(v).trim()===''||!Number.isFinite(Number(v)))) return false;
         return Math.abs(Number(position.lat))<=90 && Math.abs(Number(position.lng))<=180 && (!territory || this.allows(position,territory));
     },
-    createMap(element, position, zoom, territory=this.territory) {
-        let map;
-        if(territory) {
-            const allowed=territory.features.filter(f=>f.properties.mode==='allow');
-            const outline=L.geoJSON({type:'FeatureCollection',features:allowed},{interactive:false,style:{color:'#166534',weight:2,fillOpacity:0}});
-            const bounds=outline.getBounds();
-            map=L.map(element,{maxBounds:bounds,maxBoundsViscosity:1}).fitBounds(bounds,{maxZoom:zoom});
-            map.setMinZoom(map.getBoundsZoom(bounds));
-            if(this.allows(position,territory)) map.setView(position,Math.max(map.getMinZoom(),zoom));
-            outline.addTo(map);
-            const polygons=allowed.flatMap(f=>f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates);
-            const latlng=ring=>ring.map(([lng,lat])=>[lat,lng]);
-            L.polygon([[[-90,-180],[-90,180],[90,180],[90,-180]],...polygons.map(poly=>latlng(poly[0]))],{interactive:false,stroke:false,fillColor:'#e2e8f0',fillOpacity:1}).addTo(map);
-            for(const poly of polygons) for(const hole of poly.slice(1)) L.polygon(latlng(hole),{interactive:false,stroke:false,fillColor:'#e2e8f0',fillOpacity:1}).addTo(map);
-            for(const feature of territory.features.filter(f=>f.properties.mode==='deny')) L.geoJSON(feature,{interactive:false,style:{stroke:false,fillColor:'#e2e8f0',fillOpacity:1}}).addTo(map);
-        } else {
-            // A view center is not an invented enforcement boundary.
-            const center=this.canDisplay(position,null)?position:{lat:14.515,lng:121.239};
-            map=L.map(element).setView(center,this.canDisplay(position,null)?zoom:13);
-        }
+    applyBoundary(map,territory,zoom=map.getZoom()) {
+        if(!territory || map.pulseBoundaryHash===territory.sha256) return;
+        if(map.pulseBoundaryLayer)map.pulseBoundaryLayer.remove();
+        const layer=map.pulseBoundaryLayer=L.layerGroup().addTo(map);
+        const allowed=territory.features.filter(f=>f.properties.mode==='allow');
+        const outline=L.geoJSON({type:'FeatureCollection',features:allowed},{interactive:false,style:{color:'#166534',weight:2,fillOpacity:0}}).addTo(layer);
+        const bounds=outline.getBounds(),position=map.getCenter();
+        map.setMaxBounds(bounds);map.setMinZoom(map.getBoundsZoom(bounds));
+        if(this.allows(position,territory))map.setView(position,Math.max(map.getMinZoom(),zoom));
+        else map.fitBounds(bounds,{maxZoom:Math.max(map.getMinZoom(),zoom)});
+        const polygons=allowed.flatMap(f=>f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates);
+        const latlng=ring=>ring.map(([lng,lat])=>[lat,lng]);
+        L.polygon([[[-90,-180],[-90,180],[90,180],[90,-180]],...polygons.map(poly=>latlng(poly[0]))],{interactive:false,stroke:false,fillColor:'#e2e8f0',fillOpacity:1}).addTo(layer);
+        for(const poly of polygons)for(const hole of poly.slice(1))L.polygon(latlng(hole),{interactive:false,stroke:false,fillColor:'#e2e8f0',fillOpacity:1}).addTo(layer);
+        for(const feature of territory.features.filter(f=>f.properties.mode==='deny'))L.geoJSON(feature,{interactive:false,style:{stroke:false,fillColor:'#e2e8f0',fillOpacity:1}}).addTo(layer);
+        map.pulseBoundaryHash=territory.sha256;
+    },
+    async recoverBoundary(session) {
+        if(session.territory)return;
+        const territory=await this.loadLeaflet();
+        if(!territory || !session.container.isConnected || !session.map?._loaded)return;
+        session.territory=territory;
+        this.applyBoundary(session.map,territory);
+        this.boundaryNotice(session.container,territory);
+    },
+    createMap(element,position,zoom,territory=this.territory) {
+        const center=this.canDisplay(position,null)?position:{lat:14.515,lng:121.239};
+        const map=L.map(element).setView(center,this.canDisplay(position,null)?zoom:13);
+        if(territory)this.applyBoundary(map,territory,zoom);
         const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -99,7 +109,6 @@ window.IncidentMap = {
                 event.preventDefault();
                 const button = form.querySelector('button'); button.disabled = true;
                 try {
-                    if(!session.territory) throw new Error('Saving GPS corrections is blocked until Morong boundary validation is available. Reopen the map after configuration is restored.');
                     const latitude = Number(container.querySelector('#incident-lat').value);
                     const longitude = Number(container.querySelector('#incident-lng').value);
                     const note = container.querySelector('#incident-gps-note').value.trim();
@@ -109,9 +118,12 @@ window.IncidentMap = {
                     if (!response.success) throw new Error(response.message);
                     session.revision = (session.revision || 0) + 1;
                     session.dirty = false;
-                    if (session.marker) session.marker.setLatLng({ lat: latitude, lng: longitude });
+                    const saved={lat:Number(response.data.latitude),lng:Number(response.data.longitude)};
+                    session.ensureMarker?.(saved);
+                    if(session.map && !session.map.getBounds().contains(saved))session.map.panTo(saved);
                     container.querySelector('#incident-map-status').textContent = 'GPS correction saved and audited.';
                     if (window.DetailModal) DetailModal._loadHistory(report.id, kind);
+                    this.recoverBoundary(session).catch(()=>{});
                 } catch (error) { if (container.isConnected && this.session === session) container.querySelector('#incident-map-status').textContent = error.message; }
                 finally { button.disabled = false; }
             };
@@ -134,6 +146,7 @@ window.IncidentMap = {
                     });
                 }
             };
+            session.ensureMarker=ensureMarker;
             if (position) ensureMarker(position);
             const refresh = async () => {
                 if (!container.isConnected || this.session !== session) { if (this.session === session) this.dispose(); return; }

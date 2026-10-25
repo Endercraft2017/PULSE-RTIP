@@ -679,12 +679,12 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.login();self.boundary.unlink();self.page.evaluate(MAP_INSTRUMENT);self.open_report()
         self.page.wait_for_function('()=>!!IncidentMap.session?.marker')
         expect(self.page.locator('#incident-leaflet-map')).to_be_visible()
-        expect(self.page.locator('.map-boundary-warning')).to_contain_text('saving is blocked')
+        expect(self.page.locator('.map-boundary-warning')).to_contain_text('server')
         self.page.evaluate('IncidentMap.session.marker.events.dragend({latLng:{lat:()=>14.6,lng:()=>120.6}})')
         expect(self.page.locator('#incident-lat')).to_have_value('14.6')
         self.page.locator('#incident-gps-note').fill('Preview only; validation unavailable')
         self.page.get_by_role('button',name='Save coordinates',exact=True).click()
-        expect(self.page.locator('#incident-map-status')).to_contain_text('blocked')
+        expect(self.page.locator('#incident-map-status')).to_contain_text('boundary')
         with sqlite3.connect(self.database) as db:
             self.assertEqual(db.execute('SELECT latitude,longitude FROM reports WHERE id=?',[self.report_id]).fetchone(),(14.5,120.5))
             self.assertEqual(db.execute('SELECT COUNT(*) FROM report_events WHERE report_id=?',[self.report_id]).fetchone()[0],0)
@@ -694,7 +694,7 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker.events.dragend({latLng:{lat:()=>14.6,lng:()=>120.6}})',self.hazard_id)
         self.page.locator('.hazard-pin-form [name=note]').fill('Preview pin correction')
         self.page.get_by_role('button',name='Save pin location',exact=True).click()
-        expect(self.page.locator('.hazard-pin-error')).to_contain_text('blocked')
+        expect(self.page.locator('.hazard-pin-error')).to_contain_text('boundary')
         expect(self.page.locator('.hazard-live-map')).to_be_visible()
         self.page.get_by_role('button',name='Cancel repositioning',exact=True).click()
         self.assertEqual(self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker.getLatLng().lat',self.hazard_id),14.5)
@@ -710,6 +710,95 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         expect(self.page.locator('.hazard-live-map')).to_be_visible()
         expect(self.page.locator('.map-boundary-warning')).to_contain_text('shown for reference')
         self.assertTrue(self.page.evaluate('Array.from(HazardMap.session.markers.values()).every(e=>!e.marker.options.draggable)'))
+
+    def test_report_save_recovers_when_boundary_becomes_available_without_reopening(self):
+        self.login();self.boundary.unlink();self.open_report()
+        self.page.wait_for_function('()=>!!IncidentMap.session?.marker')
+        self.boundary.write_text(json.dumps(self.policy))
+        self.page.locator('#incident-lat').fill('14.6')
+        self.page.locator('#incident-lng').fill('120.6')
+        self.page.locator('#incident-gps-note').fill('Boundary restored; verified entrance')
+        self.page.get_by_role('button',name='Save coordinates',exact=True).click()
+        expect(self.page.locator('#incident-map-status')).to_contain_text('saved and audited')
+        with sqlite3.connect(self.database) as db:self.assertEqual(db.execute('SELECT latitude,longitude FROM reports WHERE id=?',[self.report_id]).fetchone(),(14.6,120.6))
+
+    def test_hazard_save_recovers_without_reopening_or_replacing_map_marker(self):
+        self.boundary.unlink();self.main_hazard_map()
+        self.page.evaluate('(id)=>{window.recoveryMap=HazardMap.session.map;window.recoveryPin=HazardMap.session.markers.get(id).marker;recoveryPin.events.dragend({latLng:{lat:()=>14.6,lng:()=>120.6}});}',self.hazard_id)
+        self.boundary.write_text(json.dumps(self.policy))
+        self.page.locator('.hazard-pin-form [name=note]').fill('Boundary restored; save on the same map')
+        self.page.get_by_role('button',name='Save pin location',exact=True).click()
+        expect(self.page.locator('.hazard-map-status')).to_contain_text('saved and audited')
+        expect(self.page.locator('.map-boundary-warning')).not_to_be_visible()
+        self.assertTrue(self.page.evaluate('(id)=>HazardMap.session.map===recoveryMap && HazardMap.session.markers.get(id).marker===recoveryPin',self.hazard_id))
+        with sqlite3.connect(self.database) as db:self.assertEqual(db.execute('SELECT latitude,longitude FROM hazard_alerts WHERE id=?',[self.hazard_id]).fetchone(),(14.6,120.6))
+
+    def test_manual_report_coordinates_create_pin_immediately_after_save(self):
+        with sqlite3.connect(self.database) as db:db.execute('UPDATE reports SET latitude=NULL,longitude=NULL WHERE id=?',[self.report_id])
+        self.login();self.open_report()
+        self.page.wait_for_function('()=>!!IncidentMap.session?.map')
+        self.page.locator('#incident-lat').fill('14.6');self.page.locator('#incident-lng').fill('120.6')
+        self.page.locator('#incident-gps-note').fill('First verified incident GPS')
+        self.page.get_by_role('button',name='Save coordinates',exact=True).click()
+        expect(self.page.locator('#incident-map-status')).to_contain_text('saved and audited')
+        self.assertTrue(self.page.evaluate('!!IncidentMap.session.marker && IncidentMap.session.marker.getLatLng().lat===14.6'))
+
+    def install_published_morong_boundary(self):
+        self.boundary.write_text((ROOT/'src/backend/data/morong-rizal.geojson').read_text())
+        with sqlite3.connect(self.database) as db:
+            db.execute('UPDATE reports SET latitude=14.515,longitude=121.239 WHERE id=?',[self.report_id])
+            db.execute('UPDATE hazard_alerts SET latitude=14.515,longitude=121.239 WHERE id=?',[self.hazard_id])
+
+    def test_published_morong_boundary_report_drag_save_reload_and_outside_rejection(self):
+        self.install_published_morong_boundary();self.login();self.open_report()
+        self.page.wait_for_function('()=>!!IncidentMap.session?.marker')
+        expect(self.page.locator('.map-boundary-warning')).to_contain_text('not LGU-certified')
+        self.page.locator('#incident-leaflet-map').scroll_into_view_if_needed()
+        self.page.evaluate("IncidentMap.session.marker.getElement().dataset.actualMorongPin='target';window.actualMorongPin=IncidentMap.session.marker")
+        box=self.page.locator('[data-actual-morong-pin=target]').bounding_box()
+        self.page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
+        self.page.mouse.down();self.page.mouse.move(box['x']+box['width']/2+24,box['y']+box['height']/2-16,steps=12);self.page.mouse.up()
+        self.page.locator('#incident-gps-note').fill('Morong published-boundary entrance correction')
+        with self.page.expect_response(lambda r:r.url.endswith('/api/reports/'+str(self.report_id)) and r.request.method=='PUT') as saved_response:
+            self.page.get_by_role('button',name='Save coordinates',exact=True).click()
+        self.assertEqual(saved_response.value.status,200,saved_response.value.text())
+        expect(self.page.locator('#incident-map-status')).to_contain_text('saved and audited')
+        with sqlite3.connect(self.database) as db:
+            saved=db.execute('SELECT latitude,longitude FROM reports WHERE id=?',[self.report_id]).fetchone()
+            note=db.execute('SELECT note,actor_department FROM report_events WHERE report_id=? ORDER BY id DESC LIMIT 1',[self.report_id]).fetchone()
+        self.assertNotEqual(saved,(14.515,121.239));self.assertEqual(note,('Morong published-boundary entrance correction','MDRRMO'))
+        self.assertTrue(self.page.evaluate('IncidentMap.session.marker===actualMorongPin'))
+        self.page.reload()
+        self.page.locator('#incident-'+str(self.report_id)).get_by_role('button',name='Details',exact=True).click()
+        self.page.wait_for_function('()=>!!IncidentMap.session?.marker')
+        self.assertAlmostEqual(self.page.evaluate('IncidentMap.session.marker.getLatLng().lat'),saved[0],places=7)
+        expect(self.page.locator('#detail-modal-history-body')).to_contain_text('Morong published-boundary entrance correction')
+        self.page.locator('#incident-lat').fill('14.465');self.page.locator('#incident-lng').fill('121.191')
+        self.page.locator('#incident-gps-note').fill('Outside-town negative test')
+        with self.page.expect_response(lambda r:r.url.endswith('/api/reports/'+str(self.report_id)) and r.request.method=='PUT') as rejected:
+            self.page.get_by_role('button',name='Save coordinates',exact=True).click()
+        self.assertEqual(rejected.value.status,422)
+        expect(self.page.locator('#incident-map-status')).to_contain_text('Morong')
+        with sqlite3.connect(self.database) as db:
+            self.assertEqual(db.execute('SELECT latitude,longitude FROM reports WHERE id=?',[self.report_id]).fetchone(),saved)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM report_events WHERE report_id=?',[self.report_id]).fetchone()[0],1)
+        self.page.screenshot(path=str(ARTIFACTS/'published-morong-save-and-rejection.png'),full_page=True)
+
+    def test_published_morong_boundary_hazard_drag_saves_and_citizen_submissions_are_bounded(self):
+        self.install_published_morong_boundary();self.main_hazard_map()
+        self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker.events.dragend({latLng:{lat:()=>14.516,lng:()=>121.24}})',self.hazard_id)
+        self.page.locator('.hazard-pin-form [name=note]').fill('Morong responder hazard correction')
+        self.page.get_by_role('button',name='Save pin location',exact=True).click()
+        expect(self.page.locator('.hazard-map-status')).to_contain_text('saved and audited')
+        with sqlite3.connect(self.database) as db:self.assertEqual(db.execute('SELECT latitude,longitude FROM hazard_alerts WHERE id=?',[self.hazard_id]).fetchone(),(14.516,121.24))
+        auth=self.context.request.post(self.base+'/api/auth/login',data={'email':'citizen@browser.test','password':PASSWORD}).json()
+        headers={'Authorization':'Bearer '+auth['data']['token']}
+        payload={'title':'Published-boundary controlled incident','type':'Flood','location':'Morong, Rizal','latitude':14.515,'longitude':121.239}
+        self.assertEqual(self.context.request.post(self.base+'/api/reports',headers=headers,data=payload).status,201)
+        for lat,lng in [(14.465,121.191),(14.561,121.208),(14.70204547,120.32067693)]:
+            response=self.context.request.post(self.base+'/api/reports',headers=headers,data={**payload,'latitude':lat,'longitude':lng})
+            self.assertEqual(response.status,422,response.text())
+        self.assertEqual(self.context.request.put(self.base+'/api/hazards/'+str(self.hazard_id)+'/location',headers=headers,data={'latitude':14.516,'longitude':121.24,'note':'Unauthorized'}).status,403)
 
 
 if __name__=='__main__': unittest.main(verbosity=2)

@@ -1,9 +1,11 @@
-/** Morong, Rizal policy. An operator must supply an approved, versioned GeoJSON.
+/** Morong, Rizal policy. Ships a user-authorized published operational boundary.
  * GPS is authoritative; outer edges are included, hole/deny edges excluded.
  * An old Morong-deny configuration deliberately fails closed.
  */
 const fs = require('fs');
 const crypto = require('crypto');
+const path = require('path');
+const DEFAULT_POLICY_PATH=path.resolve(__dirname,'../../data/morong-rizal.geojson');
 function error(message, statusCode = 422) { return Object.assign(new Error(message), { statusCode }); }
 function ringContains([x,y], ring) {
   let inside=false;
@@ -20,11 +22,16 @@ function contains(geometry, point) {
   return polygons.some(rings=>ringContains(point,rings[0])&&!rings.slice(1).some(r=>ringContains(point,r)));
 }
 function loadPolicy() {
-  if(!process.env.TERRITORY_GEOJSON_PATH) throw error('Morong location submissions are disabled until an approved Morong, Rizal boundary is configured.',503);
   try {
-    const raw=fs.readFileSync(process.env.TERRITORY_GEOJSON_PATH,'utf8');
+    const raw=fs.readFileSync(process.env.TERRITORY_GEOJSON_PATH || DEFAULT_POLICY_PATH,'utf8');
     const policy=JSON.parse(raw), p=policy.properties;
-    if(policy.type!=='FeatureCollection' || p?.jurisdiction!=='PH-RIZ-MORONG' || !['source','approved_by','approved_at','version'].every(k=>typeof p[k]==='string'&&p[k].trim()) || !Number.isFinite(Date.parse(p.approved_at))) throw Error('Missing provenance');
+    if(policy.type!=='FeatureCollection' || p?.jurisdiction!=='PH-RIZ-MORONG' || !['source','version'].every(k=>typeof p[k]==='string'&&p[k].trim())) throw Error('Missing provenance');
+    if(p.approval_kind==='published-operational') {
+      if(p.certification!=='not-lgu-certified' || !p.operational_authorization?.by || !Number.isFinite(Date.parse(p.operational_authorization.date))) throw Error('Missing operational authorization');
+      if(policy.features?.length!==1 || policy.features[0].properties?.adm3_pcode!=='PH0405809' || policy.features[0].properties?.adm2_name!=='Rizal') throw Error('Wrong municipality');
+      const digest=crypto.createHash('sha256').update(JSON.stringify(policy.features[0].geometry)).digest('hex');
+      if(digest!==p.geometry_sha256) throw Error('Published geometry digest mismatch');
+    } else if(!['approved_by','approved_at'].every(k=>typeof p[k]==='string'&&p[k].trim()) || !Number.isFinite(Date.parse(p.approved_at))) throw Error('Missing approval provenance');
     const features=policy.features;
     if(!Array.isArray(features)||!features.length) throw Error('No features');
     for(const f of features) {
@@ -36,13 +43,13 @@ function loadPolicy() {
     }
     if(!features.some(f=>f.properties.mode==='allow')) throw Error('No Morong boundary');
     return {...policy, sha256:crypto.createHash('sha256').update(raw).digest('hex')};
-  } catch (_) { throw error('Morong territory boundary configuration is invalid or lacks approval provenance. Contact an administrator.',503); }
+  } catch (_) { throw error('Morong territory boundary configuration is invalid or lacks source/authorization provenance. Contact an administrator.',503); }
 }
 function assertLocation(data) {
   for(const key of ['latitude','longitude']) if(!['number','string'].includes(typeof data[key]) || String(data[key]).trim()==='' || !Number.isFinite(Number(data[key]))) throw error('A valid GPS coordinate pair is required.');
   const point=[Number(data.longitude),Number(data.latitude)];
   if(Math.abs(point[0])>180||Math.abs(point[1])>90) throw error('Invalid GPS coordinates.');
   const {features}=loadPolicy();
-  if(features.some(f=>f.properties.mode==='deny'&&contains(f.geometry,point))||!features.some(f=>f.properties.mode==='allow'&&contains(f.geometry,point))) throw error('Only locations inside the approved Morong, Rizal territory are accepted.');
+  if(features.some(f=>f.properties.mode==='deny'&&contains(f.geometry,point))||!features.some(f=>f.properties.mode==='allow'&&contains(f.geometry,point))) throw error('Only locations inside the Morong, Rizal territory are accepted.');
 }
-module.exports={assertLocation,contains,loadPolicy};
+module.exports={assertLocation,contains,loadPolicy,DEFAULT_POLICY_PATH};

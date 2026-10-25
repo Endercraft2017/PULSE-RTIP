@@ -41,8 +41,10 @@ Only positions inside an approved Morong, Rizal boundary are accepted. This
 supersedes the previous Morong exclusion; old configurations fail closed.
 See [the boundary contract](../config/territory/README.md) for provenance,
 required metadata, edge/hole behavior, and the government source investigation.
-No certified production polygon was available during this task. Location
-writes remain blocked until one is supplied; test fixtures are synthetic.
+The user-authorized published NAMRIA/PSA-sourced outline is now bundled as the
+default; it is labelled operational, not LGU-certified. No separate Railway
+boundary configuration is required. An invalid explicit override fails closed.
+Tests exercise both the published polygon and isolated synthetic fixtures.
 Typed addresses and reverse geocoding never override GPS validation.
 
 ## Admin and citizen workflows

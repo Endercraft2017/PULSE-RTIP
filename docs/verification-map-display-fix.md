@@ -13,8 +13,10 @@ mask. Reference viewing without a boundary does not assert that a point is
 inside Morong; no approximate enforcement polygon has been invented.
 
 An always-visible notice explains unavailable validation. Admins may type or
-drag preview coordinates; saving is blocked until the map is reopened with a
-usable approved boundary. Direct API writes remain protected by the unchanged
+drag preview coordinates; each save is validated by the backend. A stale or failed map-config request
+no longer creates a client-side save lock. If server validation recovers while
+the map is open, corrections can save immediately, and the same map/marker
+instances adopt the recovered boundary. Direct API writes remain protected by the unchanged
 backend validator. Citizens retain read-only markers. Tile errors have their
 own status and cannot overwrite/hide the boundary notice.
 

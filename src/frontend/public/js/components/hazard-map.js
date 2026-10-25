@@ -23,7 +23,7 @@ window.HazardMap = {
                 13,territory);
             this.reconcile(session, hazards);
             session.status.textContent = admin && !territory
-                ? 'Drag a pin to preview a GPS correction. Saving requires boundary validation. Updates refresh every 5 seconds.'
+                ? 'Drag a pin to correct GPS. The server validates each save. Updates refresh every 5 seconds.'
                 : admin ? 'Drag a hazard pin to reposition it, then save the correction. Updates refresh every 5 seconds.'
                 : 'Live hazard locations and road advisories. Updates refresh every 5 seconds.';
             const refresh = async () => {
@@ -132,7 +132,6 @@ window.HazardMap = {
             event.preventDefault();
             const button = form.querySelector('[type=submit]'); button.disabled = true;
             try {
-                if(!session.territory) throw new Error('Saving GPS corrections is blocked until Morong boundary validation is available. Reopen the map after configuration is restored.');
                 const note = form.elements.note.value.trim();
                 if (!note) throw new Error('Enter a correction reason.');
                 const response = await Store.apiFetch(`/api/hazards/${entry.hazard.id}/location`, { method: 'PUT', body: JSON.stringify({ latitude: Number(form.elements.latitude.value), longitude: Number(form.elements.longitude.value), note }) });
@@ -143,6 +142,7 @@ window.HazardMap = {
                 entry.marker.setLatLng({ lat: Number(response.data.latitude), lng: Number(response.data.longitude) });
                 session.pending = null; root.replaceChildren();
                 session.status.textContent = 'Hazard pin location saved and audited.';
+                IncidentMap.recoverBoundary(session).catch(()=>{});
             } catch (error) { if (form.isConnected) form.querySelector('.hazard-pin-error').textContent = error.message; }
             finally { button.disabled = false; }
         };

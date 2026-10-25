@@ -65,9 +65,15 @@ router.use('/geocode', require('./geocode'));
  * -------------------------------------------------------------------------- */
 
 router.get('/health', (req, res) => {
+  let territory;
+  try {
+    const policy=require('../services/geocode/territory').loadPolicy();
+    territory={configured:true,jurisdiction:policy.properties.jurisdiction,source:policy.properties.source,version:policy.properties.version,certification:policy.properties.certification||'operator-supplied',sha256:policy.sha256};
+  }catch(_){territory={configured:false,jurisdiction:'PH-RIZ-MORONG'};}
   res.json({
     success: true,
     message: 'PULSE-RTIP API is running',
+    territory,
     commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || null,
     timestamp: new Date().toISOString(),
   });
