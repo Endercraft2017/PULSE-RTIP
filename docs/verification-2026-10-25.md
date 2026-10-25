@@ -3,7 +3,8 @@
 ## Scope and interpretation
 
 Work is on `dev/frontend-webapp`, based on `554128078fba1c112d0065afc91bd283ad0e226f`.
-The implementation is recorded in the commit containing this report. Production
+The initial implementation is recorded in commit 3758706. A subsequent map
+availability regression fix is documented in verification-map-display-fix.md. Production
 deployment has not been verified. Leaflet is retained;
 no Google Maps key, billing account, or provider migration was introduced.
 “Verified” below means the named local evidence, not a production or phone claim.

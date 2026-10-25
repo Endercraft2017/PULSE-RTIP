@@ -619,7 +619,7 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.assertEqual(self.context.request.post(self.base+'/api/auth/login',data={'email':'other@browser.test','password':PASSWORD}).status,403)
         with sqlite3.connect(self.database) as db:self.assertIsNotNone(db.execute('SELECT id FROM users WHERE id=3').fetchone())
 
-    def test_morong_viewport_is_constrained_and_boundary_unavailable_fails_closed(self):
+    def test_morong_viewport_is_constrained_but_missing_boundary_keeps_map_visible(self):
         self.main_hazard_map()
         self.assertTrue(self.page.evaluate('!!HazardMap.session.map.options.maxBounds'))
         self.page.evaluate('HazardMap.session.map.panTo([0,0],{animate:false})')
@@ -628,8 +628,10 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.boundary.unlink()
         self.page.evaluate("Router.navigate('hazards')")
         if self.page.locator('.hazards-toggle').inner_text()=='Map': self.page.locator('.hazards-toggle').click()
-        expect(self.page.locator('.hazard-map-status')).to_contain_text('boundary')
-        expect(self.page.locator('.hazard-live-map')).not_to_be_visible()
+        expect(self.page.locator('.hazard-live-map')).to_be_visible()
+        self.page.wait_for_function('()=>!!HazardMap.session?.map')
+        expect(self.page.locator('.map-boundary-warning')).to_contain_text('boundary')
+        self.assertTrue(self.page.evaluate('HazardMap.session.markers.size > 0'))
 
     def test_report_coordinates_manual_save_and_actual_pointer_drag(self):
         self.login();self.open_report()
@@ -672,6 +674,42 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.page.evaluate("AdminHomePage.closeCreateHazardModal()")
         self.page.evaluate('(id)=>DetailModal.showHazard({id,title:"Critical fixture",severity:"critical",latitude:14.5,longitude:120.5})',self.hazard_id)
         expect(self.page.locator('#detail-modal-container')).to_contain_text('Critical Severity')
+
+    def test_report_map_without_boundary_allows_drag_preview_but_blocks_saves(self):
+        self.login();self.boundary.unlink();self.page.evaluate(MAP_INSTRUMENT);self.open_report()
+        self.page.wait_for_function('()=>!!IncidentMap.session?.marker')
+        expect(self.page.locator('#incident-leaflet-map')).to_be_visible()
+        expect(self.page.locator('.map-boundary-warning')).to_contain_text('saving is blocked')
+        self.page.evaluate('IncidentMap.session.marker.events.dragend({latLng:{lat:()=>14.6,lng:()=>120.6}})')
+        expect(self.page.locator('#incident-lat')).to_have_value('14.6')
+        self.page.locator('#incident-gps-note').fill('Preview only; validation unavailable')
+        self.page.get_by_role('button',name='Save coordinates',exact=True).click()
+        expect(self.page.locator('#incident-map-status')).to_contain_text('blocked')
+        with sqlite3.connect(self.database) as db:
+            self.assertEqual(db.execute('SELECT latitude,longitude FROM reports WHERE id=?',[self.report_id]).fetchone(),(14.5,120.5))
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM report_events WHERE report_id=?',[self.report_id]).fetchone()[0],0)
+
+    def test_hazard_map_without_boundary_keeps_pins_and_blocks_preview_save(self):
+        self.boundary.unlink();self.main_hazard_map()
+        self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker.events.dragend({latLng:{lat:()=>14.6,lng:()=>120.6}})',self.hazard_id)
+        self.page.locator('.hazard-pin-form [name=note]').fill('Preview pin correction')
+        self.page.get_by_role('button',name='Save pin location',exact=True).click()
+        expect(self.page.locator('.hazard-pin-error')).to_contain_text('blocked')
+        expect(self.page.locator('.hazard-live-map')).to_be_visible()
+        self.page.get_by_role('button',name='Cancel repositioning',exact=True).click()
+        self.assertEqual(self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker.getLatLng().lat',self.hazard_id),14.5)
+        with sqlite3.connect(self.database) as db:self.assertEqual(db.execute('SELECT latitude FROM hazard_alerts WHERE id=?',[self.hazard_id]).fetchone()[0],14.5)
+        self.page.screenshot(path=str(ARTIFACTS/'map-visible-without-boundary.png'),full_page=True)
+
+    def test_map_config_network_failure_still_shows_citizen_map_and_read_only_pin(self):
+        self.login(role='citizen')
+        self.page.route('**/api/operations/map-config',lambda route:route.abort())
+        self.page.evaluate("Router.navigate('hazards')")
+        if self.page.locator('.hazards-toggle').inner_text()=='Map':self.page.locator('.hazards-toggle').click()
+        self.page.wait_for_function('()=>!!HazardMap.session?.map')
+        expect(self.page.locator('.hazard-live-map')).to_be_visible()
+        expect(self.page.locator('.map-boundary-warning')).to_contain_text('shown for reference')
+        self.assertTrue(self.page.evaluate('Array.from(HazardMap.session.markers.values()).every(e=>!e.marker.options.draggable)'))
 
 
 if __name__=='__main__': unittest.main(verbosity=2)

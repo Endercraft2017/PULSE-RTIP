@@ -6082,3 +6082,5 @@ body.theme-dark .newsfeed-card__provenance {
 .incident-priority-form label { display:block; }
 
 .dash-main-tab--archive { background:#e2e8f0; color:#334155; }
+
+.map-boundary-warning { background:#fef3c7; color:#78350f; padding:10px; border-radius:8px; margin-bottom:10px; }

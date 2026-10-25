@@ -125,8 +125,9 @@ in the same service; a separate map server is not needed.
    volume and set `TERRITORY_GEOJSON_PATH` to it. No production boundary is
    bundled because an LGU-approved Morong boundary is not yet available. The file must
    follow [the approved Morong boundary contract](../config/territory/README.md). Do not use synthetic test
-   boundaries in production. Without this setting, the map stays unavailable
-   with a configuration message, and coordinate submissions remain blocked.
+   boundaries in production. Without this setting, the map remains visible with
+   existing pins and a boundary-validation notice. Admins can preview corrections;
+   saving coordinates remains blocked until the approved boundary is available.
 
 The main Hazard Zones **Map** view should load Leaflet with OpenStreetMap tiles and show current
 hazards at their saved GPS positions. Admins drag a pin, enter a reason and

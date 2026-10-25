@@ -46,8 +46,11 @@ incident until location validation and conversion complete transactionally.
 
 The authenticated map-config API supplies the actual geometry, provenance,
 and SHA-256 of the installed file. Maps constrain their viewport to its bounds
-and mask excluded areas; backend validation remains authoritative. Existing
-out-of-bound records are not plotted as eligible pins. Correct coordinates
+and mask excluded areas when the boundary is configured; backend validation
+remains authoritative. Without a usable boundary, map viewing and existing pins
+remain available as reference, but coordinate saves are blocked. The default
+Morong town view center is not an invented enforcement boundary. Existing
+out-of-bound records are not plotted as eligible pins when a boundary is active. Correct coordinates
 through the audited editor after reviewing those historical records.
 
 Never install the synthetic shapes from tests as a production boundary.
