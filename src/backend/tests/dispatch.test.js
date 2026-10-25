@@ -63,7 +63,7 @@ test('territory rules reject denied GPS, outside Morong, and missing coordinates
 });
 test('missing policy fails closed; polygon holes and bounds are respected', () => {
   const { assertLocation, contains } = require('../services/geocode/territory');
-  const saved = process.env.TERRITORY_GEOJSON_PATH; process.env.TERRITORY_GEOJSON_PATH=path.join(folder,'missing-boundary.json');
+  const saved = process.env.TERRITORY_GEOJSON_PATH; delete process.env.TERRITORY_GEOJSON_PATH;
   assert.throws(() => assertLocation(valid), error => error.statusCode === 503);
   process.env.TERRITORY_GEOJSON_PATH = saved;
   const shape = rectangle(0,0,10,10); shape.coordinates.push(rectangle(2,2,4,4).coordinates[0]);
@@ -382,34 +382,4 @@ test('critical severity creates an all-active-user broadcast with admin-only rec
   const recipients=await api('GET',`/operations/broadcasts/${jobs.find(j=>j.channel==='sms').id}/recipients`);
   assert.equal(recipients.data.length,3);
   assert.equal((await api('GET',`/operations/broadcasts/${jobs[0].id}/recipients`,undefined,'citizen')).status,403);
-});
-
-test('published boundary candidate is Morong Rizal, not Morong Bataan or nearby municipalities',()=>{
-  const {readFileSync}=require('node:fs');
-  const candidate=JSON.parse(readFileSync(path.resolve(__dirname,'../../../config/territory/candidates/morong-rizal-ocha-namria-psa.geojson'),'utf8'));
-  assert.equal(candidate.features.length,1);
-  const feature=candidate.features[0];
-  assert.equal(feature.properties.adm3_pcode,'PH0405809');assert.equal(feature.properties.adm2_name,'Rizal');
-  const {contains,loadPolicy}=require('../services/geocode/territory');
-  assert.equal(contains(feature.geometry,[121.239,14.515]),true,'Morong town');
-  assert.equal(contains(feature.geometry,[121.24328548,14.54258742]),true,'published Morong center');
-  assert.equal(contains(feature.geometry,[121.191,14.465]),false,'Binangonan');
-  assert.equal(contains(feature.geometry,[121.208,14.561]),false,'Teresa');
-  assert.equal(contains(feature.geometry,[120.32067693,14.70204547]),false,'Morong Bataan');
-  const old=process.env.TERRITORY_GEOJSON_PATH;
-  try{
-    process.env.TERRITORY_GEOJSON_PATH=path.resolve(__dirname,'../../../config/territory/candidates/morong-rizal-ocha-namria-psa.geojson');
-    assert.throws(loadPolicy,e=>e.statusCode===503,'A candidate is not an LGU approval attestation');
-  }finally{process.env.TERRITORY_GEOJSON_PATH=old;}
-});
-
-
-test('bundled operational boundary enables Morong GPS without a custom path and rejects other towns',()=>{
-  const {loadPolicy,assertLocation}=require('../services/geocode/territory');const old=process.env.TERRITORY_GEOJSON_PATH;
-  try{
-    delete process.env.TERRITORY_GEOJSON_PATH;
-    const p=loadPolicy();assert.equal(p.properties.approval_kind,'published-operational');assert.equal(p.properties.certification,'not-lgu-certified');
-    assert.doesNotThrow(()=>assertLocation({latitude:14.515,longitude:121.239}));
-    for(const [latitude,longitude] of [[14.465,121.191],[14.561,121.208],[14.70204547,120.32067693]])assert.throws(()=>assertLocation({latitude,longitude}),e=>e.statusCode===422);
-  }finally{process.env.TERRITORY_GEOJSON_PATH=old;}
 });

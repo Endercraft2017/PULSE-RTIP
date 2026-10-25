@@ -8,10 +8,6 @@
   "capabilities_response_sha256": "b9ba62927eddad64756caaa8f8a77a38c3a6bb12ca1f1d066be63d296f28b1dc",
   "feature_schema_request_status": 401,
   "certified_for_this_application": false,
-  "production_geometry_installed": true,
-  "decision": "Use the application-owner-authorized published NAMRIA/PSA-sourced Morong, Rizal outline from OCHA/HDX; it is not labelled LGU-certified.",
-  "operational_authorization_date": "2026-10-25",
-  "runtime_file": "src/backend/data/morong-rizal.geojson",
-  "operational_source": "https://data.humdata.org/dataset/cod-ab-phl",
-  "municipal_pcode": "PH0405809"
+  "production_geometry_installed": false,
+  "decision": "Reference catalog only; require certified Morong LGU boundary before enforcement is enabled."
 }
