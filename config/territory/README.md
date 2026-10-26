@@ -36,8 +36,11 @@ out-of-bound records; their coordinates can be corrected to an eligible point.
 
 Every save is checked by the backend, even when the map-config request failed.
 The client does not retain an obsolete save lock. Maps keep their marker/map
-instances and can adopt a recovered boundary without reopening. Approved or
-operationally authorized bounds constrain the map, with excluded areas masked.
+instances and can adopt a recovered boundary without reopening. The boundary
+is an unfilled, distinct outline. The map can pan and zoom freely, with no
+geographic cutout or shaded masks. Opening Hazard Zones Map, clicking the
+outline, or pressing **Focus on Morong** fits the Morong outline into view.
+These display controls do not change server-side location eligibility.
 If map configuration cannot be retrieved, existing GPS pins remain visible as
 reference and the backend still decides whether a correction can be saved.
 

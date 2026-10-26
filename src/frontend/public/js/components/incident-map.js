@@ -24,25 +24,23 @@ window.IncidentMap = {
         notice.hidden=!!territory && !operational;
         notice.textContent=operational?'Morong boundary: published NAMRIA/PSA data via OCHA/HDX. Operational use; not LGU-certified.':territory?'':'The map boundary could not be loaded. Existing pins are shown for reference. Every saved correction is checked against Morong by the server; unavailable validation will prevent saving.';
     },
-    canDisplay(position,territory=this.territory) {
+    canDisplay(position) {
         if(!position || [position.lat,position.lng].some(v=>v==null||String(v).trim()===''||!Number.isFinite(Number(v)))) return false;
-        return Math.abs(Number(position.lat))<=90 && Math.abs(Number(position.lng))<=180 && (!territory || this.allows(position,territory));
+        return Math.abs(Number(position.lat))<=90 && Math.abs(Number(position.lng))<=180;
     },
-    applyBoundary(map,territory,zoom=map.getZoom()) {
+    focusMorong(map) {
+        if(map.pulseMorongBounds?.isValid()) map.fitBounds(map.pulseMorongBounds,{padding:[20,20],maxZoom:14,animate:false});
+        else map.setView([14.515,121.239],13,{animate:false});
+    },
+    applyBoundary(map,territory) {
         if(!territory || map.pulseBoundaryHash===territory.sha256) return;
         if(map.pulseBoundaryLayer)map.pulseBoundaryLayer.remove();
         const layer=map.pulseBoundaryLayer=L.layerGroup().addTo(map);
         const allowed=territory.features.filter(f=>f.properties.mode==='allow');
-        const outline=L.geoJSON({type:'FeatureCollection',features:allowed},{interactive:false,style:{color:'#166534',weight:2,fillOpacity:0}}).addTo(layer);
-        const bounds=outline.getBounds(),position=map.getCenter();
-        map.setMaxBounds(bounds);map.setMinZoom(map.getBoundsZoom(bounds));
-        if(this.allows(position,territory))map.setView(position,Math.max(map.getMinZoom(),zoom));
-        else map.fitBounds(bounds,{maxZoom:Math.max(map.getMinZoom(),zoom)});
-        const polygons=allowed.flatMap(f=>f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates);
-        const latlng=ring=>ring.map(([lng,lat])=>[lat,lng]);
-        L.polygon([[[-90,-180],[-90,180],[90,180],[90,-180]],...polygons.map(poly=>latlng(poly[0]))],{interactive:false,stroke:false,fillColor:'#e2e8f0',fillOpacity:1}).addTo(layer);
-        for(const poly of polygons)for(const hole of poly.slice(1))L.polygon(latlng(hole),{interactive:false,stroke:false,fillColor:'#e2e8f0',fillOpacity:1}).addTo(layer);
-        for(const feature of territory.features.filter(f=>f.properties.mode==='deny'))L.geoJSON(feature,{interactive:false,style:{stroke:false,fillColor:'#e2e8f0',fillOpacity:1}}).addTo(layer);
+        const outline=L.geoJSON({type:'FeatureCollection',features:allowed},{className:'morong-boundary-outline',style:{color:'#7c3aed',weight:4,opacity:1,fill:false}}).addTo(layer);
+        outline.bindTooltip('Morong, Rizal — click to focus');
+        outline.on('click',()=>this.focusMorong(map));
+        map.pulseMorongBounds=outline.getBounds();
         map.pulseBoundaryHash=territory.sha256;
     },
     async recoverBoundary(session) {
@@ -54,9 +52,21 @@ window.IncidentMap = {
         this.boundaryNotice(session.container,territory);
     },
     createMap(element,position,zoom,territory=this.territory) {
-        const center=this.canDisplay(position,null)?position:{lat:14.515,lng:121.239};
-        const map=L.map(element).setView(center,this.canDisplay(position,null)?zoom:13);
-        if(territory)this.applyBoundary(map,territory,zoom);
+        const center=this.canDisplay(position)?position:{lat:14.515,lng:121.239};
+        const map=L.map(element).setView(center,this.canDisplay(position)?zoom:13);
+        if(territory)this.applyBoundary(map,territory);
+        const focus=L.control({position:'topright'});
+        let button;
+        focus.onAdd=()=>{
+            button=L.DomUtil.create('button','morong-focus-control');
+            button.type='button'; button.textContent='Focus on Morong';
+            button.title='Show the Morong, Rizal boundary';
+            L.DomEvent.disableClickPropagation(button);
+            L.DomEvent.on(button,'click',()=>this.focusMorong(map));
+            return button;
+        };
+        focus.onRemove=()=>L.DomEvent.off(button);
+        focus.addTo(map);
         const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -66,19 +76,6 @@ window.IncidentMap = {
             if (status) status.textContent = 'Map tiles unavailable. Check your connection; location pins and coordinate editing remain available.';
         });
         return map;
-    },
-    allows(position,territory=this.territory) {
-        if(!territory || !position) return false;
-        const ringContains=(ring)=>{
-            let inside=false; const x=Number(position.lng),y=Number(position.lat);
-            for(let i=0,j=ring.length-1;i<ring.length;j=i++) {
-                const [xi,yi]=ring[i],[xj,yj]=ring[j];
-                if(Math.abs((x-xi)*(yj-yi)-(y-yi)*(xj-xi))<1e-10&&x>=Math.min(xi,xj)&&x<=Math.max(xi,xj)&&y>=Math.min(yi,yj)&&y<=Math.max(yi,yj)) return true;
-                if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
-            }return inside;
-        };
-        const contains=f=>(f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).some(p=>ringContains(p[0])&&!p.slice(1).some(ringContains));
-        return territory.features.some(f=>f.properties.mode==='allow'&&contains(f))&&!territory.features.some(f=>f.properties.mode==='deny'&&contains(f));
     },
     setTitle(marker, title) {
         if (marker.getElement()) marker.getElement().title = title || '';

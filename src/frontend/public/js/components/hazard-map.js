@@ -21,6 +21,7 @@ window.HazardMap = {
             session.map = IncidentMap.createMap(container.querySelector('.hazard-live-map'),
                 located ? { lat: Number(located.latitude), lng: Number(located.longitude) } : null,
                 13,territory);
+            IncidentMap.focusMorong(session.map);
             this.reconcile(session, hazards);
             session.status.textContent = admin && !territory
                 ? 'Drag a pin to correct GPS. The server validates each save. Updates refresh every 5 seconds.'
