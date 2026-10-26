@@ -7,21 +7,24 @@ window.HazardMap = {
         this.dispose();
         const admin = Store.get('role') === 'admin';
         const session = this.session = { container, markers: new Map(), advisories: new Map(), admin, pending: null };
-        container.innerHTML = `<div class="hazard-live-map" style="height:420px;border-radius:12px" aria-label="Live hazard map"></div>
+        container.innerHTML = `<p class="map-boundary-warning" role="status" hidden></p><div class="hazard-live-map" style="height:420px;border-radius:12px" aria-label="Live hazard map"></div>
             <p class="hazard-map-status" role="status">Loading map…</p>
             <div class="hazard-map-editor"></div><div class="hazard-map-unplaced"></div>`;
         const current = () => this.session === session && container.isConnected;
         session.status = container.querySelector('.hazard-map-status');
         try {
-            await IncidentMap.loadLeaflet();
+            const territory=await IncidentMap.loadLeaflet();
             if (!current()) return;
-            const located = hazards.find(h => h.latitude != null && h.longitude != null);
+            session.territory=territory;
+            IncidentMap.boundaryNotice(container,territory);
+            const located = hazards.find(h => IncidentMap.canDisplay({lat:h.latitude,lng:h.longitude},territory));
             session.map = IncidentMap.createMap(container.querySelector('.hazard-live-map'),
-                located ? { lat: Number(located.latitude), lng: Number(located.longitude) } : { lat: 12.8797, lng: 121.7740 },
-                located ? 13 : 6);
+                located ? { lat: Number(located.latitude), lng: Number(located.longitude) } : null,
+                13,territory);
             this.reconcile(session, hazards);
-            session.status.textContent = admin
-                ? 'Drag a hazard pin to reposition it, then save the correction. Updates refresh every 5 seconds.'
+            session.status.textContent = admin && !territory
+                ? 'Drag a pin to correct GPS. The server validates each save. Updates refresh every 5 seconds.'
+                : admin ? 'Drag a hazard pin to reposition it, then save the correction. Updates refresh every 5 seconds.'
                 : 'Live hazard locations and road advisories. Updates refresh every 5 seconds.';
             const refresh = async () => {
                 if (!current()) { if (this.session === session) this.dispose(); return; }
@@ -51,7 +54,7 @@ window.HazardMap = {
     reconcile(session, hazards) {
         const ids = new Set();
         for (const hazard of hazards) {
-            if (hazard.latitude == null || hazard.longitude == null || !IncidentMap.allows({lat:hazard.latitude,lng:hazard.longitude})) continue;
+            if (hazard.latitude == null || hazard.longitude == null || !IncidentMap.canDisplay({lat:hazard.latitude,lng:hazard.longitude},session.territory)) continue;
             ids.add(hazard.id);
             let entry = session.markers.get(hazard.id);
             if (!entry) {
@@ -95,7 +98,7 @@ window.HazardMap = {
     },
     reconcileAdvisories(session, advisories) {
         const active = new Set();
-        for (const advisory of advisories.filter(a => a.active && IncidentMap.allows({lat:a.latitude,lng:a.longitude}))) {
+        for (const advisory of advisories.filter(a => a.active && IncidentMap.canDisplay({lat:a.latitude,lng:a.longitude},session.territory))) {
             active.add(advisory.id);
             let marker = session.advisories.get(advisory.id);
             if (!marker) {
@@ -125,6 +128,13 @@ window.HazardMap = {
         const form = root.querySelector('form');
         form.elements.latitude.value = position.lat; form.elements.longitude.value = position.lng;
         root.querySelector('.hazard-pin-cancel').onclick = () => this.cancel(session);
+        form.oninput = event => {
+            if (!['latitude','longitude'].includes(event.target.name)) return;
+            const lat = form.elements.latitude, lng = form.elements.longitude;
+            if (!lat.value || !lng.value || !lat.validity.valid || !lng.validity.valid) return;
+            const preview = { lat: Number(lat.value), lng: Number(lng.value) };
+            if (IncidentMap.canDisplay(preview,session.territory)) entry.marker.setLatLng(preview);
+        };
         form.onsubmit = async event => {
             event.preventDefault();
             const button = form.querySelector('[type=submit]'); button.disabled = true;
@@ -139,6 +149,7 @@ window.HazardMap = {
                 entry.marker.setLatLng({ lat: Number(response.data.latitude), lng: Number(response.data.longitude) });
                 session.pending = null; root.replaceChildren();
                 session.status.textContent = 'Hazard pin location saved and audited.';
+                IncidentMap.recoverBoundary(session).catch(()=>{});
             } catch (error) { if (form.isConnected) form.querySelector('.hazard-pin-error').textContent = error.message; }
             finally { button.disabled = false; }
         };

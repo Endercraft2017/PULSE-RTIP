@@ -1,53 +1,51 @@
-# Morong, Rizal boundary contract
+# Morong, Rizal operational boundary
 
-No production geometry is bundled. Only Morong, Rizal is eligible; the old
-Morong exclusion is obsolete and is deliberately rejected by the loader.
+The application ships `src/backend/data/morong-rizal.geojson` as its default
+boundary. The application owner explicitly authorized using this published
+operational outline instead of requiring specific LGU certification on
+25 October 2026. No Railway variable or network download is needed to activate
+it. The existing Dockerfile copies the backend data directory into the image.
 
-The selected source of record is a certified municipal boundary supplied by
-Morong's municipal planning/LGU office, with an identified dataset version and
-approval record. The national NAMRIA Geoportal is the government reference
-catalog: https://www.geoportal.gov.ph/ . On 2026-10-25 its public WMS advertised
-`municipalbndry_20210504` as **Municipal Boundary (APPROXIMATE)**, updated
-2021-05-04. This is not evidence of an LGU-approved enforcement polygon.
-Its WFS DescribeFeatureType endpoint returned HTTP 401 during inspection.
-Do not scrape rendered map pixels, infer a rectangle, or relabel an approximate
-layer as certified. Neither a text address nor reverse geocoding grants access.
+Attribution: NAMRIA and PSA; contributed by OCHA Philippines and published by
+OCHA FIS/HDX. Source: https://data.humdata.org/dataset/cod-ab-phl
+License: CC BY-IGO 3.0, https://creativecommons.org/licenses/by/3.0/igo/ .
+This is NOT represented as an LGU-certified or cadastral survey boundary.
+Source dates and limitations are retained; they are not a claim of a new survey.
 
-After obtaining the actual approved file, set TERRITORY_GEOJSON_PATH to its
-absolute path on the persistent volume. The application loads the file for
-every validation and map-config request; environment changes require restart.
-A syntactically valid metadata declaration is operator attestation, not proof
-that the source itself is accurate. Verify the approval record before install.
+Selection is the unsimplified municipal feature PH0405809 (Morong, Rizal,
+province PH04058), not PH0300808 (Morong, Bataan). Source URL, original feature
+attributes, source-member CRC32/SHA-256 and geometry SHA-256 are recorded in the
+file. Shapely/GEOS independently checked geometry validity. Backend and browser
+tests exercise actual Morong points and reject tested Binangonan, Teresa and
+Morong-Bataan points. No rectangle or hand-drawn polygon is used for enforcement.
 
-The UTF-8 GeoJSON must have:
+TERRITORY_GEOJSON_PATH is an optional operator override. Explicit missing,
+malformed or unauthorized overrides fail closed; they do not silently fall
+back to a different policy. Remove the override to use the bundled default.
+A new override must retain source/version/jurisdiction provenance, valid closed
+WGS84 Polygon/MultiPolygon rings, and either a real approval attestation or an
+explicit published-operational authorization with municipality identity and
+geometry digest. Metadata strings cannot independently prove a survey's accuracy.
+There is no public API for changing the policy file.
 
-- `type: FeatureCollection`.
-- Top-level `properties.jurisdiction: PH-RIZ-MORONG`.
-- Nonblank top-level properties `source`, `approved_by`, `approved_at` (parseable
-  date), and `version`, referring to the real source and approval record.
-- At least one Polygon/MultiPolygon feature with `properties.mode: allow`
-  and a `properties.name` identifying Morong.
-- Optional `mode: deny` features for specific excluded areas. A deny feature
-  named Morong is rejected as the obsolete opposite policy.
-- Closed, nondegenerate polygon rings with finite WGS84 coordinates in
-  longitude, latitude order. Geometry must be valid and checked before install.
+Outer edges are included; holes and deny areas, including their edges, are
+excluded. A valid GPS pair is required for location writes. Text addresses and
+reverse geocoding never override polygon validation. The obsolete Morong-deny
+configuration is rejected. Existing records are retained, including historical
+out-of-bound records; their coordinates can be corrected to an eligible point.
 
-Outer edges are included. Interior holes and deny areas, including their edges,
-are excluded. Missing/invalid GPS is rejected. Missing/invalid/unapproved-schema
-boundary configuration returns 503 for location writes. Polygon approval and
-accuracy cannot be established by the schema validator alone.
+Every save is checked by the backend, even when the map-config request failed.
+The client does not retain an obsolete save lock. Maps keep their marker/map
+instances and can adopt a recovered boundary without reopening. Approved or
+operationally authorized bounds constrain the map, with excluded areas masked.
+If map configuration cannot be retrieved, existing GPS pins remain visible as
+reference and the backend still decides whether a correction can be saved.
 
-Existing records remain accessible according to their permissions. Statuses,
-notes, priorities, account controls, archival, and contacts do not require a new
-location. New reports/hazards/advisories, GPS changes, SMS promotion, and calls
-with newly supplied locations remain blocked until the boundary is configured.
-Raw inbound SMS is unverified staging material; it does not become an accepted
-incident until location validation and conversion complete transactionally.
+Raw inbound SMS is unverified staging material. Promotion requires validated
+GPS and atomically records incident, source link, history and audit. Statuses,
+notes, priorities, accounts, contacts and archival never need a new location.
 
-The authenticated map-config API supplies the actual geometry, provenance,
-and SHA-256 of the installed file. Maps constrain their viewport to its bounds
-and mask excluded areas; backend validation remains authoritative. Existing
-out-of-bound records are not plotted as eligible pins. Correct coordinates
-through the audited editor after reviewing those historical records.
-
-Never install the synthetic shapes from tests as a production boundary.
+`candidates/` preserves the original extracted source for provenance. Its
+historical candidate-only metadata is not itself used as runtime authorization;
+the activated, explicitly authorized copy is in the backend data directory.
+Never install the synthetic geometry from the regression tests in production.

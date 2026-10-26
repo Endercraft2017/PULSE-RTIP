@@ -41,8 +41,10 @@ Only positions inside an approved Morong, Rizal boundary are accepted. This
 supersedes the previous Morong exclusion; old configurations fail closed.
 See [the boundary contract](../config/territory/README.md) for provenance,
 required metadata, edge/hole behavior, and the government source investigation.
-No certified production polygon was available during this task. Location
-writes remain blocked until one is supplied; test fixtures are synthetic.
+The user-authorized published NAMRIA/PSA-sourced outline is now bundled as the
+default; it is labelled operational, not LGU-certified. No separate Railway
+boundary configuration is required. An invalid explicit override fails closed.
+Tests exercise both the published polygon and isolated synthetic fixtures.
 Typed addresses and reverse geocoding never override GPS validation.
 
 ## Admin and citizen workflows
@@ -114,8 +116,10 @@ large deployments. This app does not download tiles for offline use.
 
 The main Hazard Zones Map and report/hazard details use interactive Leaflet
 maps. Admins drag pins, enter correction reasons and save; citizens can pan and
-view shared locations. All saves still enforce admin permissions, agency
-assignment and the approved Morong-only territory boundary.
+view shared locations. Admin coordinate corrections require a reason, enforce
+server-side permissions and the Morong boundary, and append history/audit records.
+Typing valid coordinates previews the same pin immediately; a preview changes
+no stored coordinates until Save succeeds. Hazard previews can also be cancelled.
 Manual coordinate fields remain available if basemap tiles are unavailable.
 
 Active road advisories appear as labeled markers with safe text tooltips and
