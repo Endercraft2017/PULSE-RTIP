@@ -619,15 +619,15 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.assertEqual(self.context.request.post(self.base+'/api/auth/login',data={'email':'other@browser.test','password':PASSWORD}).status,403)
         with sqlite3.connect(self.database) as db:self.assertIsNotNone(db.execute('SELECT id FROM users WHERE id=3').fetchone())
 
-    def test_morong_map_pans_freely_and_focus_button_returns_without_rebuilding(self):
+    def test_morong_map_pans_freely_without_boundary_or_focus_button(self):
         self.main_hazard_map()
         self.assertFalse(self.page.evaluate('!!HazardMap.session.map.options.maxBounds'))
         self.page.evaluate('(id)=>{window.focusMap=HazardMap.session.map;window.focusPin=HazardMap.session.markers.get(id).marker;focusMap.setView([0,0],3,{animate:false})}',self.hazard_id)
         self.assertLess(abs(self.page.evaluate('focusMap.getCenter().lat')),1)
         self.assertEqual(self.page.evaluate('focusMap.getZoom()'),3)
-        self.page.get_by_role('button',name='Focus on Morong',exact=True).click()
-        self.assertTrue(self.page.evaluate('(id)=>HazardMap.session.map===focusMap && HazardMap.session.markers.get(id).marker===focusPin && focusMap.getBounds().contains(focusMap.pulseMorongBounds)',self.hazard_id))
-        self.assertTrue(self.page.evaluate('focusMap.pulseBoundaryLayer.getLayers().every(outline=>outline.getLayers().every(path=>path.options.fill===false && path.options.weight>=3))'))
+        expect(self.page.get_by_role('button',name='Focus on Morong',exact=True)).to_have_count(0)
+        self.assertTrue(self.page.evaluate('(id)=>HazardMap.session.map===focusMap && HazardMap.session.markers.get(id).marker===focusPin',self.hazard_id))
+        self.assertTrue(self.page.evaluate('Object.values(focusMap._layers).every(layer=>!(layer instanceof L.Path))'))
         self.page.evaluate("Router.navigate('my-reports')")
         self.boundary.unlink()
         self.page.evaluate("Router.navigate('hazards')")
@@ -636,35 +636,27 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.page.wait_for_function('()=>!!HazardMap.session?.map')
         expect(self.page.locator('.map-boundary-warning')).to_contain_text('boundary')
         self.assertTrue(self.page.evaluate('HazardMap.session.markers.size > 0'))
-        self.page.get_by_role('button',name='Focus on Morong',exact=True).click()
+        expect(self.page.get_by_role('button',name='Focus on Morong',exact=True)).to_have_count(0)
         self.assertAlmostEqual(self.page.evaluate('HazardMap.session.map.getCenter().lat'),14.515,places=2)
 
-    def test_published_morong_border_click_focuses_and_preserves_surrounding_pins(self):
+    def test_published_morong_map_has_no_border_and_preserves_surrounding_pins(self):
         self.install_published_morong_boundary()
         with sqlite3.connect(self.database) as db:
             outside=db.execute("INSERT INTO hazard_alerts(title,severity,latitude,longitude,created_by) VALUES ('Historical outside pin','low',14.465,121.191,1)").lastrowid
         self.main_hazard_map(role='citizen')
         self.assertTrue(self.page.evaluate('(id)=>HazardMap.session.markers.has(id)',outside))
-        self.page.evaluate('HazardMap.session.map.setView([14.54,121.24],10,{animate:false})')
-        point=self.page.evaluate('''()=>{
-            const map=HazardMap.session.map;
-            const ring=HazardMap.session.territory.features[0].geometry.coordinates[0];
-            const top=ring.reduce((best,p)=>p[1]>best[1]?p:best);
-            const p=map.latLngToContainerPoint([top[1],top[0]]),box=map.getContainer().getBoundingClientRect();
-            return {x:box.x+p.x,y:box.y+p.y};
-        }''')
-        self.page.mouse.click(point['x'],point['y'])
-        self.assertGreater(self.page.evaluate('HazardMap.session.map.getZoom()'),10)
         self.assertTrue(self.page.evaluate('HazardMap.session.map.getBounds().contains(HazardMap.session.map.pulseMorongBounds)'))
-        self.assertTrue(self.page.locator('path.morong-boundary-outline').evaluate_all('(paths)=>paths.length>0 && paths.every(path=>getComputedStyle(path).outlineStyle==="none")'))
-        self.page.screenshot(path=str(ARTIFACTS/'morong-border-with-surroundings.png'),full_page=True)
+        expect(self.page.get_by_role('button',name='Focus on Morong',exact=True)).to_have_count(0)
+        self.assertTrue(self.page.evaluate('Object.values(HazardMap.session.map._layers).every(layer=>!(layer instanceof L.Path))'))
+        self.page.screenshot(path=str(ARTIFACTS/'map-without-morong-border.png'),full_page=True)
 
-    def test_report_focus_preserves_unsaved_coordinates_and_allows_zooming_out(self):
+    def test_report_map_without_focus_control_preserves_unsaved_coordinates(self):
         self.install_published_morong_boundary();self.login();self.open_report()
         self.page.wait_for_function('()=>!!IncidentMap.session?.marker')
         self.page.locator('#incident-lat').fill('14.516');self.page.locator('#incident-lng').fill('121.24')
         self.page.evaluate('window.unsavedFocusPin=IncidentMap.session.marker;IncidentMap.session.map.setView([0,0],3,{animate:false})')
-        self.page.get_by_role('button',name='Focus on Morong',exact=True).click()
+        expect(self.page.get_by_role('button',name='Focus on Morong',exact=True)).to_have_count(0)
+        expect(self.page.locator('#incident-leaflet-map .leaflet-overlay-pane path')).to_have_count(0)
         expect(self.page.locator('#incident-lat')).to_have_value('14.516')
         expect(self.page.locator('#incident-map-status')).to_contain_text('Unsaved')
         self.assertTrue(self.page.evaluate('IncidentMap.session.marker===unsavedFocusPin && unsavedFocusPin.getLatLng().lat===14.516 && IncidentMap.session.dirty'))

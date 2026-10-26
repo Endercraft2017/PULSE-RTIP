@@ -32,15 +32,11 @@ window.IncidentMap = {
         if(map.pulseMorongBounds?.isValid()) map.fitBounds(map.pulseMorongBounds,{padding:[20,20],maxZoom:14,animate:false});
         else map.setView([14.515,121.239],13,{animate:false});
     },
-    applyBoundary(map,territory) {
+    setTerritoryBounds(map,territory) {
         if(!territory || map.pulseBoundaryHash===territory.sha256) return;
-        if(map.pulseBoundaryLayer)map.pulseBoundaryLayer.remove();
-        const layer=map.pulseBoundaryLayer=L.layerGroup().addTo(map);
         const allowed=territory.features.filter(f=>f.properties.mode==='allow');
-        const outline=L.geoJSON({type:'FeatureCollection',features:allowed},{className:'morong-boundary-outline',style:{color:'#7c3aed',weight:4,opacity:1,fill:false}}).addTo(layer);
-        outline.bindTooltip('Morong, Rizal — click to focus');
-        outline.on('click',()=>this.focusMorong(map));
-        map.pulseMorongBounds=outline.getBounds();
+        // Use the territory only for the initial viewport, without drawing it.
+        map.pulseMorongBounds=L.geoJSON({type:'FeatureCollection',features:allowed}).getBounds();
         map.pulseBoundaryHash=territory.sha256;
     },
     async recoverBoundary(session) {
@@ -48,25 +44,13 @@ window.IncidentMap = {
         const territory=await this.loadLeaflet();
         if(!territory || !session.container.isConnected || !session.map?._loaded)return;
         session.territory=territory;
-        this.applyBoundary(session.map,territory);
+        this.setTerritoryBounds(session.map,territory);
         this.boundaryNotice(session.container,territory);
     },
     createMap(element,position,zoom,territory=this.territory) {
         const center=this.canDisplay(position)?position:{lat:14.515,lng:121.239};
         const map=L.map(element).setView(center,this.canDisplay(position)?zoom:13);
-        if(territory)this.applyBoundary(map,territory);
-        const focus=L.control({position:'topright'});
-        let button;
-        focus.onAdd=()=>{
-            button=L.DomUtil.create('button','morong-focus-control');
-            button.type='button'; button.textContent='Focus on Morong';
-            button.title='Show the Morong, Rizal boundary';
-            L.DomEvent.disableClickPropagation(button);
-            L.DomEvent.on(button,'click',()=>this.focusMorong(map));
-            return button;
-        };
-        focus.onRemove=()=>L.DomEvent.off(button);
-        focus.addTo(map);
+        if(territory)this.setTerritoryBounds(map,territory);
         const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',

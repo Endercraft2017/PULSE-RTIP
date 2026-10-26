@@ -121,10 +121,9 @@ server-side permissions and the Morong boundary, and append history/audit record
 Typing valid coordinates previews the same pin immediately; a preview changes
 no stored coordinates until Save succeeds. Hazard previews can also be cancelled.
 Manual coordinate fields remain available if basemap tiles are unavailable.
-The map shows Morong with a purple, unfilled border and keeps surrounding areas
-visible. Panning and zooming are unrestricted. Opening Hazard Zones Map focuses
-Morong; clicking its outline or **Focus on Morong** returns to that view without
-rebuilding the map or moving pins. Location writes still require eligible GPS.
+The map keeps surrounding areas visible with unrestricted panning and zooming.
+Opening Hazard Zones Map initially centers Morong, without a drawn territory
+border or focus button. Location writes still require eligible GPS.
 
 Active road advisories appear as labeled markers with safe text tooltips and
 popups. Locations and advisories refresh every five seconds using existing

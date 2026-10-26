@@ -6084,8 +6084,3 @@ body.theme-dark .newsfeed-card__provenance {
 .dash-main-tab--archive { background:#e2e8f0; color:#334155; }
 
 .map-boundary-warning { background:#fef3c7; color:#78350f; padding:10px; border-radius:8px; margin-bottom:10px; }
-.morong-focus-control { background:#fff; color:#5b21b6; border:2px solid #7c3aed; border-radius:6px; min-height:40px; padding:8px 12px; font:600 13px/1.3 sans-serif; cursor:pointer; box-shadow:0 1px 5px #0003; }
-.morong-focus-control:hover { background:#f5f3ff; }
-.morong-focus-control:focus-visible { outline:3px solid #2563eb; outline-offset:2px; }
-.morong-boundary-outline:focus { outline:none; }
-.morong-boundary-outline:focus-visible { stroke:#4c1d95; stroke-width:6; }

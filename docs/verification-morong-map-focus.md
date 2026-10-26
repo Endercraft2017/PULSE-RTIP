@@ -1,5 +1,19 @@
 # Morong map focus — 26 October 2026
 
+## Current display
+
+The purple boundary and **Focus on Morong** control were subsequently removed
+at the user's request. Hazard Zones Map still initially centers Morong, using
+the territory's bounds without adding its geometry to the map. Free navigation,
+existing pins, admin correction controls and server-side GPS validation remain.
+
+Seven targeted Playwright checks verify the absent boundary/control, initial
+Morong viewport, free panning, historical outside pins, unsaved GPS inputs,
+actual pin dragging, saved corrections after reload, read-only citizen access
+and boundary recovery. Log: `/tmp/pulse-remove-map-border-tests.log`.
+
+## Earlier border-and-focus verification (superseded display)
+
 The map keeps the full basemap, unrestricted panning and zooming, and a distinct
 purple Morong outline without fill, cutouts or excluded-area masks. Existing
 GPS pins can be displayed outside Morong; server-side location eligibility is
