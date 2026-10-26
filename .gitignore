@@ -8,6 +8,8 @@ out/
 # Environment
 *.env
 .env.*
+*.keystore
+*.jks
 
 # OS files
 .DS_Store

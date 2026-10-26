@@ -53,6 +53,8 @@ window.IncidentMap = {
         if(territory)this.setTerritoryBounds(map,territory);
         const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
+            // Override a stale hosting policy for the individual image too.
+            referrerPolicy: 'strict-origin-when-cross-origin',
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }).addTo(map);
         tiles.on('tileerror', () => {

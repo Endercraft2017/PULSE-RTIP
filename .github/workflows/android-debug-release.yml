@@ -1,25 +1,28 @@
 name: Android debug release
 
 on:
-  push:
-    branches: [dev/frontend-webapp]
-    paths: [.github/workflows/android-debug-release.yml]
   workflow_dispatch:
     inputs:
       source_ref:
         description: Commit to build (release tag must match its short SHA)
         required: true
-        default: 381638a925e2d2f05c62625b94bfd680f824ac7e
+        default: dev/frontend-webapp
       release_tag:
-        description: Debug release tag
-        required: true
-        default: debug-381638a
+        required: false
+        description: Optional tag; defaults to debug-<source short SHA>
+      side_by_side:
+        description: Build a separate PULSE 911 Preview installation (Firebase push unavailable)
+        type: boolean
+        default: false
+      prebuilt_ref:
+        description: Optional apk-staging-* branch containing a locally signed APK and build-info.json
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-debug-${{ inputs.release_tag || 'debug-381638a' }}
+  group: android-debug-${{ inputs.release_tag || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -29,8 +32,10 @@ jobs:
     permissions:
       contents: write
     env:
-      SOURCE_REF: ${{ inputs.source_ref || '381638a925e2d2f05c62625b94bfd680f824ac7e' }}
-      RELEASE_TAG: ${{ inputs.release_tag || 'debug-381638a' }}
+      SOURCE_REF: ${{ inputs.source_ref || github.sha }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      SIDE_BY_SIDE: ${{ inputs.side_by_side }}
+      PREBUILT_REF: ${{ inputs.prebuilt_ref }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
@@ -54,11 +59,45 @@ jobs:
           set -euo pipefail
           source_sha=$(git rev-parse HEAD)
           short_sha=$(git rev-parse --short=7 HEAD)
-          test "$RELEASE_TAG" = "debug-$short_sha"
+          release_tag="${RELEASE_TAG:-debug-$short_sha}"
+          test "$release_tag" = "debug-$short_sha"
+          echo "RELEASE_TAG=$release_tag" >> "$GITHUB_ENV"
           echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
-          echo "APK_NAME=PULSE-911-$short_sha-debug.apk" >> "$GITHUB_ENV"
+          suffix=""
+          if [ "$SIDE_BY_SIDE" = true ]; then suffix="-preview"; fi
+          echo "APK_NAME=PULSE-911-$short_sha$suffix-debug.apk" >> "$GITHUB_ENV"
+          if [ -n "$PREBUILT_REF" ]; then
+            case "$PREBUILT_REF" in apk-staging-*) ;; *) echo "Invalid staging ref"; exit 1;; esac
+          fi
+
+      - name: Fetch signed build for verification and publication
+        if: ${{ inputs.prebuilt_ref != '' }}
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.prebuilt_ref }}
+          path: prebuilt
+          persist-credentials: false
+
+      - name: Restore persistent debug signing key
+        if: ${{ inputs.prebuilt_ref == '' }}
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$DEBUG_KEYSTORE_BASE64" ]; then
+            echo "::error::Configure ANDROID_DEBUG_KEYSTORE_BASE64 first. Refusing to publish another APK with a new temporary signing certificate. See docs/android-installation.md."
+            exit 1
+          fi
+          python3 - <<'PY'
+          import os, pathlib, base64
+          key=pathlib.Path(os.environ['RUNNER_TEMP'])/'pulse-debug.keystore'
+          key.write_bytes(base64.b64decode(os.environ['DEBUG_KEYSTORE_BASE64'],validate=True))
+          key.chmod(0o600)
+          PY
 
       - name: Install frontend tooling and sync Android assets
+        if: ${{ inputs.prebuilt_ref == '' }}
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npx --no-install cap sync android
@@ -85,8 +124,29 @@ jobs:
           PY
 
       - name: Build debug APK
+        if: ${{ inputs.prebuilt_ref == '' }}
         working-directory: android
-        run: bash ./gradlew --no-daemon --console=plain :app:assembleDebug
+        run: >-
+          bash ./gradlew --no-daemon --console=plain :app:assembleDebug
+          -PpulseDebugKeystore="$RUNNER_TEMP/pulse-debug.keystore"
+          -PpulseVersionCode="$((GITHUB_RUN_NUMBER + 2))"
+          -PpulseVersionName="1.0-debug.${SOURCE_SHA:0:7}"
+          -PpulseSideBySide="$SIDE_BY_SIDE"
+
+      - name: Load prebuilt signed APK
+        if: ${{ inputs.prebuilt_ref != '' }}
+        run: |
+          python3 - <<'PY'
+          import pathlib, json, os, hashlib, shutil
+          stage=pathlib.Path('prebuilt')
+          info=json.loads((stage/'build-info.json').read_text())
+          assert info['source_commit']==os.environ['SOURCE_SHA']
+          artifact=stage/'app-debug.apk'
+          assert hashlib.sha256(artifact.read_bytes()).hexdigest()==info['apk_sha256']
+          output=pathlib.Path('android/app/build/outputs/apk/debug/app-debug.apk')
+          output.parent.mkdir(parents=True,exist_ok=True)
+          shutil.copy2(artifact,output)
+          PY
 
       - name: Verify and prepare APK
         shell: bash
@@ -100,8 +160,16 @@ jobs:
               for name in ['index.html', 'public/vendor/leaflet/leaflet.js',
                            'public/vendor/leaflet/leaflet.css',
                            'public/js/components/incident-map.js',
-                           'public/js/components/hazard-map.js']:
+                           'public/js/components/hazard-map.js',
+                           'public/js/utils/store.js', 'public/js/utils/push.js']:
                   assert apk.read('assets/public/' + name) == (root / name).read_bytes(), name
+          PY
+          python3 - <<'PY'
+          import subprocess, os, re
+          aapt=os.environ['ANDROID_HOME']+'/build-tools/35.0.0/aapt'
+          metadata=subprocess.check_output([aapt,'dump','badging','android/app/build/outputs/apk/debug/app-debug.apk'],text=True)
+          expected='com.mdrrmo.pulse911'+('.preview' if os.environ['SIDE_BY_SIDE']=='true' else '')
+          assert re.search(r"package: name='([^']+)'",metadata).group(1)==expected
           PY
           mkdir -p release-assets
           cp android/app/build/outputs/apk/debug/app-debug.apk "release-assets/$APK_NAME"
@@ -125,9 +193,9 @@ jobs:
           Source commit: $SOURCE_SHA
           Build: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
 
-          Android debug APK built by GitHub Actions. APK signature and bundled Leaflet assets verified. Not tested on a physical phone.
+          Android debug APK verified and published by GitHub Actions. When a prebuilt staging ref is supplied, the APK was signed locally; source commit, checksum, signature, package ID and bundled assets are checked before publication. Not tested on a physical phone.
 
-          This build uses a temporary debug signing key. Updating an existing app requires a matching signing key; preserve unsynced data. This is a test build, not a production-signed release.
+          Uses the repository's persistent debug signing key. Older temporary-key builds cannot be updated without their original key. Preserve unsynced data. A Preview build installs separately; Firebase push is unavailable in Preview. This is a test build, not a production-signed release.
 
           Coordinate saves still require an assigned admin agency and approved territory configuration. APK checksum is included as a separate download.
           EOF

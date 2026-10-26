@@ -47,6 +47,16 @@
                 return;
             }
             beacon('native-confirmed');
+            // A separate Preview package has no matching Firebase app config.
+            // Do not ask its native push plugin to initialize Firebase.
+            try {
+                const app = window.Capacitor.Plugins?.App;
+                const info = app && await app.getInfo();
+                if (info?.id?.endsWith('.preview')) {
+                    this._watchAuthClaim();
+                    return;
+                }
+            } catch (error) { console.warn('[push] App identity unavailable:', error.message); }
 
             // The frontend is loaded via plain <script> tags (no bundler), so a
             // bare-module ESM import like `import('@capacitor/push-notifications')`

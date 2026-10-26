@@ -56,6 +56,9 @@ app.set('trust proxy', config.trustProxy);
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
+  // OSM tiles require browser identification. Send only the origin to other
+  // HTTPS sites, never report paths, query strings or credentials.
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   // The Capacitor APK loads the WebView from https://localhost and fetches
   // images/uploads from https://pulse.afkcube.com — that's cross-origin, so
   // Helmet's default CORP=same-origin blocks <img> and CSS background-image

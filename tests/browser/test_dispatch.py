@@ -359,7 +359,47 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.open_report()
         self.page.wait_for_function('() => !!IncidentMap.session?.map')
         self.assertTrue(self.page.evaluate('IncidentMap.session.map instanceof L.Map'))
+
+    def test_tile_requests_identify_browser_without_leaking_report_path(self):
+        requests=[]
+        def capture(route):
+            requests.append(route.request.all_headers())
+            route.fulfill(body=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000b49444154789c636000020000050001a5f645400000000049454e44ae426082'),content_type='image/png')
+        self.context.route('https://tile.openstreetmap.org/**',capture)
+        self.login();self.open_report()
+        expect(self.page.locator('#incident-leaflet-map .leaflet-tile-loaded').first).to_be_visible()
+        self.assertTrue(requests)
+        self.assertTrue(all(headers.get('referer')==self.base+'/' for headers in requests),requests)
+        self.assertEqual(self.context.request.get(self.base+'/').headers.get('referrer-policy'),'strict-origin-when-cross-origin')
+        self.assertFalse(any('authorization' in headers for headers in requests))
         expect(self.page.locator('.leaflet-control-attribution')).to_contain_text('OpenStreetMap')
+
+    def test_preview_package_does_not_register_against_main_firebase_app(self):
+        self.login()
+        registered=self.page.evaluate('''async()=>{
+            const original=window.Capacitor;
+            let calls=0;
+            window.Capacitor={isNativePlatform:()=>true,Plugins:{
+                App:{getInfo:async()=>({id:'com.mdrrmo.pulse911.preview'})},
+                PushNotifications:{requestPermissions:async()=>{calls++;return{receive:'granted'}},register:async()=>{calls++}}
+            }};
+            try{await PushSetup.init();return calls}finally{window.Capacitor=original}
+        }''')
+        self.assertEqual(registered,0)
+
+    def test_unresponsive_session_restore_shows_login_without_erasing_token(self):
+        auth=self.context.request.post(self.base+'/api/auth/login',data={'email':'citizen@browser.test','password':PASSWORD}).json()
+        token=auth['data']['token']
+        self.context.add_init_script('localStorage.setItem("pulse_token",'+json.dumps(token)+');')
+        pending=[]
+        self.page.route('**/api/users/me',lambda route:pending.append(route))
+        self.page.goto(self.base+'/#/login')
+        expect(self.page.locator('#app-boot-status')).to_contain_text('Opening PULSE')
+        expect(self.page.locator('#login-email')).to_be_visible(timeout=12000)
+        self.assertTrue(pending)
+        self.assertEqual(self.page.evaluate('localStorage.getItem("pulse_token")'),token)
+        for route in pending: route.abort()
+        self.page.unroute('**/api/users/me')
 
     def test_stored_report_text_does_not_execute_on_admin_dashboard(self):
         payload='<img src=x onerror="window.storedXss=1">'

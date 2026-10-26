@@ -547,12 +547,14 @@ const Store = {
         try { token = localStorage.getItem('pulse_token'); } catch (_) { /* storage corrupted */ }
         if (!token) return false;
 
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
         try {
             const headers = {
                 'Authorization': 'Bearer ' + token,
                 'Content-Type': 'application/json',
             };
-            const res = await fetch(API_BASE + '/api/users/me', { headers });
+            const res = await fetch(API_BASE + '/api/users/me', { headers, signal: controller.signal });
 
             // 401 / 403 -> token expired or invalid; clear and bail without
             // touching Router (which may not be ready yet on a cold open).
@@ -577,7 +579,7 @@ const Store = {
             // Network unreachable, JSON parse error, etc. Keep the token
             // (it may still be valid once we're back online) and just
             // proceed to login — never let restoreSession throw.
-        }
+        } finally { clearTimeout(timeout); }
 
         return false;
     },
