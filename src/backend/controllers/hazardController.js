@@ -158,6 +158,8 @@ async function createHazard(req, res, next) {
         severity,
         location,
         description,
+        current_condition: req.body.current_condition,
+        image_url: req.body.image_url,
         latitude,
         longitude,
         resolved_address,
@@ -230,7 +232,7 @@ async function updateHazard(req, res, next) {
     const lngChanged = longitude != null && Number(longitude) !== Number(existing.longitude);
     if (latChanged || lngChanged) {
       try {
-        resolved_address = await reverseGeocode(latitude, longitude);
+        resolved_address = await reverseGeocode(latitude ?? existing.latitude, longitude ?? existing.longitude);
       } catch (_) { /* best-effort only */ }
     }
 
@@ -238,11 +240,18 @@ async function updateHazard(req, res, next) {
       await db.lockRow('hazard_alerts',id);
       const current=await Hazard.findById(id);
       if(current.deleted_at)throw Object.assign(new Error('Restore the archived hazard first.'),{statusCode:409});
-      const updated = await Hazard.update(id, {
+      const coordinatesChanged = (latitude != null && (current.latitude == null || Number(latitude) !== Number(current.latitude)))
+        || (longitude != null && (current.longitude == null || Number(longitude) !== Number(current.longitude)));
+      if (coordinatesChanged && !req.body.note?.trim()) {
+        throw Object.assign(new Error('Enter a reason for the GPS correction.'), { statusCode: 422 });
+      }
+      await Hazard.update(id, {
         title,
         severity,
         location,
         description,
+        current_condition: req.body.current_condition,
+        image_url: req.body.image_url,
         latitude: latitude != null ? Number(latitude) : undefined,
         longitude: longitude != null ? Number(longitude) : undefined,
         ...(resolved_address !== undefined ? { resolved_address } : {}),
@@ -276,10 +285,17 @@ async function updateHazard(req, res, next) {
       }
 
       const final = await Hazard.findById(id);
-      await logAction(req.user.id, 'hazard_updated', 'hazard', id, { before: current, after: final });
+      await logAction(req.user.id, 'hazard_updated', 'hazard', id, { before: current, after: final, reason: req.body.note || null });
 
-      await db.query('INSERT INTO hazard_events (hazard_id, actor_user_id, actor_department, action, note, created_at) VALUES (?, ?, ?, ?, ?, ?)', [id, req.user.id, req.user.department || null, 'updated', req.body.note || null, new Date().toISOString()]);
-      if (['high','critical'].includes(final.severity) && !['high','critical'].includes(current.severity)) await broadcast.enqueue({ hazard_id: id, title: final.title, message: buildAlertMessage(final), critical: true });
+      const event = await db.query('INSERT INTO hazard_events (hazard_id, actor_user_id, actor_department, action, note, created_at) VALUES (?, ?, ?, ?, ?, ?)', [id, req.user.id, req.user.department || null, 'updated', req.body.note || null, new Date().toISOString()]);
+      const declaredCritical = final.severity === 'critical' && current.severity !== 'critical';
+      const elevatedToHigh = final.severity === 'high' && !['high', 'critical'].includes(current.severity);
+      if (declaredCritical || elevatedToHigh) {
+        await broadcast.enqueue({
+          hazard_id: id, title: final.title, message: buildAlertMessage(final), critical: true,
+          event_key: declaredCritical ? `hazard:${id}:critical:${event.insertId}` : undefined,
+        });
+      }
       return final;
     });
 

@@ -29,6 +29,15 @@ const createRules = [
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('severity').isIn(['critical', 'high', 'medium', 'low']).withMessage('Severity must be critical, high, medium, or low'),
   body('location').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('current_condition').optional({ nullable: true }).isString().trim().isLength({ max: 255 }),
+  body('image_url').optional({ nullable: true }).isString().trim().isLength({ max: 2048 }).custom(value => {
+    if (!value || /^\/uploads\/[a-z0-9_.-]+$/i.test(value)) return true;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && !url.username && !url.password;
+    } catch (_) { return false; }
+  }).withMessage('Use an HTTPS image URL or an uploaded image path.'),
+  body('note').optional().isString().trim().isLength({ max: 5000 }),
   body('description').optional({ nullable: true, checkFalsy: true }).trim(),
   body('latitude').optional({ nullable: true, checkFalsy: true })
     .isFloat({ min: -90, max: 90 }).withMessage('Latitude must be between -90 and 90'),

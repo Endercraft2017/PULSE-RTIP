@@ -1,0 +1,2 @@
+ALTER TABLE hazard_alerts ADD COLUMN current_condition VARCHAR(255) DEFAULT NULL;
+ALTER TABLE hazard_alerts ADD COLUMN image_url VARCHAR(2048) DEFAULT NULL;

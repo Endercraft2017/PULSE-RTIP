@@ -130,8 +130,8 @@ const AdminHomePage = {
                         <h3 class="modal__title" style="margin-bottom: 2px;">${isEdit ? 'Edit Alert / Announcement' : 'Confirm Alert / Announcement'}</h3>
                         <div style="font-size: var(--font-size-xs); color: var(--color-gray-500);">
                             ${isEdit
-                                ? 'Editing this alert updates the saved record only — no new SMS or push notifications are sent.'
-                                : 'On confirm, the selected audience gets an SMS + push notification with your details and (for hazards) safety tips.'}
+                                ? 'Raising severity to Critical queues a new broadcast for all eligible users.'
+                                : 'Publishing queues SMS and push notifications. High and Critical alerts reach all eligible users.'}
                         </div>
                     </div>
                     <button type="button" class="modal__close" onclick="AdminHomePage.closeCreateHazardModal()" aria-label="Close">
@@ -201,6 +201,18 @@ const AdminHomePage = {
                     </div>
 
                     <div class="input-group">
+                        <label class="input-group__label" for="ch-condition">Current condition</label>
+                        <input class="input-group__field" id="ch-condition" maxlength="255">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-group__label" for="ch-image">Image URL</label>
+                        <input class="input-group__field" id="ch-image" maxlength="2048" placeholder="HTTPS image URL or /uploads/filename">
+                    </div>
+                    ${isEdit ? `<div class="input-group">
+                        <label class="input-group__label" for="ch-gps-reason">Reason for changing coordinates</label>
+                        <input class="input-group__field" id="ch-gps-reason" maxlength="5000">
+                    </div>` : ''}
+                    <div class="input-group">
                         <label class="input-group__label">Audience <span style="color:var(--color-danger)">*</span></label>
                         <div class="category-chips" id="ch-audience-chips">
                             <button type="button" class="category-chip selected" data-audience="all" onclick="AdminHomePage._selectAudience('all', this)">Everyone</button>
@@ -265,6 +277,8 @@ const AdminHomePage = {
             set('ch-title', prefill.title);
             set('ch-location', prefill.location || '');
             set('ch-desc', prefill.description || '');
+            set('ch-condition', prefill.current_condition);
+            set('ch-image', prefill.image_url);
             set('ch-lat', prefill.latitude != null ? prefill.latitude : '');
             set('ch-lng', prefill.longitude != null ? prefill.longitude : '');
             const sound = document.getElementById('ch-sound');
@@ -401,28 +415,29 @@ const AdminHomePage = {
             }
         }
 
-        // Validate coordinates: both must be present together (or both empty)
+        // A published alert always needs a complete GPS pair.
+        const latitude = Number(latRaw);
+        const longitude = Number(lngRaw);
+        if (!latRaw || !lngRaw || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            toast('Enter both latitude and longitude to place the alert on the map.');
+            return;
+        }
+        if (Math.abs(latitude) > 90) { toast('Latitude must be between -90 and 90.'); return; }
+        if (Math.abs(longitude) > 180) { toast('Longitude must be between -180 and 180.'); return; }
         const body = {
             title, severity,
             location: location || undefined,
             description: description || undefined,
+            current_condition: document.getElementById('ch-condition').value.trim(),
+            image_url: document.getElementById('ch-image').value.trim(),
+            note: document.getElementById('ch-gps-reason')?.value.trim() || undefined,
             category,
             audience_type,
             audience_barangays: audience_type === 'barangay' ? audience_barangays : undefined,
             sound_enabled,
+            latitude,
+            longitude,
         };
-        if (latRaw || lngRaw) {
-            const lat = parseFloat(latRaw);
-            const lng = parseFloat(lngRaw);
-            if (Number.isNaN(lat) || Number.isNaN(lng)) {
-                toast('Both latitude and longitude must be numbers, or leave both empty.');
-                return;
-            }
-            if (lat < -90 || lat > 90)   { toast('Latitude must be between -90 and 90.'); return; }
-            if (lng < -180 || lng > 180) { toast('Longitude must be between -180 and 180.'); return; }
-            body.latitude = lat;
-            body.longitude = lng;
-        }
 
         const isEdit = !!this._editingHazardId;
         const btn = document.getElementById('ch-submit');

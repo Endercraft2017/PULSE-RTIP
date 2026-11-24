@@ -35,7 +35,7 @@ window.IncidentMap = {
     setTerritoryBounds(map,territory) {
         if(!territory || map.pulseBoundaryHash===territory.sha256) return;
         const allowed=territory.features.filter(f=>f.properties.mode==='allow');
-        // Use the territory only for the initial viewport, without drawing it.
+        // Use the operational geometry without adding an overlay.
         map.pulseMorongBounds=L.geoJSON({type:'FeatureCollection',features:allowed}).getBounds();
         map.pulseBoundaryHash=territory.sha256;
     },
@@ -46,11 +46,25 @@ window.IncidentMap = {
         session.territory=territory;
         this.setTerritoryBounds(session.map,territory);
         this.boundaryNotice(session.container,territory);
+        if (session.map.options.maxBounds) this.restrictToMorong(session.map);
     },
-    createMap(element,position,zoom,territory=this.territory) {
+    restrictToMorong(map) {
+        // Bounding box of the published operational geometry, for API outages.
+        const bounds = map.pulseMorongBounds || L.latLngBounds(
+            [14.495043011, 121.202465101], [14.590221601, 121.262078441]
+        );
+        map.options.maxBoundsViscosity = 1;
+        map.setMaxBounds(bounds);
+        map.setMinZoom(Math.min(14, map.getBoundsZoom(bounds, false, L.point(40, 40))));
+    },
+    createMap(element,position,zoom,territory=this.territory,restrict=false) {
         const center=this.canDisplay(position)?position:{lat:14.515,lng:121.239};
         const map=L.map(element).setView(center,this.canDisplay(position)?zoom:13);
         if(territory)this.setTerritoryBounds(map,territory);
+        if (restrict) {
+            map.setMaxZoom(19);
+            this.restrictToMorong(map);
+        }
         const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             // Override a stale hosting policy for the individual image too.
@@ -68,11 +82,31 @@ window.IncidentMap = {
         marker.options.title = title || '';
     },
     advisoryLabel(marker, advisory) {
-        marker.pulseTitle = advisory.label;
+        marker.pulseAdvisory = advisory;
         const text = (advisory.status === 'not_passable' ? '⛔ ' : advisory.status === 'clear' ? '✓ ' : '! ') + advisory.label;
         if (!marker.getTooltip()) marker.bindTooltip(document.createElement('span'));
         marker.getTooltip().getContent().textContent = text;
         this.setTitle(marker, text);
+    },
+    openAdvisory(marker) {
+        const advisory = marker.pulseAdvisory;
+        const content = document.createElement('div');
+        const condition = { not_passable: 'Not passable', caution: 'Caution', clear: 'Clear' }[advisory.status] || 'Unknown';
+        const severity = { not_passable: 'Critical', caution: 'Medium', clear: 'Low' }[advisory.status] || 'Unknown';
+        for (const value of [
+            advisory.label,
+            'Area: ' + Number(advisory.latitude).toFixed(5) + ', ' + Number(advisory.longitude).toFixed(5),
+            'Current condition: ' + condition,
+            'Severity: ' + severity,
+        ]) {
+            const line = document.createElement('div');
+            line.textContent = value;
+            content.appendChild(line);
+        }
+        marker.bindPopup(content).openPopup();
+    },
+    moveMarker(marker, position) {
+        if (!marker.getLatLng().equals(position, 0)) marker.setLatLng(position);
     },
     async mount(container, report, options = {}) {
         if (!container) return;
@@ -134,10 +168,10 @@ window.IncidentMap = {
             if (!container.isConnected || this.session !== session) return;
             session.territory=territory;
             this.boundaryNotice(container,territory);
-            session.map = this.createMap(container.querySelector('#incident-leaflet-map'), position, position ? 16 : 13,territory);
+            session.map = this.createMap(container.querySelector('#incident-leaflet-map'), position, position ? 16 : 13,territory,admin);
             const ensureMarker = p => {
                 if(!this.canDisplay(p,session.territory)) return;
-                if (session.marker) { session.marker.setLatLng(p); return; }
+                if (session.marker) { this.moveMarker(session.marker, p); return; }
                 session.marker = L.marker(p, { draggable: admin, title: kind === 'hazards' ? 'Hazard location' : 'Report location' }).addTo(session.map);
                 if (admin) {
                     session.marker.on('dragstart', () => { session.dragging = true; });
@@ -168,13 +202,10 @@ window.IncidentMap = {
                             let marker = session.markers.get(advisory.id);
                             const p = { lat: Number(advisory.latitude), lng: Number(advisory.longitude) };
                             if (!marker) { marker = L.marker(p).addTo(session.map); session.markers.set(advisory.id, marker); }
-                            marker.setLatLng(p); this.advisoryLabel(marker, advisory);
+                            this.moveMarker(marker, p); this.advisoryLabel(marker, advisory);
                             if (!marker.pulseClick) {
                                 marker.pulseClick = true;
-                                marker.on('click', () => {
-                                    const content = document.createElement('div'); content.textContent = marker.pulseTitle;
-                                    marker.bindPopup(content).openPopup();
-                                });
+                                marker.on('click', () => this.openAdvisory(marker));
                             }
                         }
                         for (const [id, marker] of session.markers) if (!active.has(id)) { marker.off(); marker.remove(); session.markers.delete(id); }

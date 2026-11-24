@@ -59,16 +59,18 @@ async function findAll(filters = {}) {
  */
 async function create(data) {
   assertLocation(data);
-  const { title, severity, location, description, latitude, longitude, resolved_address, created_by } = data;
+  const { title, severity, location, description, current_condition, image_url, latitude, longitude, resolved_address, created_by } = data;
   const result = await db.query(
     `INSERT INTO hazard_alerts
-       (title, severity, location, description, latitude, longitude, resolved_address, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (title, severity, location, description, current_condition, image_url, latitude, longitude, resolved_address, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       title,
       severity,
       location || null,
       description || null,
+      current_condition || null,
+      image_url || null,
       latitude != null ? Number(latitude) : null,
       longitude != null ? Number(longitude) : null,
       resolved_address || null,
@@ -119,7 +121,7 @@ async function update(id, data) {
   }
   const fields = [];
   const values = [];
-  const allowed = ['title', 'severity', 'location', 'description', 'latitude', 'longitude', 'resolved_address'];
+  const allowed = ['title', 'severity', 'location', 'description', 'current_condition', 'image_url', 'latitude', 'longitude', 'resolved_address'];
   for (const k of allowed) {
     if (data[k] !== undefined) {
       fields.push(`${k} = ?`);

@@ -20,12 +20,12 @@ window.HazardMap = {
             const located = hazards.find(h => IncidentMap.canDisplay({lat:h.latitude,lng:h.longitude},territory));
             session.map = IncidentMap.createMap(container.querySelector('.hazard-live-map'),
                 located ? { lat: Number(located.latitude), lng: Number(located.longitude) } : null,
-                13,territory);
+                13,territory,admin);
             IncidentMap.focusMorong(session.map);
             this.reconcile(session, hazards);
             session.status.textContent = admin && !territory
                 ? 'Drag a pin to correct GPS. The server validates each save. Updates refresh every 5 seconds.'
-                : admin ? 'Drag a hazard pin to reposition it, then save the correction. Updates refresh every 5 seconds.'
+                : admin ? 'Drag a hazard pin or open its details to enter coordinates, then save the correction. Updates refresh every 5 seconds.'
                 : 'Live hazard locations and road advisories. Updates refresh every 5 seconds.';
             const refresh = async () => {
                 if (!current()) { if (this.session === session) this.dispose(); return; }
@@ -59,7 +59,10 @@ window.HazardMap = {
             ids.add(hazard.id);
             let entry = session.markers.get(hazard.id);
             if (!entry) {
-                const marker = L.marker({ lat: Number(hazard.latitude), lng: Number(hazard.longitude) }, { draggable: session.admin, title: hazard.title }).addTo(session.map);
+                const marker = L.marker({ lat: Number(hazard.latitude), lng: Number(hazard.longitude) }, {
+                    draggable: session.admin,
+                    icon: L.divIcon({ className: 'hazard-marker', iconSize: [26, 26], iconAnchor: [13, 13] }),
+                }).addTo(session.map);
                 entry = { marker, hazard, dragging: false };
                 session.markers.set(hazard.id, entry);
                 marker.on('click', () => DetailModal.showHazard(entry.hazard));
@@ -77,8 +80,13 @@ window.HazardMap = {
                 }
             }
             entry.hazard = hazard;
-            if (!entry.dragging && session.pending !== entry) entry.marker.setLatLng({ lat: Number(hazard.latitude), lng: Number(hazard.longitude) });
-            IncidentMap.setTitle(entry.marker, hazard.title);
+            if (!entry.dragging && session.pending !== entry) IncidentMap.moveMarker(entry.marker, { lat: Number(hazard.latitude), lng: Number(hazard.longitude) });
+            const severity = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' }[hazard.severity] || 'Unknown';
+            const element = entry.marker.getElement();
+            element.dataset.severity = severity.toLowerCase();
+            const label = hazard.title + ' — ' + severity + ' severity';
+            element.setAttribute('aria-label', label);
+            IncidentMap.setTitle(entry.marker, label);
         }
         for (const [id, entry] of session.markers) if (!ids.has(id)) {
             if (session.pending === entry) this.cancel(session);
@@ -104,13 +112,10 @@ window.HazardMap = {
             let marker = session.advisories.get(advisory.id);
             if (!marker) {
                 marker = L.marker({ lat: Number(advisory.latitude), lng: Number(advisory.longitude) }).addTo(session.map);
-                marker.on('click', () => {
-                    const label = document.createElement('div'); label.textContent = marker.pulseTitle;
-                    marker.bindPopup(label).openPopup();
-                });
+                marker.on('click', () => IncidentMap.openAdvisory(marker));
                 session.advisories.set(advisory.id, marker);
             }
-            marker.setLatLng({ lat: Number(advisory.latitude), lng: Number(advisory.longitude) });
+            IncidentMap.moveMarker(marker, { lat: Number(advisory.latitude), lng: Number(advisory.longitude) });
             IncidentMap.advisoryLabel(marker, advisory);
         }
         for (const [id, marker] of session.advisories) if (!active.has(id)) {
@@ -138,7 +143,9 @@ window.HazardMap = {
         };
         form.onsubmit = async event => {
             event.preventDefault();
-            const button = form.querySelector('[type=submit]'); button.disabled = true;
+            const controls = [...form.elements];
+            controls.forEach(control => { control.disabled = true; });
+            entry.marker.dragging.disable();
             try {
                 const note = form.elements.note.value.trim();
                 if (!note) throw new Error('Enter a correction reason.');
@@ -152,7 +159,10 @@ window.HazardMap = {
                 session.status.textContent = 'Hazard pin location saved and audited.';
                 IncidentMap.recoverBoundary(session).catch(()=>{});
             } catch (error) { if (form.isConnected) form.querySelector('.hazard-pin-error').textContent = error.message; }
-            finally { button.disabled = false; }
+            finally {
+                controls.forEach(control => { control.disabled = false; });
+                if (this.session === session && session.markers.has(entry.hazard.id)) entry.marker.dragging.enable();
+            }
         };
         form.elements.note.focus();
     },

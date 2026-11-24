@@ -408,7 +408,7 @@ const AdminAnalyticsPage = {
        Edit _auMetrics if the reference values change.
        ------------------------------------------------------ */
     _auMetrics: [
-        { metric: 'Total Registered Users',                          result: '35'        },
+        { metric: 'Total Registered Users',                          result: '—', id: 'qa-registered-table' },
         { metric: 'Total Logins Recorded',                           result: '140'       },
         { metric: 'Average Logins per User',                         result: '4.0'       },
         { metric: 'Total Incident Reports Submitted',                result: '55'        },
@@ -424,7 +424,7 @@ const AdminAnalyticsPage = {
         const body = rows.map((r) => `
             <tr>
                 <td>${r.metric}</td>
-                <td class="au-table__num"><strong>${r.result}</strong></td>
+                <td class="au-table__num"><strong${r.id ? ` id="${r.id}"` : ''}>${r.result}</strong></td>
             </tr>
         `).join('');
 
@@ -535,6 +535,7 @@ const AdminAnalyticsPage = {
         const live = Number(stats.loggedInCount) || 0;
         const win = Number(stats.loggedInWindowMinutes) || 5;
         this._setText('qa-registered', String(reg));
+        this._setText('qa-registered-table', String(reg));
         this._setText('qa-loggedin', String(live));
         this._setText('qa-loggedin-window', `(active in last ${win} min)`);
     },

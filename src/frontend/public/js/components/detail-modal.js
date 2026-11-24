@@ -216,14 +216,15 @@ const DetailModal = {
 
             <h2 class="detail-modal__title">${this._esc(data.title)}</h2>
 
+            <p class="detail-modal__desc"><strong>Current condition</strong> ${this._esc(data.current_condition || 'Active alert')}</p>
             ${data.description ? '<p class="detail-modal__desc">' + this._esc(data.description) + '</p>' : ''}
 
             <div class="detail-modal__meta-grid">
                 <div class="detail-modal__meta-item">
                     <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                     <div>
-                        <div class="detail-modal__meta-label">Location</div>
-                        <div class="detail-modal__meta-value">${this._esc(data.location || 'Not specified')}</div>
+                        <div class="detail-modal__meta-label">Area</div>
+                        <div class="detail-modal__meta-value">${this._esc(data.location || data.resolved_address || 'Not specified')}</div>
                     </div>
                 </div>
                 <div class="detail-modal__meta-item">
@@ -288,6 +289,16 @@ const DetailModal = {
                 <h3>Hazard history</h3><div id="detail-modal-history-body">Loading history…</div>
             </section>
         `);
+        const imageUrl = this._hazardImageUrl(data.image_url);
+        if (imageUrl) {
+            const image = document.createElement('img');
+            image.className = 'hazard-thumbnail';
+            image.alt = 'Hazard location';
+            image.referrerPolicy = 'no-referrer';
+            image.addEventListener('error', () => image.remove(), { once: true });
+            document.querySelector('.detail-modal__meta-grid').before(image);
+            image.src = imageUrl;
+        }
         this._historyKind = 'hazards'; this._historyId = data.id;
         this._loadHistory(data.id, 'hazards');
         this._attachNoteForm('hazards', data.id);
@@ -295,6 +306,15 @@ const DetailModal = {
         map.className = 'detail-modal__section';
         document.querySelector('.detail-modal__body').appendChild(map);
         IncidentMap.mount(map, data, { kind: 'hazards' });
+    },
+
+    _hazardImageUrl(value) {
+        if (typeof value !== 'string' || !value) return null;
+        if (/^\/uploads\/[a-z0-9_.-]+$/i.test(value)) return Store.mediaUrl(value);
+        try {
+            const url = new URL(value);
+            return url.protocol === 'https:' && !url.username && !url.password ? url.href : null;
+        } catch (_) { return null; }
     },
 
     /**

@@ -71,7 +71,7 @@ class DispatchBrowserTests(unittest.TestCase):
         cls.base = f'http://127.0.0.1:{port}'
         env = {**os.environ,'APP_MODE':'offline','SQLITE_PATH':str(cls.database),'PORT':str(port),
                'JWT_SECRET':'isolated-playwright-test-signing-key','TRUST_PROXY':'0',
-               'TERRITORY_GEOJSON_PATH':str(cls.boundary),'GOOGLE_MAPS_BROWSER_KEY':'',
+               'TERRITORY_GEOJSON_PATH':str(cls.boundary),'UPLOAD_DIR':str(cls.folder/'uploads'),'GOOGLE_MAPS_BROWSER_KEY':'',
                'TEXTBEE_API_KEY':'','TEXTBEE_DEVICE_ID':'','FIREBASE_SERVICE_ACCOUNT_PATH':'','FIREBASE_SERVICE_ACCOUNT_JSON':''}
         subprocess.run([cls.node,'src/database/migrations/migrate.js'],cwd=ROOT,env=env,check=True,capture_output=True)
         seed = """
@@ -188,6 +188,10 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.app.locator('[name=caller_name]').fill('Desktop caller')
         self.app.locator('#operation-editor button[type=submit]').click()
         expect(self.app.locator('#operations-list')).to_contain_text('Desktop caller')
+        self.app.locator('[data-operation=hotlines]').click()
+        expect(self.app.locator('#operation-editor')).to_be_visible()
+        self.assertTrue(self.app.locator('.operations-tabs').evaluate('(nav)=>nav.scrollWidth <= nav.clientWidth'))
+        self.page.screenshot(path=str(ARTIFACTS/'dispatch-desktop.png'),full_page=True)
 
     def test_resolution_and_archive_restore(self):
         self.login()
@@ -271,7 +275,7 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         expect(self.app.locator('#operations-list')).to_contain_text('NOT PASSABLE - browser test')
         self.app.locator('[data-operation=broadcasts]').click()
         expect(self.app.locator('#operations-list')).to_contain_text('sms')
-        expect(self.app.locator('#operations-list')).to_contain_text('blocked')
+        expect(self.app.locator('#operations-list')).to_contain_text('Queued · provider configuration required')
         expect(self.app.locator('#operations-list')).not_to_contain_text('09170000001')
 
     def test_blocked_territory_preserves_form_and_explains_error(self):
@@ -480,6 +484,9 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
     def test_mobile_operations_table_scroll_is_contained(self):
         self.login();self.operations('calls')
         self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Wide operations table should scroll inside its own container')
+        expect(self.page.locator('[data-operation=calls]')).to_have_attribute('aria-pressed','true')
+        self.assertTrue(self.page.locator('.operations-tabs').evaluate('(nav)=>nav.scrollWidth > nav.clientWidth'))
+        self.page.screenshot(path=str(ARTIFACTS/'dispatch-mobile.png'),full_page=True)
 
 
     def test_philippine_timeline_is_independent_of_browser_timezone(self):
@@ -659,12 +666,14 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.assertEqual(self.context.request.post(self.base+'/api/auth/login',data={'email':'other@browser.test','password':PASSWORD}).status,403)
         with sqlite3.connect(self.database) as db:self.assertIsNotNone(db.execute('SELECT id FROM users WHERE id=3').fetchone())
 
-    def test_morong_map_pans_freely_without_boundary_or_focus_button(self):
+    def test_admin_map_restricts_navigation_with_and_without_boundary_response(self):
         self.main_hazard_map()
-        self.assertFalse(self.page.evaluate('!!HazardMap.session.map.options.maxBounds'))
+        self.assertTrue(self.page.evaluate('!!HazardMap.session.map.options.maxBounds'))
         self.page.evaluate('(id)=>{window.focusMap=HazardMap.session.map;window.focusPin=HazardMap.session.markers.get(id).marker;focusMap.setView([0,0],3,{animate:false})}',self.hazard_id)
-        self.assertLess(abs(self.page.evaluate('focusMap.getCenter().lat')),1)
-        self.assertEqual(self.page.evaluate('focusMap.getZoom()'),3)
+        self.assertTrue(self.page.evaluate('focusMap.options.maxBounds.contains(focusMap.getCenter())'))
+        self.assertEqual(self.page.evaluate('focusMap.getZoom()'),self.page.evaluate('focusMap.getMinZoom()'))
+        self.page.evaluate('focusMap.setZoom(22)')
+        self.assertEqual(self.page.evaluate('focusMap.getZoom()'),19)
         expect(self.page.get_by_role('button',name='Focus on Morong',exact=True)).to_have_count(0)
         self.assertTrue(self.page.evaluate('(id)=>HazardMap.session.map===focusMap && HazardMap.session.markers.get(id).marker===focusPin',self.hazard_id))
         self.assertTrue(self.page.evaluate('Object.values(focusMap._layers).every(layer=>!(layer instanceof L.Path))'))
@@ -677,7 +686,7 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         expect(self.page.locator('.map-boundary-warning')).to_contain_text('boundary')
         self.assertTrue(self.page.evaluate('HazardMap.session.markers.size > 0'))
         expect(self.page.get_by_role('button',name='Focus on Morong',exact=True)).to_have_count(0)
-        self.assertAlmostEqual(self.page.evaluate('HazardMap.session.map.getCenter().lat'),14.515,places=2)
+        self.assertTrue(self.page.evaluate('HazardMap.session.map.options.maxBounds.contains(HazardMap.session.map.getCenter())'))
 
     def test_published_morong_map_has_no_border_and_preserves_surrounding_pins(self):
         self.install_published_morong_boundary()
@@ -689,6 +698,53 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         expect(self.page.get_by_role('button',name='Focus on Morong',exact=True)).to_have_count(0)
         self.assertTrue(self.page.evaluate('Object.values(HazardMap.session.map._layers).every(layer=>!(layer instanceof L.Path))'))
         self.page.screenshot(path=str(ARTIFACTS/'map-without-morong-border.png'),full_page=True)
+
+    def test_admin_publish_live_pin_details_and_severity(self):
+        self.install_published_morong_boundary()
+        self.main_hazard_map()
+        self.assertTrue(self.page.evaluate('''() => {
+            const map = HazardMap.session.map;
+            map.setView([0, 0], 2, {animate:false});
+            return map.options.maxBounds.equals(map.pulseMorongBounds)
+                && map.pulseMorongBounds.contains(map.getCenter())
+                && map.getZoom() >= 11;
+        }'''))
+        image_url = 'https://images.test/location.png'
+        image = bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000b49444154789c636000020000050001a5f645400000000049454e44ae426082')
+        self.context.route(image_url, lambda route: route.fulfill(body=image,content_type='image/png'))
+        payload = {'title':'Isolated live pin','category':'announcement','severity':'low',
+                   'location':'Morong test area','description':'<img src=x onerror="window.hazardXss=true">',
+                   'current_condition':'Flood waters rising','image_url':image_url,'latitude':14.515,'longitude':121.239}
+        created = self.page.evaluate("(p)=>Store.apiFetch('/api/hazards',{method:'POST',body:JSON.stringify(p)})",payload)
+        self.assertTrue(created['success'],created)
+        hazard_id = created['data']['id']
+        pin = self.page.locator('.hazard-marker[aria-label^="Isolated live pin"]')
+        expect(pin).to_have_attribute('data-severity','low',timeout=8000)
+        self.page.evaluate('(id)=>{window.livePin=HazardMap.session.markers.get(id).marker; window.liveElement=livePin.getElement()}',hazard_id)
+        for severity, color in [('medium','rgb(250, 204, 21)'),('high','rgb(220, 38, 38)'),('critical','rgb(104, 27, 68)')]:
+            payload['severity'] = severity
+            updated = self.page.evaluate("([id,p])=>Store.apiFetch('/api/hazards/'+id,{method:'PUT',body:JSON.stringify(p)})",[hazard_id,payload])
+            self.assertTrue(updated['success'],updated)
+            expect(pin).to_have_attribute('data-severity',severity,timeout=8000)
+            expect(pin).to_have_css('background-color',color)
+            self.assertTrue(self.page.evaluate('(id)=>HazardMap.session.markers.get(id).marker===livePin && livePin.getElement()===liveElement',hazard_id))
+        self.page.evaluate("livePin.fire('click')")
+        for label in ['Morong test area','Flood waters rising','Critical Severity',payload['description']]:
+            expect(self.page.locator('.detail-modal__body')).to_contain_text(label)
+        self.assertFalse(self.page.evaluate('!!window.hazardXss'))
+        self.page.wait_for_function("document.querySelector('.hazard-thumbnail')?.naturalWidth === 1")
+        self.page.evaluate("(id)=>DetailModal.showHazard({...HazardMap.session.markers.get(id).hazard, image_url:'https://images.test/broken.png'})",hazard_id)
+        expect(self.page.locator('.hazard-thumbnail')).to_have_count(0)
+        with sqlite3.connect(self.database) as db:
+            keys=db.execute('SELECT DISTINCT event_key FROM broadcast_jobs WHERE hazard_id=?',[hazard_id]).fetchall()
+            self.assertTrue(any(':critical:' in key for key, in keys))
+
+    def test_registered_user_card_and_overview_use_same_backend_total(self):
+        self.login()
+        expected = self.page.evaluate("async()=> (await Store.apiFetch('/api/dashboard/stats')).data.registeredCount")
+        self.page.evaluate("Router.navigate('admin-analytics')")
+        expect(self.page.locator('#qa-registered')).to_have_text(str(expected))
+        expect(self.page.locator('#qa-registered-table')).to_have_text(str(expected))
 
     def test_report_map_without_focus_control_preserves_unsaved_coordinates(self):
         self.install_published_morong_boundary();self.login();self.open_report()

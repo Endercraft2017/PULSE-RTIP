@@ -64,9 +64,9 @@ for (const [resource, def] of Object.entries(definitions)) {
           }
         }
         const updated = (await db.query(`SELECT * FROM ${def.table} WHERE id = ?`, [recordId]))[0];
-        await recordAction(req.user.id, resource + (id ? '_updated' : '_created'), resource, Number(recordId), { before: old, after: updated });
-        if (resource === 'advisories' && updated.active && updated.status === 'not_passable' && (!old || !old.active || old.status !== updated.status || old.label !== updated.label)) {
-          await broadcast.enqueue({ advisory_id: Number(recordId), title: 'Urgent road advisory', message: `${updated.label}\nGPS: ${updated.latitude}, ${updated.longitude}`, critical: true });
+        const audit = await recordAction(req.user.id, resource + (id ? '_updated' : '_created'), resource, Number(recordId), { before: old, after: updated });
+        if (resource === 'advisories' && updated.active && updated.status === 'not_passable' && (!old || !old.active || old.status !== updated.status)) {
+          await broadcast.enqueue({ advisory_id: Number(recordId), title: 'Urgent road advisory', message: `${updated.label}\nGPS: ${updated.latitude}, ${updated.longitude}`, critical: true, event_key: `advisory:${recordId}:critical:${audit.id}` });
         }
         return updated;
       });

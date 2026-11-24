@@ -6060,9 +6060,37 @@ body.theme-dark .newsfeed-card__provenance {
 /* Dispatch management tables keep long notes readable on narrow screens. */
 .operations-table { width: 100%; border-collapse: collapse; text-align: left; }
 .operations-table th, .operations-table td { padding: 12px; border-bottom: 1px solid var(--color-gray-200); max-width: 320px; overflow-wrap: anywhere; vertical-align: top; }
-.operations-panel .dashboard-subtabs { display: flex; flex-wrap: wrap; gap: 8px; }
-.operations-panel .input-group { display: block; margin: 12px 0; }
-.operations-panel .card { margin: 16px 0; padding: 16px; }
+.operations-panel { display: grid; gap: 12px; min-width: 0; }
+.operations-panel > * { min-width: 0; }
+.operations-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.operations-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--color-gray-200); padding: 4px; }
+.operations-tabs button {
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+.operations-tabs button:hover { background: var(--color-info-light); color: #164e87; }
+.operations-tabs button[aria-pressed="true"] { background: #164e87; color: #fff; }
+.operations-tabs button:focus-visible { outline: 2px solid var(--color-info); outline-offset: 2px; }
+#operations-message:empty, #operations-form:empty, #operation-error:empty { display: none; }
+#operation-editor { display: grid; gap: 12px; justify-items: start; padding: 16px; max-width: 42rem; }
+#operation-editor .input-group { display: grid; gap: 4px; margin: 0; width: 100%; }
+#operation-editor .form-input {
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-gray-400);
+    border-radius: 6px;
+    background: var(--color-white);
+    color: inherit;
+}
+body.theme-dark #operation-editor .form-input { background: #1e293b; border-color: #64748b; }
+.operations-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 #incident-coordinate-form label { display: block; margin: 8px 0; }
 
 .incident-card__header { gap: 8px; }
@@ -6070,6 +6098,22 @@ body.theme-dark .newsfeed-card__provenance {
 .incident-card__header > .badge { flex-shrink: 0; }
 .detail-modal__title, .detail-modal__section-text { overflow-wrap: anywhere; }
 .operations-table { min-width: 680px; }
+.operations-table th, .operations-table td:first-child { white-space: nowrap; }
+
+.hazard-marker {
+    display: grid;
+    place-items: center;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 4px #0f172a;
+    background: #475569;
+}
+.hazard-marker[data-severity="low"] { background: #1d4ed8; }
+.hazard-marker[data-severity="medium"] { background: #facc15; }
+.hazard-marker[data-severity="high"] { background: #dc2626; }
+.hazard-marker[data-severity="critical"] { background: #681b44; }
+.hazard-marker[data-severity="critical"]::after { content: "!"; color: #fff; font-weight: bold; }
+.hazard-thumbnail { display: block; max-width: min(100%, 240px); max-height: 160px; object-fit: contain; border-radius: 6px; margin-bottom: 12px; }
 
 /* Keep Leaflet panes and controls inside each map's stacking context. */
 .hazard-live-map, #incident-leaflet-map { isolation: isolate; z-index: 0; }

@@ -11,6 +11,7 @@ const { execFileSync, spawn } = require('node:child_process');
 const folder = mkdtempSync(path.join(tmpdir(), 'pulse-dispatch-'));
 process.env.SQLITE_PATH = path.join(folder, 'test.db');
 process.env.APP_MODE = 'offline';
+process.env.UPLOAD_DIR = path.join(folder, 'uploads');
 process.env.JWT_SECRET = 'isolated-test-signing-key';
 process.env.TERRITORY_GEOJSON_PATH = path.join(folder, 'boundary.json');
 for (const name of ['TEXTBEE_API_KEY', 'TEXTBEE_DEVICE_ID', 'FIREBASE_SERVICE_ACCOUNT_PATH', 'FIREBASE_SERVICE_ACCOUNT_JSON']) process.env[name] = '';
@@ -412,4 +413,60 @@ test('bundled operational boundary enables Morong GPS without a custom path and 
     assert.doesNotThrow(()=>assertLocation({latitude:14.515,longitude:121.239}));
     for(const [latitude,longitude] of [[14.465,121.191],[14.561,121.208],[14.70204547,120.32067693]])assert.throws(()=>assertLocation({latitude,longitude}),e=>e.statusCode===422);
   }finally{process.env.TERRITORY_GEOJSON_PATH=old;}
+});
+
+
+test('hazard details persist and every GPS write requires admin authorization and an audit reason', async () => {
+  const payload = { ...valid, severity: 'low', current_condition: 'Flood waters rising',
+    image_url: 'https://images.test/pin.jpg' };
+  assert.equal((await api('POST', '/hazards', { ...payload, image_url: 'javascript:alert(1)' })).status, 400);
+  assert.equal((await api('POST', '/hazards', payload, 'citizen')).status, 403);
+  const created = await api('POST', '/hazards', payload);
+  assert.equal(created.status, 201);
+  const url = `/hazards/${created.data.id}`;
+  const read = await api('GET', url, undefined, 'citizen');
+  assert.equal(read.data.current_condition, payload.current_condition);
+  assert.equal(read.data.image_url, payload.image_url);
+  const correction = { latitude: 14.6, longitude: 120.6, note: 'Verified field GPS coordinates' };
+  assert.equal((await api('PUT', url + '/location', correction, 'citizen')).status, 403);
+  assert.equal((await api('PUT', url, { ...payload, ...correction, note: ' ' })).status, 422);
+  assert.equal((await api('PUT', url + '/location', { ...correction, longitude: 121.6 })).status, 422);
+  assert.equal((await api('PUT', url + '/location', correction)).status, 200);
+  const [audit] = await db.query("SELECT details FROM audit_log WHERE action='hazard_updated' AND target_id=?", [created.data.id]);
+  assert.equal(JSON.parse(audit.details).reason, correction.note);
+  const history = await api('GET', `/operations/hazards/${created.data.id}/events`);
+  assert.equal(history.data.at(-1).note, correction.note);
+});
+
+test('concurrent high-to-critical declarations queue a single additional all-eligible broadcast', async () => {
+  const payload = { ...valid, severity: 'high', audience_type: 'barangay', audience_barangays: ['Unmatched'] };
+  const created = await api('POST', '/hazards', payload);
+  assert.equal(created.status, 201);
+  await db.query("UPDATE users SET account_status='suspended' WHERE id=3");
+  try {
+    const results = await Promise.all([1, 2].map(() => api('PUT', `/hazards/${created.data.id}`, { ...payload, severity: 'critical' })));
+    assert.ok(results.every(result => result.status === 200));
+    const jobs = await db.query('SELECT * FROM broadcast_jobs WHERE hazard_id=? ORDER BY id', [created.data.id]);
+    assert.equal(jobs.length, 4);
+    const sms = jobs.filter(job => job.channel === 'sms').at(-1);
+    const recipients = await db.query('SELECT user_id,status FROM broadcast_recipients WHERE job_id=? ORDER BY user_id', [sms.id]);
+    assert.deepEqual(recipients.map(row => [row.user_id, row.status]), [[1, 'queued'], [2, 'queued']]);
+  } finally {
+    await db.query("UPDATE users SET account_status='active' WHERE id=3");
+  }
+});
+
+test('registered-user total includes inactive accounts and excludes deleted accounts', async () => {
+  await db.query("UPDATE users SET account_status='suspended' WHERE id=2");
+  await db.query("UPDATE users SET deleted_at=CURRENT_TIMESTAMP WHERE id=3");
+  try {
+    const stats = await api('GET', '/dashboard/stats');
+    const directory = await api('GET', '/operations/users');
+    assert.equal(stats.data.registeredCount, 2);
+    assert.deepEqual(directory.data.map(row => row.id), [1, 2]);
+    assert.equal(directory.data[1].account_status, 'suspended');
+  } finally {
+    await db.query("UPDATE users SET account_status='active' WHERE id=2");
+    await db.query("UPDATE users SET deleted_at=NULL WHERE id=3");
+  }
 });
