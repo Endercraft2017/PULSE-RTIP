@@ -10,7 +10,7 @@
  * 4. updatePost            - Edit own post; preserves history via PostEdit
  * 5. getPostEdits          - List edit history for a post
  * 6. repostPost            - Share another user's post (no chain of reposts)
- * 7. deletePost            - Delete own post (or any post if admin)
+ * 7. setPostArchive        - Archive or restore a post
  * 8. promoteReportToPost   - Admin: promote a report into a community post
  *
  * Handles community board post operations.
@@ -36,6 +36,7 @@ async function getPosts(req, res, next) {
     const posts = await Post.findAll({
       category,
       search,
+      archivedByOwner: req.query.archived === 'true' ? req.user.id : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
     res.json({
@@ -68,6 +69,10 @@ async function createPost(req, res, next) {
       type,
       reposted_from_post_id,
     } = req.body;
+
+    if (reposted_from_post_id && !await Post.findById(reposted_from_post_id)) {
+      return res.status(404).json({ success: false, message: 'Original post not found.' });
+    }
 
     let { image_path, video_path, location } = req.body;
 
@@ -226,8 +231,8 @@ async function updatePost(req, res, next) {
 
 async function getPostEdits(req, res, next) {
   try {
-    const post = await Post.findById(req.params.id);
-    if (!post) {
+    const post = await Post.findById(req.params.id, { includeArchived: true });
+    if (!post || (post.archived_at && post.user_id !== req.user.id && req.user.role !== 'admin')) {
       return res.status(404).json({ success: false, message: 'Post not found' });
     }
 
@@ -277,49 +282,25 @@ async function repostPost(req, res, next) {
 }
 
 /* --------------------------------------------------------------------------
- * 7. deletePost
+ * 7. setPostArchive
  * -------------------------------------------------------------------------- */
 
-async function deletePost(req, res, next) {
+async function setPostArchive(req, res, next) {
   try {
-    const post = await Post.findById(req.params.id);
-    if (!post) {
-      return res.status(404).json({ success: false, message: 'Post not found' });
+    const archived = req.method === 'DELETE' || req.body.archived;
+    const post = await Post.findById(req.params.id, { includeArchived: true });
+    if (!post) return res.status(404).json({ success: false, message: 'Post not found.' });
+
+    const isAdmin = req.user.role === 'admin';
+    if (!isAdmin && (post.user_id !== req.user.id ||
+        (!archived && post.archived_at && post.archived_by !== req.user.id))) {
+      return res.status(403).json({ success: false, message: 'Not authorized.' });
     }
-
-    if (post.user_id !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Not authorized' });
+    const result = await Post.setArchived(post.id, req.user.id, isAdmin, archived);
+    if (!result.affectedRows && Boolean(post.archived_at) !== archived) {
+      return res.status(409).json({ success: false, message: 'Archive state changed. Refresh and retry.' });
     }
-
-    await Post.remove(post.id);
-
-    // Best-effort: unlink local upload file so the disk doesn't fill up with
-    // orphan AI-generated images. Only touch /uploads/ paths (skip anything
-    // hosted externally) and only if the file isn't shared by another row.
-    try {
-      const fs = require('fs');
-      const path = require('path');
-      const config = require('../config');
-      for (const p of [post.image_path, post.video_path]) {
-        if (!p || typeof p !== 'string' || !p.startsWith('/uploads/')) continue;
-        const filename = p.replace(/^\/uploads\//, '');
-        // Don't delete a file still referenced by another community_post
-        const db = require('../config/database');
-        const rows = await db.query(
-          'SELECT 1 FROM community_posts WHERE image_path = ? OR video_path = ? LIMIT 1',
-          [p, p]
-        );
-        if (rows.length > 0) continue;
-        const abs = path.join(config.upload.dir, filename);
-        fs.unlink(abs, (err) => {
-          if (err && err.code !== 'ENOENT') console.warn('[deletePost] unlink failed:', err.message);
-        });
-      }
-    } catch (e) {
-      console.warn('[deletePost] file cleanup error:', e.message);
-    }
-
-    res.json({ success: true, message: 'Post deleted' });
+    res.json({ success: true, message: archived ? 'Post archived.' : 'Post restored.' });
   } catch (err) {
     next(err);
   }
@@ -426,6 +407,6 @@ module.exports = {
   updatePost,
   getPostEdits,
   repostPost,
-  deletePost,
+  setPostArchive,
   promoteReportToPost,
 };

@@ -20,6 +20,7 @@ const NewsUpdatesPage = {
     activeFilter: 'all',
     searchTerm: '',
     posts: [],
+    archivedPosts: [],
 
     featured: {
         title: 'PULSE 911 MDRRMO',
@@ -32,7 +33,10 @@ const NewsUpdatesPage = {
      * 2. Render
      * -------------------------------------------------------- */
     render() {
-        setTimeout(() => this.loadData(), 0);
+        setTimeout(() => {
+            this.loadData();
+            if (this.activeFilter === 'archive') this.loadArchive();
+        }, 0);
 
         return `
             <div class="page-padding">
@@ -96,10 +100,12 @@ const NewsUpdatesPage = {
                         <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6z"></path></svg>
                         City News
                     </button>
+                    <button type="button" class="news-tab ${this.activeFilter === 'archive' ? 'active' : ''}"
+                            onclick="NewsUpdatesPage.setFilter('archive')">Post Archive</button>
                 </div>
 
                 <div class="section-header">
-                    <div class="section-header__title">Latest News</div>
+                    <div class="section-header__title" id="news-list-heading">${this.activeFilter === 'archive' ? 'Archived Community Posts' : 'Latest News'}</div>
                 </div>
 
                 <div id="news-list">
@@ -243,7 +249,10 @@ const NewsUpdatesPage = {
     },
 
     renderList() {
-        let filtered = this.activeFilter === 'all'
+        const archive = this.activeFilter === 'archive';
+        if (archive && this.archiveLoading) return '<div class="loading-state">Loading archived posts…</div>';
+        if (archive && this.archiveError) return '<div class="empty-state" role="alert">Unable to load the post archive.</div>';
+        let filtered = archive ? [...this.archivedPosts] : this.activeFilter === 'all'
             ? [...this.posts, ...this.liveNews]
             : this.activeFilter === 'city-news'
                 ? [...this.posts.filter(p => p.category === 'city-news'), ...this.liveNews]
@@ -260,7 +269,7 @@ const NewsUpdatesPage = {
         filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
         if (filtered.length === 0) {
-            return '<div class="empty-state">No posts found.</div>';
+            return archive ? '<div class="empty-state">No archived posts found.</div>' : '<div class="empty-state">No posts found.</div>';
         }
 
         return filtered.map(p => this.renderCard(p)).join('');
@@ -301,7 +310,11 @@ const NewsUpdatesPage = {
         // U-1: stopPropagation is forwarded into each handler so the click
         // doesn't bubble up to the card's `showPostDetail` (which used to
         // hijack the edit button on some devices).
-        const actions = post._isLiveNews ? '' : `
+        const actions = post.archived_at ? (isOwner && (post.archived_by === user.id || user.role === 'admin') ? `
+            <div class="news-card__actions">
+                <button type="button" class="news-card__action"
+                        onclick="event.stopPropagation(); NewsUpdatesPage.setArchive(${post.id}, false, this)">Restore Post</button>
+            </div>` : '') : post._isLiveNews ? '' : `
             <div class="news-card__actions" onclick="event.stopPropagation()">
                 <button type="button" class="news-card__action" onclick="event.stopPropagation(); NewsUpdatesPage.repost(${post.id})" title="Repost to your feed">
                     <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
@@ -316,10 +329,8 @@ const NewsUpdatesPage = {
                         <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         Edit
                     </button>
-                    <button type="button" class="news-card__action news-card__action--danger" onclick="event.stopPropagation(); NewsUpdatesPage.confirmDelete(${post.id})" title="Delete">
-                        <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
-                        Delete
-                    </button>
+                    <button type="button" class="news-card__action"
+                            onclick="event.stopPropagation(); NewsUpdatesPage.setArchive(${post.id}, true, this)">Archive Post</button>
                 ` : ''}
             </div>
         `;
@@ -759,7 +770,7 @@ const NewsUpdatesPage = {
      * 6. Post detail modal + edit history
      * -------------------------------------------------------- */
     showPostDetail(postId) {
-        const post = this.posts.find(p => p.id === postId);
+        const post = (this.activeFilter === 'archive' ? this.archivedPosts : this.posts).find(p => p.id === postId);
         if (!post) return;
 
         // Mount the modal directly to <body> (not into a page-scoped container)
@@ -877,22 +888,42 @@ const NewsUpdatesPage = {
         }
     },
 
-    /* --------------------------------------------------------
-     * 7c. Delete (owner or admin) — confirms before removing
-     * -------------------------------------------------------- */
-    async confirmDelete(postId) {
-        if (!confirm('Delete this post? This cannot be undone.')) return;
+    async loadArchive() {
+        const revision = this.archiveRevision = (this.archiveRevision || 0) + 1;
+        this.archiveLoading = true;
+        this.archiveError = false;
+        this.refreshList();
         try {
-            const res = await Store.apiFetch('/api/posts/' + postId, { method: 'DELETE' });
-            if (res.success) {
-                this.posts = this.posts.filter(p => p.id !== postId);
-                this.refreshList();
-                if (window.Toast) Toast.show('Post deleted.', { type: 'success', duration: 2500 });
-            } else {
-                alert(res.message || 'Failed to delete post.');
+            const res = await Store.apiFetch('/api/posts?archived=true');
+            if (!res.success) throw new Error(res.message);
+            if (revision === this.archiveRevision) this.archivedPosts = res.data;
+        } catch (_) {
+            if (revision === this.archiveRevision) this.archiveError = true;
+        } finally {
+            if (revision === this.archiveRevision) {
+                this.archiveLoading = false;
+                if (this.activeFilter === 'archive') this.refreshList();
             }
-        } catch (err) {
-            alert('Network error. Please try again.');
+        }
+    },
+
+    async setArchive(postId, archived, button) {
+        if (archived && !confirm('Archive this post and remove it from the community feed?')) return;
+        button.disabled = true;
+        try {
+            const res = await Store.apiFetch(`/api/posts/${postId}/archive`, {
+                method: 'PUT', body: JSON.stringify({ archived }),
+            });
+            if (!res.success) throw new Error(res.message || 'Unable to update the post archive.');
+            if (archived) this.posts = this.posts.filter(post => post.id !== postId);
+            else await this.loadData();
+            if (this.activeFilter === 'archive') await this.loadArchive();
+            else this.refreshList();
+            if (window.Toast) Toast.show(archived ? 'Post archived.' : 'Post restored.', { type: 'success' });
+        } catch (error) {
+            if (button.isConnected) alert(error.message);
+        } finally {
+            button.disabled = false;
         }
     },
 
@@ -945,7 +976,10 @@ const NewsUpdatesPage = {
         document.querySelectorAll('.news-tab').forEach(t => t.classList.remove('active'));
         const btn = document.querySelector(`.news-tab[onclick*="setFilter('${filter}')"]`);
         if (btn) btn.classList.add('active');
-        this.refreshList();
+        const heading = document.getElementById('news-list-heading');
+        if (heading) heading.textContent = filter === 'archive' ? 'Archived Community Posts' : 'Latest News';
+        if (filter === 'archive') this.loadArchive();
+        else this.refreshList();
     },
 
     handleSearch(value) {

@@ -44,7 +44,7 @@ async function getReports(req, res, next) {
     if (req.user.role === 'admin') {
       reports = await Report.findAll({ status, type, search });
     } else {
-      reports = await Report.findByUserId(req.user.id, { status });
+      reports = await Report.findByUserId(req.user.id, { status, archived: req.query.archived === 'true' });
     }
 
     const reportsWithImages = await Promise.all(
@@ -502,7 +502,18 @@ async function addReportNote(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function setCitizenArchive(req, res, next) {
+  try {
+    const result = await Report.setCitizenArchive(req.params.id, req.user.id, req.body.archived);
+    if (!result.affectedRows) return res.status(404).json({ success: false, message: 'Report not found.' });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
+  setCitizenArchive,
   addReportNote,
   getReports,
   getReport,

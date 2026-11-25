@@ -14,12 +14,12 @@
  * PUT    /api/posts/:id        - Edit own post title/content (author or admin)
  * GET    /api/posts/:id/edits  - Edit history for a post
  * POST   /api/posts/:id/repost - Repost another user's post
- * DELETE /api/posts/:id        - Delete a post (owner or admin)
+ * PUT    /api/posts/:id/archive - Archive or restore a post (owner or admin)
  * =============================================================================
  */
 
 const { Router } = require('express');
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
 const postController = require('../controllers/postController');
@@ -78,6 +78,11 @@ router.post('/', authenticate, maybeMultipart, validate(createRules), postContro
 router.put('/:id', authenticate, maybeMultipart, validate(updateRules), postController.updatePost);
 router.get('/:id/edits', authenticate, postController.getPostEdits);
 router.post('/:id/repost', authenticate, postController.repostPost);
-router.delete('/:id', authenticate, postController.deletePost);
+router.put('/:id/archive', authenticate, validate([
+  param('id').isInt({ min: 1 }),
+  body('archived').isBoolean({ strict: true }).toBoolean(),
+]), postController.setPostArchive);
+// Older clients use DELETE for the same action. Preserve the record for recovery.
+router.delete('/:id', authenticate, postController.setPostArchive);
 
 module.exports = router;

@@ -96,6 +96,10 @@ router.put('/:id/priority', authenticate, requireAdmin, requireAgency, validate(
     });res.json({success:true,data:report});
   }catch(e){next(e);}
 });
+router.put('/:id/personal-archive', authenticate, validate([
+  param('id').isInt({ min: 1 }),
+  body('archived').isBoolean({ strict: true }).toBoolean(),
+]), reportController.setCitizenArchive);
 router.put('/:id/status', authenticate, requireAgency, validate(statusRules), reportController.updateReportStatus);
 router.put('/:id', authenticate, requireAgency, validate(updateRules), reportController.updateReport);
 router.put('/:id/restore', authenticate, requireAdmin, requireAgency, reportController.restoreReport);

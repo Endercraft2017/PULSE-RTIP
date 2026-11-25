@@ -248,6 +248,8 @@ test('admin account control revokes existing sessions without erasing attributio
   assert.ok((await db.query('SELECT * FROM users WHERE id=3'))[0]);
   assert.equal((await api('PUT','/operations/users/3',{account_status:'active',account_reason:'Review complete'})).status,200);
   assert.equal((await api('GET','/users/me',undefined,'other')).status,401,'Reactivation must not revive an old token');
+  const [other] = await db.query('SELECT auth_version FROM users WHERE id = 3');
+  tokens.other = jwt.sign({ sub: 3, version: other.auth_version }, process.env.JWT_SECRET);
 });
 test('incident priority is admin-only, controlled and appended to history', async () => {
   const created=await api('POST','/reports',valid,'citizen');const id=created.data.id;
@@ -469,4 +471,44 @@ test('registered-user total includes inactive accounts and excludes deleted acco
     await db.query("UPDATE users SET account_status='active' WHERE id=2");
     await db.query("UPDATE users SET deleted_at=NULL WHERE id=3");
   }
+});
+
+
+test('citizen report archives are private and leave dispatch status unchanged', async () => {
+  const created = await api('POST', '/reports', valid, 'citizen');
+  assert.equal(created.status, 201);
+  const id = created.data.id;
+  const route = `/reports/${id}/personal-archive`;
+  assert.equal((await api('PUT', route, { archived: true }, 'other')).status, 404);
+  assert.equal((await api('PUT', route, { archived: true }, 'citizen')).status, 200);
+  assert.equal((await api('GET', '/reports', undefined, 'citizen')).data.some(row => row.id === id), false);
+  assert.equal((await api('GET', '/reports?archived=true', undefined, 'citizen')).data.some(row => row.id === id), true);
+  assert.equal((await api('GET', '/reports?archived=true', undefined, 'other')).data.some(row => row.id === id), false);
+  const dispatch = (await api('GET', '/reports')).data.find(row => row.id === id);
+  assert.equal(dispatch.status, created.data.status);
+  assert.equal(dispatch.deleted_at, null);
+  assert.equal((await api('PUT', route, { archived: false }, 'citizen')).status, 200);
+  assert.equal((await api('GET', '/reports', undefined, 'citizen')).data.some(row => row.id === id), true);
+});
+
+test('post archive retains media and history, hides feed entries and enforces ownership', async () => {
+  const { insertId: id } = await db.query(
+    'INSERT INTO community_posts (user_id,title,category,image_path) VALUES (?,?,?,?)',
+    [2, 'Archive fixture', 'community', '/uploads/fixture.png']
+  );
+  const url = `/posts/${id}`;
+  assert.equal((await api('PUT', url, { title: 'Archive fixture updated' }, 'citizen')).status, 200);
+  assert.equal((await api('PUT', url + '/archive', { archived: true }, 'other')).status, 403);
+  assert.equal((await api('DELETE', url, undefined, 'citizen')).status, 200);
+  assert.equal((await api('GET', '/posts', undefined, 'other')).data.some(row => row.id === id), false);
+  assert.equal((await api('GET', '/posts?archived=true', undefined, 'other')).data.some(row => row.id === id), false);
+  const archived = (await api('GET', '/posts?archived=true', undefined, 'citizen')).data.find(row => row.id === id);
+  assert.equal(archived.image_path, '/uploads/fixture.png');
+  assert.equal((await api('GET', url + '/edits', undefined, 'other')).status, 404);
+  assert.equal((await api('GET', url + '/edits', undefined, 'citizen')).data.length, 1);
+  assert.equal((await api('POST', url + '/repost', {}, 'other')).status, 404);
+  assert.equal((await api('PUT', url + '/archive', { archived: false }, 'citizen')).status, 200);
+  assert.equal((await api('GET', '/posts', undefined, 'other')).data.some(row => row.id === id), true);
+  assert.equal((await api('PUT', url + '/archive', { archived: true })).status, 200);
+  assert.equal((await api('PUT', url + '/archive', { archived: false }, 'citizen')).status, 403);
 });

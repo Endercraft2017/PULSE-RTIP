@@ -123,9 +123,10 @@ async function findByUserId(userId, filters = {}) {
       AND r.deleted_at IS NULL
   `;
   const params = [userId];
+  sql += filters.archived ? ' AND r.citizen_archived_at IS NOT NULL' : ' AND r.citizen_archived_at IS NULL';
 
   // Same declutter rule as findAll — hide resolved reports already promoted.
-  if (!filters.includePromoted) {
+  if (!filters.includePromoted && !filters.archived) {
     sql += " AND NOT (r.status = 'resolved' AND p.id IS NOT NULL)";
   }
 
@@ -134,7 +135,7 @@ async function findByUserId(userId, filters = {}) {
     params.push(filters.status);
   }
 
-  sql += ' ORDER BY r.created_at DESC';
+  sql += filters.archived ? ' ORDER BY r.citizen_archived_at DESC, r.id DESC' : ' ORDER BY r.created_at DESC';
   return db.query(sql, params);
 }
 
@@ -309,7 +310,15 @@ async function findDeleted() {
   );
 }
 
+async function setCitizenArchive(id, userId, archived) {
+  return db.query(
+    'UPDATE reports SET citizen_archived_at = ? WHERE id = ? AND submitted_by = ? AND deleted_at IS NULL',
+    [archived ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null, id, userId]
+  );
+}
+
 module.exports = {
+  setCitizenArchive,
   findAll,
   findById,
   findByUserId,

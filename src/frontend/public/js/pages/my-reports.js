@@ -31,9 +31,14 @@ const MyReportsPage = {
      * -------------------------------------------------------- */
     render() {
         setTimeout(() => this.loadData(), 0);
+        const archived = this.activeFilter === 'archive';
+        const citizen = Store.get('role') !== 'admin';
 
         return `
             <div class="page-padding">
+                ${citizen ? `<button type="button" class="btn btn--outline btn--sm mb-md" aria-pressed="${archived}"
+                    onclick="MyReportsPage.setFilter('${archived ? 'all' : 'archive'}')">${archived ? 'Back to My Reports' : 'Incident Report Archive'}</button>` : ''}
+                ${archived ? '<h2 class="mb-md">Archived Incident Reports</h2>' : `
                 <div class="filter-tabs filter-tabs--scroll" id="report-filters">
                     <button class="filter-tabs__tab ${this.activeFilter === 'all' ? 'active' : ''}"
                             onclick="MyReportsPage.setFilter('all')">All</button>
@@ -53,7 +58,8 @@ const MyReportsPage = {
                             onclick="MyReportsPage.setFilter('cancelled')">Cancelled</button>
                 </div>
 
-                <div id="reports-list"></div>
+                `}
+                <div id="reports-list" aria-live="polite">Loading reports…</div>
             </div>
         `;
     },
@@ -62,14 +68,18 @@ const MyReportsPage = {
      * 3. Data Loading
      * -------------------------------------------------------- */
     async loadData() {
+        const list = document.getElementById('reports-list');
+        const archived = this.activeFilter === 'archive';
+        const revision = this.loadRevision = (this.loadRevision || 0) + 1;
+        if (!list) return;
         try {
-            const res = await Store.apiFetch('/api/reports');
-            if (res.success) {
-                this.reports = res.data;
-                this.renderReportsList();
-            }
-        } catch (err) {
-            console.error('Failed to load reports:', err);
+            const res = await Store.apiFetch('/api/reports' + (archived ? '?archived=true' : ''));
+            if (!list.isConnected || revision !== this.loadRevision) return;
+            if (!res.success) throw new Error(res.message || 'Unable to load reports.');
+            this.reports = res.data;
+            this.renderReportsList();
+        } catch (error) {
+            if (list.isConnected && revision === this.loadRevision) list.textContent = error.message;
         }
     },
 
@@ -81,7 +91,7 @@ const MyReportsPage = {
         if (!container) return;
 
         let filtered;
-        if (this.activeFilter === 'all') {
+        if (this.activeFilter === 'all' || this.activeFilter === 'archive') {
             filtered = this.reports;
         } else if (this.activeFilter === 'submitted') {
             filtered = this.reports.filter(r => r.status === 'submitted' || r.status === 'pending');
@@ -92,7 +102,9 @@ const MyReportsPage = {
         }
 
         if (filtered.length === 0) {
-            container.innerHTML = '<div class="empty-state">No reports found.</div>';
+            container.innerHTML = this.activeFilter === 'archive'
+                ? '<div class="empty-state">No archived incident reports.</div>'
+                : '<div class="empty-state">No reports found.</div>';
             return;
         }
 
@@ -160,13 +172,14 @@ const MyReportsPage = {
         // edit/cancel actions on their view of the same shared list.
         if (isAdmin || !isOwner) return '';
 
-        const editable = this._canCancel(report); // same window: submitted/pending/investigating
-        if (!editable) return '';
+        const archived = Boolean(report.citizen_archived_at);
 
         return `
             <div class="incident-card__actions">
-                <button type="button" class="btn btn--outline btn--sm" onclick="MyReportsPage.openEditModal(${report.id})">Edit</button>
-                <button type="button" class="btn btn--outline btn--sm" onclick="MyReportsPage.cancelReport(${report.id})">Cancel Report</button>
+                ${!archived && this._canCancel(report) ? `<button type="button" class="btn btn--outline btn--sm" onclick="MyReportsPage.openEditModal(${report.id})">Edit</button>
+                <button type="button" class="btn btn--outline btn--sm" onclick="MyReportsPage.cancelReport(${report.id})">Cancel Report</button>` : ''}
+                <button type="button" class="btn btn--outline btn--sm"
+                    onclick="MyReportsPage.setArchive(${report.id}, ${!archived}, this)">${archived ? 'Restore Report' : 'Archive Report'}</button>
             </div>
         `;
     },
@@ -277,26 +290,76 @@ const MyReportsPage = {
         }
     },
 
-    async cancelReport(id) {
+    async setArchive(id, archived, button) {
+        button.disabled = true;
+        try {
+            const res = await Store.apiFetch(`/api/reports/${id}/personal-archive`, {
+                method: 'PUT', body: JSON.stringify({ archived }),
+            });
+            if (!res.success) throw new Error(res.message || 'Unable to update the report archive.');
+            await this.loadData();
+        } catch (error) {
+            if (button.isConnected) alert(error.message);
+        } finally {
+            button.disabled = false;
+        }
+    },
+
+    cancelReport(id) {
         document.getElementById('cancel-report-modal')?.remove();
-        const overlay=document.createElement('div');overlay.id='cancel-report-modal';overlay.className='modal-overlay modal-overlay--centered active';
-        overlay.innerHTML=`<section class="modal" role="dialog" aria-modal="true" aria-labelledby="cancel-report-title"><h2 id="cancel-report-title">Cancel report</h2><form><label for="cancel-report-reason">Cancellation reason (required)</label><textarea class="form-input" id="cancel-report-reason" required maxlength="5000"></textarea><p role="alert"></p><button class="btn btn--primary" type="submit">Confirm cancellation</button><button class="btn btn--outline" type="button">Keep report</button></form></section>`;
+        const trigger = document.activeElement;
+        const overlay = document.createElement('div');
+        overlay.id = 'cancel-report-modal';
+        overlay.className = 'modal-overlay modal-overlay--centered active';
+        overlay.innerHTML = `
+            <section class="modal" role="dialog" aria-modal="true" aria-labelledby="cancel-report-title">
+                <h2 id="cancel-report-title">Cancel report</h2>
+                <form novalidate>
+                    <label for="cancel-report-reason">Cancellation reason (required)</label>
+                    <textarea class="form-input" id="cancel-report-reason" required maxlength="5000" aria-describedby="cancel-report-error"></textarea>
+                    <p id="cancel-report-error" role="alert"></p>
+                    <button class="btn btn--primary" type="submit">Confirm cancellation</button>
+                    <button class="btn btn--outline" type="button">Keep report</button>
+                </form>
+            </section>`;
         document.body.appendChild(overlay);
-        const form=overlay.querySelector('form');
-        form.querySelector('[type=button]').onclick=()=>overlay.remove();
-        form.onsubmit=async event=>{
-            event.preventDefault();const note=form.querySelector('textarea').value.trim();
-            if(!note){form.querySelector('[role=alert]').textContent='Enter a cancellation reason.';return;}
-            const button=form.querySelector('[type=submit]');button.disabled=true;
-            try {
-                const res=await Store.apiFetch('/api/reports/'+id+'/status',{method:'PUT',body:JSON.stringify({status:'cancelled',note})});
-                if(!overlay.isConnected) return;
-                if(!res.success) throw new Error(res.message||'Unable to cancel report.');
-                overlay.remove();this.loadData();
-            }catch(error){if(overlay.isConnected)form.querySelector('[role=alert]').textContent=error.message;}
-            finally{button.disabled=false;}
+        const form = overlay.querySelector('form');
+        const reason = form.querySelector('textarea');
+        const errorMessage = form.querySelector('[role=alert]');
+        const submit = form.querySelector('[type=submit]');
+        const close = () => { overlay.remove(); trigger?.focus(); };
+        form.querySelector('[type=button]').onclick = close;
+        overlay.onkeydown = event => {
+            if (event.key === 'Escape' && !submit.disabled) close();
         };
-        form.querySelector('textarea').focus();
+        reason.oninput = () => {
+            reason.removeAttribute('aria-invalid');
+            errorMessage.textContent = '';
+        };
+        form.onsubmit = async event => {
+            event.preventDefault();
+            const note = reason.value.trim();
+            if (!note) {
+                reason.setAttribute('aria-invalid', 'true');
+                errorMessage.textContent = 'Enter a cancellation reason.';
+                reason.focus();
+                return;
+            }
+            submit.disabled = true;
+            try {
+                const res = await Store.apiFetch(`/api/reports/${id}/status`, {
+                    method: 'PUT', body: JSON.stringify({ status: 'cancelled', note }),
+                });
+                if (!res.success) throw new Error(res.message || 'Unable to cancel report.');
+                if (overlay.isConnected) close();
+                await this.loadData();
+            } catch (error) {
+                if (overlay.isConnected) errorMessage.textContent = error.message;
+            } finally {
+                submit.disabled = false;
+            }
+        };
+        reason.focus();
     },
 
     /* --------------------------------------------------------

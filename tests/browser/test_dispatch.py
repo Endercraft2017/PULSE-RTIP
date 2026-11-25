@@ -624,6 +624,9 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         self.login(role='citizen')
         card=self.page.locator('.incident-card').filter(has_text=self._testMethodName)
         card.get_by_role('button',name='Cancel Report',exact=True).click()
+        self.page.get_by_role('button',name='Confirm cancellation',exact=True).click()
+        expect(self.page.locator('#cancel-report-modal [role=alert]')).to_contain_text('Enter a cancellation reason')
+        expect(self.page.locator('#cancel-report-reason')).to_be_focused()
         self.page.locator('#cancel-report-reason').fill('   ')
         self.page.get_by_role('button',name='Confirm cancellation',exact=True).click()
         expect(self.page.locator('#cancel-report-modal [role=alert]')).to_contain_text('Enter a cancellation reason')
@@ -634,6 +637,36 @@ const bcrypt=require('./src/backend/node_modules/bcryptjs');
         with sqlite3.connect(self.database) as db:
             self.assertEqual(db.execute('SELECT status FROM reports WHERE id=?',[self.report_id]).fetchone()[0],'cancelled')
             self.assertEqual(db.execute('SELECT note FROM report_events WHERE report_id=? ORDER BY id DESC LIMIT 1',[self.report_id]).fetchone()[0],'Already reported by my household')
+
+    def test_citizen_archives_keep_reports_and_posts_separate(self):
+        self.page.route("**/api/news", lambda route: route.fulfill(json={"success": True, "data": {}}))
+        title = 'Citizen archive post fixture'
+        with sqlite3.connect(self.database) as db:
+            db.execute("INSERT INTO community_posts (user_id,title,content,category) VALUES (2,?, 'Post body','community')",[title])
+        self.login(role='citizen')
+        report = self.page.locator('#reports-list .incident-card').filter(has_text=self._testMethodName)
+        report.get_by_role('button',name='Archive Report',exact=True).click()
+        expect(report).to_have_count(0)
+        self.page.get_by_role('button',name='Incident Report Archive').click()
+        expect(report).to_be_visible()
+        expect(self.page.locator('#reports-list')).not_to_contain_text(title)
+        self.page.evaluate("Router.navigate('news-updates')")
+        post = self.page.locator('.news-card').filter(has_text=title)
+        post.get_by_role('button',name='Archive Post',exact=True).click()
+        expect(post).to_have_count(0)
+        self.page.get_by_role('button',name='Post Archive').click()
+        expect(post).to_be_visible()
+        expect(self.page.locator('#news-list')).not_to_contain_text(self._testMethodName)
+        post.get_by_role('button',name='Restore Post',exact=True).click()
+        expect(post).to_have_count(0)
+        self.page.get_by_role('button',name='Community',exact=True).click()
+        expect(post).to_be_visible()
+        self.page.evaluate("Router.navigate('my-reports')")
+        expect(report).to_be_visible()
+        report.get_by_role('button',name='Restore Report',exact=True).click()
+        expect(report).to_have_count(0)
+        self.page.get_by_role('button',name='Back to My Reports').click()
+        expect(report).to_be_visible()
 
     def test_admin_priority_highlight_status_box_and_archive_bar(self):
         self.login()

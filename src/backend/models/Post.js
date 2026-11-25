@@ -10,7 +10,7 @@
  * 4. findLatest   - Get N most recent posts (for citizen-home feed)
  * 5. create       - Create a new community post
  * 6. update       - Edit a post's title/content, snapshotting the old values
- * 7. remove       - Delete a post (owner or admin only)
+ * 7. setArchived  - Archive or restore a post
  * 8. findByPromotedReport - Look up a post promoted from a given report
  *
  * Data access layer for the community_posts table.
@@ -42,8 +42,8 @@ const BASE_SELECT = `
 
 async function findAll(filters = {}) {
   let sql = BASE_SELECT;
-  const conditions = [];
-  const params = [];
+  const conditions = [filters.archivedByOwner ? 'p.archived_at IS NOT NULL AND p.user_id = ?' : 'p.archived_at IS NULL'];
+  const params = filters.archivedByOwner ? [filters.archivedByOwner] : [];
 
   if (filters.category) {
     conditions.push('p.category = ?');
@@ -60,7 +60,7 @@ async function findAll(filters = {}) {
     sql += ' WHERE ' + conditions.join(' AND ');
   }
 
-  sql += ' ORDER BY p.created_at DESC';
+  sql += filters.archivedByOwner ? ' ORDER BY p.archived_at DESC, p.id DESC' : ' ORDER BY p.created_at DESC';
 
   if (filters.limit) {
     sql += ' LIMIT ?';
@@ -74,8 +74,8 @@ async function findAll(filters = {}) {
  * 3. findById
  * -------------------------------------------------------------------------- */
 
-async function findById(id) {
-  const rows = await db.query(`${BASE_SELECT} WHERE p.id = ?`, [id]);
+async function findById(id, { includeArchived = false } = {}) {
+  const rows = await db.query(`${BASE_SELECT} WHERE p.id = ?${includeArchived ? '' : ' AND p.archived_at IS NULL'}`, [id]);
   return rows[0] || null;
 }
 
@@ -90,7 +90,7 @@ async function findById(id) {
  * @returns {Promise<Array>}
  */
 async function findLatest(limit = 3) {
-  const sql = `${BASE_SELECT} ORDER BY p.created_at DESC LIMIT ?`;
+  const sql = `${BASE_SELECT} WHERE p.archived_at IS NULL ORDER BY p.created_at DESC LIMIT ?`;
   return db.query(sql, [Number(limit)]);
 }
 
@@ -192,7 +192,7 @@ async function update(id, editorUserId, changes) {
   }
 
   await db.query(
-    'UPDATE community_posts SET title = ?, content = ?, image_path = ?, video_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    'UPDATE community_posts SET title = ?, content = ?, image_path = ?, video_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND archived_at IS NULL',
     [newTitle, newContent, newImage, newVideo, id]
   );
 
@@ -200,17 +200,22 @@ async function update(id, editorUserId, changes) {
 }
 
 /* --------------------------------------------------------------------------
- * 7. remove
+ * 7. setArchived
  * -------------------------------------------------------------------------- */
 
-async function remove(id) {
-  // Children first — post_edits.post_id has a FK to community_posts(id)
-  // with no ON DELETE CASCADE, so deleting the post directly throws
-  // "FOREIGN KEY constraint failed" the moment any edit row exists.
-  // Same for any reposts pointing back at this id.
-  await db.query('DELETE FROM post_edits WHERE post_id = ?', [id]);
-  await db.query('UPDATE community_posts SET reposted_from_post_id = NULL WHERE reposted_from_post_id = ?', [id]);
-  await db.query('DELETE FROM community_posts WHERE id = ?', [id]);
+async function setArchived(id, actorId, isAdmin, archived) {
+  const ownerCondition = isAdmin ? '' : ' AND user_id = ?';
+  if (archived) {
+    return db.query(
+      'UPDATE community_posts SET archived_at = CURRENT_TIMESTAMP, archived_by = ? WHERE id = ? AND archived_at IS NULL' + ownerCondition,
+      isAdmin ? [actorId, id] : [actorId, id, actorId]
+    );
+  }
+  const restoreCondition = isAdmin ? '' : ownerCondition + ' AND archived_by = ?';
+  return db.query(
+    'UPDATE community_posts SET archived_at = NULL, archived_by = NULL WHERE id = ? AND archived_at IS NOT NULL' + restoreCondition,
+    isAdmin ? [id] : [id, actorId, actorId]
+  );
 }
 
 /* --------------------------------------------------------------------------
@@ -231,4 +236,4 @@ async function findByPromotedReport(reportId) {
   return rows[0] || null;
 }
 
-module.exports = { findAll, findById, findLatest, create, update, remove, findByPromotedReport };
+module.exports = { findAll, findById, findLatest, create, update, setArchived, findByPromotedReport };

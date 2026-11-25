@@ -1,0 +1,3 @@
+ALTER TABLE reports ADD COLUMN citizen_archived_at DATETIME DEFAULT NULL;
+ALTER TABLE community_posts ADD COLUMN archived_at DATETIME DEFAULT NULL;
+ALTER TABLE community_posts ADD COLUMN archived_by INT DEFAULT NULL;
