@@ -3,6 +3,7 @@
 window.OperationsPanel = {
     resource: 'barangays', rows: [],
     labels: { barangays: 'Barangays', hotlines: 'Emergency contacts', calls: 'Calls', responders: 'Responders', advisories: 'Advisories', broadcasts: 'Broadcasts', users: 'Users' },
+    singularLabels: { barangays: 'barangay', hotlines: 'emergency contact', calls: 'call', advisories: 'road advisory' },
     deliveryLabel(status) {
         return { pending: 'Queued', queued: 'Queued', accepted: 'Provider accepted', delivered: 'Confirmed delivered',
             blocked: 'Queued · provider configuration required', retry: 'Retry scheduled', no_contact: 'No contact endpoint' }[status] || status;
@@ -22,13 +23,26 @@ window.OperationsPanel = {
         const container = document.getElementById('dashboard-content');
         if (!container) return;
         const previousScroll = container.querySelector('.operations-tabs')?.scrollLeft || 0;
-        container.innerHTML = `<section class="operations-panel">
-            <header class="operations-header"><h2>Dispatch operations</h2><button type="button" class="btn btn--outline" onclick="Router.navigate('admin-audit-log')">View audit log</button></header>
-            <nav aria-label="Dispatch sections" class="operations-tabs">${Object.entries(this.labels).map(([key, label]) => `<button type="button" data-operation="${key}" aria-pressed="${key === resource}">${label}</button>`).join('')}</nav>
-            <h3>${this.labels[resource]}</h3>
-            <p>Times use Asia/Manila. Notes and changes are recorded in the audit log.</p>
-            ${resource === 'broadcasts' ? '<p>Provider acceptance means the provider took the message for processing. Confirmed delivery requires a delivery receipt.</p>' : ''}
-            <div id="operations-message" role="status"></div><div id="operations-form"></div><div id="operations-list">Loading…</div></section>`;
+        container.innerHTML = `<section class="operations-panel" aria-labelledby="operations-heading">
+            <header class="operations-header">
+                <h2 id="operations-heading">Dispatch operations</h2>
+                <button type="button" class="operations-audit" onclick="Router.navigate('admin-audit-log')">View audit log</button>
+            </header>
+            <nav aria-label="Dispatch sections" class="operations-tabs">
+                ${Object.entries(this.labels).map(([key, label]) => `
+                    <button type="button" data-operation="${key}" aria-pressed="${key === resource}">${label}</button>
+                `).join('')}
+            </nav>
+            <div id="operations-form"></div>
+            <section class="operations-records" aria-labelledby="operations-records-heading">
+                <header class="operations-records-header">
+                    <h3 id="operations-records-heading">${this.labels[resource]}</h3>
+                    <p>Times use Asia/Manila. Notes and changes are recorded in the audit log.</p>
+                    ${resource === 'broadcasts' ? '<p>Provider acceptance means the provider took the message for processing. Confirmed delivery requires a delivery receipt.</p>' : ''}
+                </header>
+                <div id="operations-list">Loading…</div>
+            </section>
+        </section>`;
         const tabs = container.querySelector('.operations-tabs');
         tabs.scrollLeft = previousScroll;
         tabs.querySelectorAll('[data-operation]').forEach(button => {
@@ -50,15 +64,39 @@ window.OperationsPanel = {
             container.querySelectorAll('[data-broadcast]').forEach(b=>b.onclick=async()=>{try{const response=await Store.apiFetch('/api/operations/broadcasts/'+b.dataset.broadcast+'/recipients');if(!response.success)throw new Error(response.message);const list=document.createElement('div');for(const row of response.data){const p=document.createElement('p');p.textContent=`User ${row.user_id ?? 'legacy'}: ${this.deliveryLabel(row.status)}${row.last_error?' — '+row.last_error:''}`;list.appendChild(p);}b.parentElement.appendChild(list);b.disabled=true;}catch(e){b.textContent=e.message;}});
         } catch (error) { const list = container.querySelector('#operations-list'); if (version === this.version && container.isConnected && list) list.textContent = error.message || 'Unable to load operations.'; }
     },
+    renderField(key, label, value) {
+        const required = ['name', 'label', 'caller_name', 'number', 'account_reason'].includes(key);
+        const numeric = ['latitude', 'longitude', 'active', 'sort_order'].includes(key);
+        let control;
+        if (key === 'account_status' || key === 'department') {
+            const options = key === 'department' ? this.departments : ['active', 'suspended', 'deactivated'];
+            control = `<select class="form-input" name="${key}" required>
+                ${key === 'department' ? '<option value="">Select agency</option>' : ''}
+                ${options.map(option => `<option ${value === option ? 'selected' : ''}>${this.esc(option)}</option>`).join('')}
+            </select>`;
+        } else {
+            control = `<input class="form-input" name="${key}" value="${this.esc(value)}"
+                ${numeric ? 'type="number" step="any"' : ''} ${required ? 'required' : ''}>`;
+        }
+        return `<label class="operations-field"><span>${label}</span>${control}</label>`;
+    },
     form(row = {}) {
         const resource = this.resource;
-        const schema = this.schemas[resource];
-        const defaults = { active: 1, sort_order: 0, status: this.resource === 'calls' ? 'received' : 'caution' };
-        document.getElementById('operations-form').innerHTML = `<form id="operation-editor" class="card"><h3>${row.id ? 'Edit record #' + row.id : 'Add record'}</h3>
-            ${Object.entries(schema).map(([key, label]) => `<label class="input-group"><span class="input-group__label">${label}</span>${key === 'account_status' ? `<select class="form-input" name="account_status" required>${['active','suspended','deactivated'].map(v=>`<option ${row[key]===v?'selected':''}>${v}</option>`).join('')}</select>` : key === 'department' ? `<select class="form-input" name="${key}" required><option value="">Select agency</option>${this.departments.map(d => `<option ${row[key] === d ? 'selected' : ''}>${this.esc(d)}</option>`).join('')}</select>` : `<input class="form-input" name="${key}" value="${this.esc(row[key] ?? defaults[key] ?? '')}" ${['latitude', 'longitude', 'active', 'sort_order'].includes(key) ? 'type="number" step="any"' : ''} ${['name', 'label', 'caller_name', 'number', 'account_reason'].includes(key) ? 'required' : ''}>`}</label>`).join('')}
-            ${resource === 'advisories' ? '<p>Use coordinates within Morong. A not-passable advisory queues an urgent broadcast to all eligible registered users.</p>' : ''}
-            <div class="operations-form-actions"><button class="btn btn--primary" type="submit">Save</button><button class="btn btn--outline" id="operation-cancel" type="button">Cancel</button></div>
-            <p id="operation-error" role="alert"></p></form>`;
+        const defaults = { active: 1, sort_order: 0, status: resource === 'calls' ? 'received' : 'caution' };
+        const heading = row.id ? 'Edit record #' + row.id : 'Add ' + this.singularLabels[resource];
+        document.getElementById('operations-form').innerHTML = `
+            <form id="operation-editor" aria-labelledby="operation-editor-heading">
+                <h3 id="operation-editor-heading">${heading}</h3>
+                <div class="operations-fields">
+                    ${Object.entries(this.schemas[resource]).map(([key, label]) => this.renderField(key, label, row[key] ?? defaults[key] ?? '')).join('')}
+                </div>
+                ${resource === 'advisories' ? '<p>Use coordinates within Morong. A not-passable advisory queues an urgent broadcast to all eligible registered users.</p>' : ''}
+                <div class="operations-form-actions">
+                    <button class="btn btn--primary" type="submit">Save</button>
+                    <button class="btn btn--outline" id="operation-cancel" type="button">Cancel</button>
+                </div>
+                <p id="operation-error" role="alert"></p>
+            </form>`;
         document.getElementById('operation-cancel').onclick = () => { document.getElementById('operations-form').innerHTML = ''; };
         const form = document.getElementById('operation-editor');
         form.onsubmit = async event => {
